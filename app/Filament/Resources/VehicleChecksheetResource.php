@@ -250,7 +250,7 @@ class VehicleChecksheetResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->orderByRaw('CAST(SUBSTRING_INDEX(reference_number, "-", -1) AS UNSIGNED) DESC');
+            ->orderBy('created_at', 'desc');
     }
 
     protected static function mutateFormDataBeforeCreate(array $data): array
