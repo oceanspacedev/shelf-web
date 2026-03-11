@@ -4,12 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AssetResource\RelationManagers\AssetTransfersRelationManager;
 use App\Filament\Resources\UserResource\Pages;
-use App\Filament\Resources\UserResource\RelationManagers;
-use App\Filament\Resources\UserResource\RelationManagers\FromAssetTransfersRelationManager;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
-use Filament\Forms;
 use Filament\Forms\Components\Card;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -22,12 +19,11 @@ use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
 
 class UserResource extends Resource
 {
@@ -66,8 +62,8 @@ class UserResource extends Resource
                         ->visible($isSuperAdmin),
                     TextInput::make('password')
                         ->password()
-                        ->dehydrateStateUsing(fn($state) => Hash::make($state))
-                        ->dehydrated(fn($state) => filled($state))
+                        ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                        ->dehydrated(fn ($state) => filled($state))
                         ->maxLength(255)
                         ->visible($isSuperAdmin),
                     DateTimePicker::make('email_verified_at')
@@ -79,7 +75,7 @@ class UserResource extends Resource
                         ->preload()
                         ->searchable()
                         ->visible($isSuperAdmin),
-                ])->visible($isSuperAdmin)
+                ])->visible($isSuperAdmin),
             ]);
     }
 
@@ -91,21 +87,43 @@ class UserResource extends Resource
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 TextColumn::make('businessEntity.name')
                     ->translateLabel('Business Entity')
                     ->badge()
-                    ->color(fn($record) => $record->businessEntity->color)
-                    ->getStateUsing(fn($record) => $record->businessEntity->name ?? null),
-                TextColumn::make('jobTitle.title')->translateLabel()->sortable()->searchable(),
+                    ->color(fn ($record) => $record->businessEntity->color)
+                    ->getStateUsing(fn ($record) => $record->businessEntity->name ?? null)
+                    ->toggleable(),
+                TextColumn::make('jobTitle.title')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('roles.name')
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->visible($isSuperAdmin),
             ])
             ->filters([
-                //
+                SelectFilter::make('businessEntity')
+                    ->relationship('businessEntity', 'name')
+                    ->label('Business Entity')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('jobTitle')
+                    ->relationship('jobTitle', 'title')
+                    ->label('Job Title')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('roles')
+                    ->relationship('roles', 'name')
+                    ->label('Roles')
+                    ->searchable()
+                    ->preload()
+                    ->visible($isSuperAdmin),
             ])
             ->defaultSort('created_at', 'desc')
+            ->persistFiltersInSession()
+            ->persistSearchInSession()
+            ->persistSortInSession()
+            ->columnToggleFormColumns(2)
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])

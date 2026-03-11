@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c306a5aa18e1044d33533dfb4b6da1a0",
+    "content-hash": "384e913b9a4dca169d794018cf1a1980",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -71,6 +71,63 @@
                 "source": "https://github.com/AnourValar/eloquent-serialize/tree/1.2.28"
             },
             "time": "2025-01-27T15:13:13+00:00"
+        },
+        {
+            "name": "asmit/resized-column",
+            "version": "v3.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/AsmitNepali/resized-column.git",
+                "reference": "a2dc8989a7d3fe7de6dd511c9fd527e13b99b7ba"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/AsmitNepali/resized-column/zipball/a2dc8989a7d3fe7de6dd511c9fd527e13b99b7ba",
+                "reference": "a2dc8989a7d3fe7de6dd511c9fd527e13b99b7ba",
+                "shasum": ""
+            },
+            "require": {
+                "filament/support": "^3.2|^4.0|^5.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Asmit\\ResizedColumn\\ResizedColumnServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Asmit\\ResizedColumn\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "AsmitNepali",
+                    "email": "mail2asmitnepali@gmail.com"
+                }
+            ],
+            "description": "Resizeable column for filament",
+            "support": {
+                "issues": "https://github.com/AsmitNepali/resized-column/issues",
+                "source": "https://github.com/AsmitNepali/resized-column/tree/v3.0.0"
+            },
+            "funding": [
+                {
+                    "url": "https://www.buymeacoffee.com/asmitnepali",
+                    "type": "buy_me_a_coffee"
+                },
+                {
+                    "url": "https://github.com/asmitnepali",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-03-09T15:40:29+00:00"
         },
         {
             "name": "awcodes/overlook",
@@ -12983,12 +13040,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.2"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
 }

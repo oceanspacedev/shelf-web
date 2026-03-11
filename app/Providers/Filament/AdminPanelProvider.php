@@ -3,8 +3,8 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\Login;
-use App\Filament\Resources\AssetResource;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
+use Asmit\ResizedColumn\ResizedColumnPlugin;
 use Awcodes\Overlook\OverlookPlugin;
 use Awcodes\Overlook\Widgets\OverlookWidget;
 use Filament\Http\Middleware\Authenticate;
@@ -57,7 +57,7 @@ class AdminPanelProvider extends PanelProvider
                 'purple' => Color::Purple,
                 'fuchsia' => Color::Fuchsia,
                 'pink' => Color::Pink,
-                'rose' => Color::Rose
+                'rose' => Color::Rose,
             ])
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
@@ -86,6 +86,7 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             ->plugins([
+                ResizedColumnPlugin::make(),
                 \TomatoPHP\FilamentPWA\FilamentPWAPlugin::make(),
                 \TomatoPHP\FilamentSettingsHub\FilamentSettingsHubPlugin::make()
                     ->allowLocationSettings()
@@ -97,7 +98,7 @@ class AdminPanelProvider extends PanelProvider
                     ->gridColumns([
                         'default' => 1,
                         'sm' => 2,
-                        'lg' => 3
+                        'lg' => 3,
                     ])
                     ->sectionColumnSpan(1)
                     ->checkboxListColumns([
@@ -122,7 +123,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->maxContentWidth(MaxWidth::Full)
             ->resources([
-                config('filament-logger.activity_resource')
+                config('filament-logger.activity_resource'),
             ])
             ->viteTheme('resources/css/filament/admin/theme.css');
     }

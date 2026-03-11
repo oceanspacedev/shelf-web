@@ -2,22 +2,19 @@
 
 namespace App\Filament\Resources\AssetResource\RelationManagers;
 
-use App\Models\AssetTransfer;
-use App\Models\User;
-use Filament\Forms;
+use Asmit\ResizedColumn\HasResizableColumn;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Storage;
 
 class AssetTransfersRelationManager extends RelationManager
 {
+    use HasResizableColumn;
+
     protected static string $relationship = 'assetTransferDetails';
 
     public function form(Form $form): Form
@@ -76,7 +73,7 @@ class AssetTransfersRelationManager extends RelationManager
                     ->label('Transfer Asset') // Label tombol yang akan tampil di header
                     ->url(route('filament.admin.resources.asset-transfers.create')) // URL ke halaman create
                     ->icon('heroicon-o-plus') // Ikon untuk tombol
-                    ->color('success')
+                    ->color('success'),
             ])
             ->actions([
                 // Tables\Actions\EditAction::make(),

@@ -32,13 +32,17 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 class AssetResource extends Resource
 {
@@ -65,9 +69,10 @@ class AssetResource extends Resource
     }
 
     // Fungsi helper untuk mendapatkan tipe atribut
-    function getCustomAttributeType($customAttributeId)
+    public function getCustomAttributeType($customAttributeId)
     {
         $customAttribute = CustomAssetAttribute::find($customAttributeId);
+
         return $customAttribute ? $customAttribute->type : null;
     }
 
@@ -110,7 +115,7 @@ class AssetResource extends Resource
                                         }
                                     }),
 
-                                    Select::make('brand_id')
+                                Select::make('brand_id')
                                     ->translateLabel()
                                     ->options(fn () => Cache::remember('brand_options', 300, fn () => Brand::orderBy('name')->pluck('name', 'id')))
                                     ->searchable()
@@ -124,6 +129,7 @@ class AssetResource extends Resource
                                             'name' => $data['name'],
                                         ]);
                                         Cache::forget('brand_options');
+
                                         return $brand->id;
                                     }),
 
@@ -163,6 +169,7 @@ class AssetResource extends Resource
                                                 ->whereNotIn('id', $selectedAttributes) // Pastikan atribut yang sudah dipilih tidak muncul lagi
                                                 ->pluck('name', 'id')
                                                 ->toArray();
+
                                             return $attributes;
                                         }
 
@@ -188,7 +195,7 @@ class AssetResource extends Resource
                                 TextInput::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
                                     ->reactive()
-                                    ->visible(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'text')
+                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'text')
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -196,10 +203,10 @@ class AssetResource extends Resource
                                 // Input numerik
                                 TextInput::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
                                     ->numeric()
                                     ->reactive()
-                                    ->visible(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'number')
+                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'number')
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -207,9 +214,9 @@ class AssetResource extends Resource
                                 // Input untuk textarea
                                 Textarea::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
                                     ->reactive()
-                                    ->visible(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'textarea')
+                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'textarea')
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -217,16 +224,16 @@ class AssetResource extends Resource
                                 // Input untuk date picker
                                 DatePicker::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
                                     ->reactive()
-                                    ->visible(fn(callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'date')
+                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'date')
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
                             ])
                             ->columns(2)
                             ->columnSpan(2)
-                            ->visible(fn(callable $get) => $get('category_id') !== null)
+                            ->visible(fn (callable $get) => $get('category_id') !== null)
                             ->afterStateHydrated(function ($state, callable $set, $record) {
                                 if ($record && $record->attributes) {
                                     $state = [];
@@ -241,7 +248,6 @@ class AssetResource extends Resource
                                     $set('attributes', $state);
                                 }
                             }),
-
 
                         Card::make()
                             ->schema([
@@ -262,7 +268,7 @@ class AssetResource extends Resource
                                     ->columnSpan(1)
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                         if (in_array($state, [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)) {
-                                            if (!$get('nbh_status') || $get('nbh_status') === NbhStatus::None->value) {
+                                            if (! $get('nbh_status') || $get('nbh_status') === NbhStatus::None->value) {
                                                 $set('nbh_status', NbhStatus::Pending->value);
                                             }
                                         } else {
@@ -278,8 +284,8 @@ class AssetResource extends Resource
 
                                         if (in_array($condition, [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)) {
                                             return collect(NbhStatus::cases())
-                                                ->reject(fn(NbhStatus $status) => $status === NbhStatus::None)
-                                                ->mapWithKeys(fn(NbhStatus $status) => [$status->value => $status->label()])
+                                                ->reject(fn (NbhStatus $status) => $status === NbhStatus::None)
+                                                ->mapWithKeys(fn (NbhStatus $status) => [$status->value => $status->label()])
                                                 ->toArray();
                                         }
 
@@ -288,20 +294,20 @@ class AssetResource extends Resource
                                     ->reactive()
                                     ->helperText('Perbarui saat proses penggantian selesai.')
                                     ->columnSpan(1)
-                                    ->visible(fn(callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
                                 DatePicker::make('nbh_reported_at')
                                     ->label('Tanggal Insiden')
                                     ->helperText('Tanggal ditemukannya aset hilang atau rusak.')
                                     ->columnSpan(1)
-                                    ->visible(fn(callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
                                 Select::make('nbh_responsible_user_id')
                                     ->label('Penanggung Jawab')
                                     ->options(fn () => Cache::remember('user_options', 300, fn () => User::orderBy('name')->pluck('name', 'id')))
                                     ->searchable()
                                     ->helperText('Pihak yang bertanggung jawab atas NBH.')
                                     ->columnSpan(1)
-                                    ->required(fn(callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
-                                    ->visible(fn(callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') === NbhStatus::Resolved->value),
+                                    ->required(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') === NbhStatus::Resolved->value),
                                 FileUpload::make('audit_document_path')
                                     ->label('Dokumen Audit')
                                     ->directory('asset-audit')
@@ -310,8 +316,8 @@ class AssetResource extends Resource
                                     ->acceptedFileTypes(['application/pdf', 'image/*'])
                                     ->helperText('Unggah berita acara atau bukti audit (PDF/JPG, maks 4 MB). Wajib saat NBH selesai.')
                                     ->columnSpan(2)
-                                    ->required(fn(callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
-                                    ->visible(fn(callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)),
+                                    ->required(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)),
                                 FileUpload::make('nbh_document_path')
                                     ->label('Nota Barang Hilang (NBH)')
                                     ->directory('asset-nbh')
@@ -320,17 +326,17 @@ class AssetResource extends Resource
                                     ->acceptedFileTypes(['application/pdf', 'image/*'])
                                     ->helperText('Unggah bukti penggantian atau nota NBH selesai.')
                                     ->columnSpan(2)
-                                    ->required(fn(callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
-                                    ->visible(fn(callable $get) => $get('nbh_status') === NbhStatus::Resolved->value),
+                                    ->required(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
+                                    ->visible(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value),
                                 Textarea::make('nbh_notes')
                                     ->label('Catatan NBH')
                                     ->placeholder('Masukkan kronologi singkat, hasil audit, atau tindak lanjut.')
                                     ->rows(3)
                                     ->columnSpanFull()
-                                    ->visible(fn(callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
                             ])
                             ->columns(3)
-                            ->visible(fn() => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false),
+                            ->visible(fn () => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false),
 
                         Card::make()
                             ->schema([
@@ -353,10 +359,9 @@ class AssetResource extends Resource
                                     ->helperText('Pilih pemegang aset saat ini.'),
                             ])
                             ->columns(2)
-                            ->visible(fn() => auth()->user()?->hasRole('super_admin')),
+                            ->visible(fn () => auth()->user()?->hasRole('super_admin')),
                     ])
                     ->columnSpan(2),
-
 
                 // Kolom kanan
                 Card::make()
@@ -400,6 +405,7 @@ class AssetResource extends Resource
                                     'description' => $data['description'],
                                 ]);
                                 Cache::forget('asset_location_options');
+
                                 return $assetLocation->id;
                             }),
                         FileUpload::make('image')
@@ -418,46 +424,112 @@ class AssetResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('purchase_date')->translateLabel()->date()->sortable(),
+                TextColumn::make('purchase_date')->translateLabel()->date()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('businessEntity.name') // Mengambil nama dari relasi businessEntity
                     ->translateLabel()
                     ->badge()
-                    ->color(fn($record) => $record->businessEntity->color)
-                    ->getStateUsing(fn($record) => $record->businessEntity->name),
-                TextColumn::make('name')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('category.name')->translateLabel()->sortable(),
-                TextColumn::make('brand.name')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('type')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('serial_number')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('imei1')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('imei2')->translateLabel()->sortable()->searchable(),
-                TextColumn::make('item_price')->translateLabel()->sortable()->money('IDR', true),
+                    ->color(fn ($record) => $record->businessEntity->color)
+                    ->getStateUsing(fn ($record) => $record->businessEntity->name)
+                    ->toggleable(),
+                TextColumn::make('name')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('category.name')->translateLabel()->sortable()->toggleable(),
+                TextColumn::make('brand.name')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('type')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('serial_number')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('imei1')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('imei2')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('item_price')->translateLabel()->sortable()->money('IDR', true)->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('item_age')
                     ->translateLabel()
-                    ->sortable(query: fn($query, $direction) => $query->sortByItemAge($direction)),
+                    ->sortable(query: fn ($query, $direction) => $query->sortByItemAge($direction))
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('qty') // Mengambil nama dari relasi businessEntity
                     ->translateLabel()
-                    ->badge(),
-                TextColumn::make('assetLocation.name')->translateLabel()->sortable()->searchable(),
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('assetLocation.name')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('condition_status_label')
                     ->label('Status Aset')
                     ->badge()
-                    ->color(fn($state, Asset $record): string => $record->condition_status_color ?? 'secondary'),
+                    ->color(fn ($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
+                    ->toggleable(),
                 TextColumn::make('nbh_status_label')
                     ->label('Status NBH')
                     ->badge()
-                    ->color(fn($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
+                    ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'secondary')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('businessEntity')->relationship('businessEntity', 'name')->translateLabel(),
+                SelectFilter::make('businessEntity')
+                    ->relationship('businessEntity', 'name')
+                    ->translateLabel()
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('category')
+                    ->relationship('category', 'name')
+                    ->label('Kategori')
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('condition_status')
                     ->label('Status Aset')
-                    ->options(AssetCondition::options()),
+                    ->options(AssetCondition::options())
+                    ->multiple(),
                 SelectFilter::make('nbh_status')
                     ->label('Status NBH')
-                    ->options(NbhStatus::options()),
-                SelectFilter::make('assetLocation')->relationship('assetLocation', 'name')->translateLabel(),
+                    ->options(NbhStatus::options())
+                    ->multiple(),
+                SelectFilter::make('assetLocation')
+                    ->relationship('assetLocation', 'name')
+                    ->translateLabel()
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
+                Filter::make('table_data_filter')
+                    ->label('Filter Data Tabel')
+                    ->form([
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('serial_number')
+                                    ->label('Serial Number')
+                                    ->placeholder('Cari serial number...'),
+                                TextInput::make('imei')
+                                    ->label('IMEI')
+                                    ->placeholder('Cari IMEI 1 / IMEI 2...'),
+                                TextInput::make('item_price_min')
+                                    ->label('Harga Minimal')
+                                    ->numeric(),
+                                TextInput::make('item_price_max')
+                                    ->label('Harga Maksimal')
+                                    ->numeric(),
+                            ]),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(filled($data['serial_number'] ?? null), fn (Builder $q) => $q->where('serial_number', 'like', '%'.trim($data['serial_number']).'%'))
+                            ->when(filled($data['imei'] ?? null), function (Builder $q) use ($data) {
+                                $imei = trim($data['imei']);
+
+                                $q->where(function (Builder $imeiQuery) use ($imei) {
+                                    $imeiQuery
+                                        ->where('imei1', 'like', '%'.$imei.'%')
+                                        ->orWhere('imei2', 'like', '%'.$imei.'%');
+                                });
+                            })
+                            ->when(filled($data['item_price_min'] ?? null), fn (Builder $q) => $q->where('item_price', '>=', (float) $data['item_price_min']))
+                            ->when(filled($data['item_price_max'] ?? null), fn (Builder $q) => $q->where('item_price', '<=', (float) $data['item_price_max']));
+                    }),
             ])
+            ->persistFiltersInSession()
+            ->persistSearchInSession()
+            ->persistSortInSession()
+            ->columnToggleFormColumns(2)
+            ->filtersLayout(FiltersLayout::Modal)
+            ->filtersFormWidth('4xl')
+            ->filtersTriggerAction(fn (Action $action) => $action
+                ->label('Filter Audit')
+                ->slideOver())
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -469,7 +541,7 @@ class AssetResource extends Resource
                 ]),
                 BulkAction::make('pindahkanKeAtribut')
                     ->label('Pindahkan ke Atribut')
-                    ->action(fn(Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
+                    ->action(fn (Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
                     ->requiresConfirmation()
                     ->color('primary')
                     ->icon('heroicon-o-arrow-right'), // Ikon untuk bulk action
@@ -537,6 +609,7 @@ class AssetResource extends Resource
                         ComponentsGrid::make(2)
                             ->schema(function ($record) {
                                 $record->load('attributes.customAttribute');
+
                                 return $record->attributes->map(function ($attribute) {
                                     return TextEntry::make("custom_attribute_{$attribute->custom_attribute_id}")
                                         ->label($attribute->customAttribute?->name ?? 'Unknown Attribute')
@@ -551,11 +624,11 @@ class AssetResource extends Resource
                             ->schema([
                                 TextEntry::make('purchase_date')
                                     ->label(__('Tanggal Pembelian'))
-                                    ->formatStateUsing(fn($state) => \Carbon\Carbon::parse($state)->format('d/m/Y'))
+                                    ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d/m/Y'))
                                     ->extraAttributes(['style' => 'color:#007BFF;']),
                                 TextEntry::make('item_price')
                                     ->label(__('Harga'))
-                                    ->formatStateUsing(fn($state) => 'Rp ' . number_format($state, 0, ',', '.'))
+                                    ->formatStateUsing(fn ($state) => 'Rp '.number_format($state, 0, ',', '.'))
                                     ->extraAttributes([
                                         'style' => 'color:#28a745; font-weight:bold;',
                                     ]),
@@ -573,45 +646,45 @@ class AssetResource extends Resource
                                 TextEntry::make('condition_status_label')
                                     ->label(__('Status Aset'))
                                     ->badge()
-                                    ->color(fn($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
+                                    ->color(fn ($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
                                     ->extraAttributes(['style' => 'font-weight:bold;']),
                                 TextEntry::make('nbh_status_label')
                                     ->label(__('Status NBH'))
                                     ->badge()
-                                    ->color(fn($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
+                                    ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
                                 TextEntry::make('validasi_status')
                                     ->label(__('Status Validasi'))
                                     ->badge()
-                                    ->color(fn($state): string => $state === 'Valid' ? 'success' : 'danger')
-                                    ->state(fn(Asset $record): string => $record->checkValidRecipient() ? 'Valid' : 'Tidak Valid'),
+                                    ->color(fn ($state): string => $state === 'Valid' ? 'success' : 'danger')
+                                    ->state(fn (Asset $record): string => $record->checkValidRecipient() ? 'Valid' : 'Tidak Valid'),
                             ]),
                         ComponentsGrid::make(2)
                             ->schema([
                                 TextEntry::make('asset_location_display')
                                     ->label(__('Lokasi Aset'))
-                                    ->state(fn(Asset $record): string => $record->assetLocation?->name ?? '-'),
+                                    ->state(fn (Asset $record): string => $record->assetLocation?->name ?? '-'),
                                 TextEntry::make('recipient_display')
                                     ->label(__('Pemegang Aset'))
-                                    ->state(fn(Asset $record): string => $record->recipient?->name ?? '-'),
+                                    ->state(fn (Asset $record): string => $record->recipient?->name ?? '-'),
                             ]),
                         ComponentsGrid::make(2)
                             ->schema([
                                 TextEntry::make('nbh_reported_at_display')
                                     ->label(__('Tanggal Insiden'))
-                                    ->state(fn(Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                    ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
                                         ? optional($record->nbh_reported_at)?->format('d M Y') ?? '-'
                                         : '-'),
                                 TextEntry::make('nbh_responsible_display')
                                     ->label(__('Penanggung Jawab'))
-                                    ->state(fn(Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                    ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
                                         ? $record->nbhResponsible?->name ?? '-'
                                         : '-'),
                             ])
-                            ->visible(fn(Asset $record): bool => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
+                            ->visible(fn (Asset $record): bool => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
                         TextEntry::make('nbh_notes')
                             ->label(__('Catatan NBH'))
                             ->columnSpanFull()
-                            ->visible(fn(Asset $record): bool => filled($record->nbh_notes)),
+                            ->visible(fn (Asset $record): bool => filled($record->nbh_notes)),
                     ]),
 
                 ComponentsSection::make('Dokumen Pendukung')
@@ -620,17 +693,17 @@ class AssetResource extends Resource
                             ->schema([
                                 TextEntry::make('audit_document_path')
                                     ->label(__('Dokumen Audit'))
-                                    ->url(fn(Asset $record) => $record->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
+                                    ->url(fn (Asset $record) => $record->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
                                     ->openUrlInNewTab()
-                                    ->visible(fn(Asset $record): bool => filled($record->audit_document_path)),
+                                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path)),
                                 TextEntry::make('nbh_document_path')
                                     ->label(__('Nota Barang Hilang'))
-                                    ->url(fn(Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
+                                    ->url(fn (Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
                                     ->openUrlInNewTab()
-                                    ->visible(fn(Asset $record): bool => filled($record->nbh_document_path)),
+                                    ->visible(fn (Asset $record): bool => filled($record->nbh_document_path)),
                             ]),
                     ])
-                    ->visible(fn(Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path)),
+                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path)),
             ])
             ->columns(1); // Atur agar semua bagian ditampilkan secara vertikal (atas-bawah)
     }
@@ -648,7 +721,7 @@ class AssetResource extends Resource
 
             foreach ($attributes as $key => $value) {
                 // Pastikan hanya memindahkan jika $value tidak null atau kosong
-                if (!is_null($value) && $value !== '') {
+                if (! is_null($value) && $value !== '') {
                     AssetAttribute::updateOrCreate(
                         [
                             'asset_id' => $record->id,

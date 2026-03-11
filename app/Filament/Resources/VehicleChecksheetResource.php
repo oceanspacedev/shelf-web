@@ -3,16 +3,15 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\VehicleChecksheetResource\Pages;
-use App\Filament\Resources\VehicleChecksheetResource\RelationManagers;
 use App\Models\VehicleChecksheet;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
@@ -87,7 +86,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
                             ->getUploadedFileNameForStorageUsing(
-                                fn(TemporaryUploadedFile $file, $record) => sprintf(
+                                fn (TemporaryUploadedFile $file, $record) => sprintf(
                                     'scale_%s_departure_photo_%s.%s',
                                     $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
                                     now()->format('Ymd_His'),
@@ -102,7 +101,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
                             ->getUploadedFileNameForStorageUsing(
-                                fn(TemporaryUploadedFile $file, $record) => sprintf(
+                                fn (TemporaryUploadedFile $file, $record) => sprintf(
                                     'scale_%s_departure_damage_report_%s.%s',
                                     $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
                                     now()->format('Ymd_His'),
@@ -130,7 +129,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
                             ->getUploadedFileNameForStorageUsing(
-                                fn(TemporaryUploadedFile $file, $record) => sprintf(
+                                fn (TemporaryUploadedFile $file, $record) => sprintf(
                                     'scale_%s_return_photo_%s.%s',
                                     $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
                                     now()->format('Ymd_His'),
@@ -145,7 +144,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
                             ->getUploadedFileNameForStorageUsing(
-                                fn(TemporaryUploadedFile $file, $record) => sprintf(
+                                fn (TemporaryUploadedFile $file, $record) => sprintf(
                                     'scale_%s_return_damage_report_%s.%s',
                                     $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
                                     now()->format('Ymd_His'),
@@ -153,7 +152,7 @@ class VehicleChecksheetResource extends Resource
                                 )
                             ),
                     ])
-                    ->hidden(fn($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord),
+                    ->hidden(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord),
                 // Informasi Tambahan
                 Forms\Components\Section::make('Informasi Tambahan')
                     ->schema([
@@ -179,50 +178,65 @@ class VehicleChecksheetResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('reference_number')
                     ->searchable()
-                    ->label('Nomor Referensi'),
+                    ->label('Nomor Referensi')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('pic')
                     ->searchable()
-                    ->label('PIC'),
+                    ->label('PIC')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('license_plate')
                     ->searchable()
-                    ->label('Plat Nomor'),
+                    ->label('Plat Nomor')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('location')
                     ->searchable()
-                    ->label('Lokasi'),
+                    ->label('Lokasi')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('destination')
                     ->searchable()
-                    ->label('Tujuan'),
+                    ->label('Tujuan')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('start_km')
                     ->numeric()
-                    ->label('Kilometer Awal'),
+                    ->label('Kilometer Awal')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('departure_time')
                     ->dateTime()
                     ->sortable()
-                    ->label('Waktu Keberangkatan'),
+                    ->label('Waktu Keberangkatan')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 ImageColumn::make('departure_photo')
                     ->checkFileExistence(false)
-                    ->label('Foto Keberangkatan'),
+                    ->label('Foto Keberangkatan')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 ImageColumn::make('departure_damage_report')
                     ->checkFileExistence(false)
-                    ->label('Laporan Kerusakan Keberangkatan'),
+                    ->label('Laporan Kerusakan Keberangkatan')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('end_km')
                     ->numeric()
-                    ->label('Kilometer Akhir'),
+                    ->label('Kilometer Akhir')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('return_time')
                     ->dateTime()
-                    ->label('Waktu Kembali'),
+                    ->label('Waktu Kembali')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 ImageColumn::make('return_photo')
                     ->checkFileExistence(false)
-                    ->label('Foto Kembali'),
+                    ->label('Foto Kembali')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 ImageColumn::make('return_damage_report')
                     ->checkFileExistence(false)
-                    ->label('Laporan Kerusakan Kembali'),
+                    ->label('Laporan Kerusakan Kembali')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('rental_duration')
                     ->numeric()
-                    ->label('Durasi Sewa'),
+                    ->label('Durasi Sewa')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('distance_traveled')
                     ->numeric()
-                    ->label('Jarak Tempuh'),
+                    ->label('Jarak Tempuh')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -235,8 +249,32 @@ class VehicleChecksheetResource extends Resource
                     ->label('Tanggal Diperbarui'),
             ])
             ->filters([
-                //
+                SelectFilter::make('license_plate')
+                    ->label('Plat Nomor')
+                    ->options(fn () => VehicleChecksheet::query()
+                        ->orderBy('license_plate')
+                        ->distinct()
+                        ->pluck('license_plate', 'license_plate')
+                        ->all()),
+                SelectFilter::make('pic')
+                    ->label('PIC')
+                    ->options(fn () => VehicleChecksheet::query()
+                        ->orderBy('pic')
+                        ->distinct()
+                        ->pluck('pic', 'pic')
+                        ->all()),
+                SelectFilter::make('location')
+                    ->label('Lokasi')
+                    ->options(fn () => VehicleChecksheet::query()
+                        ->orderBy('location')
+                        ->distinct()
+                        ->pluck('location', 'location')
+                        ->all()),
             ])
+            ->persistFiltersInSession()
+            ->persistSearchInSession()
+            ->persistSortInSession()
+            ->columnToggleFormColumns(2)
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
