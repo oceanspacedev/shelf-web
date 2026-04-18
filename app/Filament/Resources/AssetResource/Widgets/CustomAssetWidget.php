@@ -13,6 +13,12 @@ use Illuminate\Support\Facades\Log;
 class CustomAssetWidget extends BaseWidget
 {
     use HasWidgetShield;
+
+    protected function getColumns(): int
+    {
+        return 4;
+    }
+
     protected function getStats(): array
     {
         Log::info('CustomAssetWidget getStats called');
@@ -22,7 +28,10 @@ class CustomAssetWidget extends BaseWidget
         $lostUnits = Asset::where('condition_status', AssetCondition::Lost->value)->count();
         $damagedUnits = Asset::where('condition_status', AssetCondition::Damaged->value)->count();
         $totalAssets = Asset::count();
-        $totalValue = Asset::sum(DB::raw('item_price * qty'));
+        $activeAssetValue = Asset::whereIn('condition_status', AssetCondition::transferableValues())
+            ->sum(DB::raw('item_price * qty'));
+        $soldAssetValue = Asset::where('condition_status', AssetCondition::Sold->value)
+            ->sum(DB::raw('item_price * qty'));
 
         return [
             Stat::make(__('Aset Tersedia'), $availableUnits)->color('success'),
@@ -31,7 +40,8 @@ class CustomAssetWidget extends BaseWidget
             Stat::make(__('Aset Hilang'), $lostUnits)->color('danger'),
             Stat::make(__('Aset Rusak'), $damagedUnits)->color('danger'),
             Stat::make(__('Jumlah Aset'), $totalAssets)->color('primary'),
-            Stat::make(__('Jumlah Nilai Aset'), 'IDR ' . number_format($totalValue))->color('primary'),
+            Stat::make(__('Nilai Aset Aktif'), 'IDR ' . number_format($activeAssetValue))->color('primary'),
+            Stat::make(__('Nilai Aset Dijual'), 'IDR ' . number_format($soldAssetValue))->color('gray'),
         ];
     }
 }
