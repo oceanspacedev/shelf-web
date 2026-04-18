@@ -9,7 +9,6 @@ use App\Models\AssetTransfer;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
-use Filament\Forms;
 use Filament\Forms\Components\Card;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -19,6 +18,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Grid as ComponentsGrid;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section as ComponentSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -28,17 +28,16 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
-use Filament\Infolists\Components\RepeatableEntry;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class AssetTransferResource extends Resource
 {
     protected static ?string $model = AssetTransfer::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
 
     public static function form(Form $form): Form
@@ -54,7 +53,7 @@ class AssetTransferResource extends Resource
                             ->schema([
                                 TextInput::make('letter_number')
                                     ->translateLabel()
-                                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->extraInputAttributes(['readonly' => true]),
                                 Select::make('business_entity_id')
                                     ->translateLabel()
@@ -62,8 +61,8 @@ class AssetTransferResource extends Resource
                                     ->searchable()
                                     ->required()
                                     ->reactive()
-                                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
-                                    ->afterStateUpdated(fn($state, callable $set) => $set(
+                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
+                                    ->afterStateUpdated(fn ($state, callable $set) => $set(
                                         'letter_number',
                                         self::generateLetterNumber(BusinessEntity::find($state), null)
                                     )),
@@ -73,7 +72,7 @@ class AssetTransferResource extends Resource
                                     ->translateLabel()
                                     ->reactive()
                                     ->searchable()
-                                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->options(function () {
                                         return User::whereDoesntHave('roles', function ($query) {
                                             $query->where('name', 'super_admin');
@@ -112,7 +111,7 @@ class AssetTransferResource extends Resource
                                     }),
                                 Select::make('to_user_id')
                                     ->translateLabel()
-                                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->options(function (callable $get) {
                                         $fromUserId = $get('from_user_id');
 
@@ -125,6 +124,7 @@ class AssetTransferResource extends Resource
                                             ->mapWithKeys(function ($user) {
                                                 // Concatenate name and job title in the format "name - jobTitle"
                                                 $jobTitle = $user->jobTitle ? $user->jobTitle->title : 'N/A'; // Default if job title is missing
+
                                                 return [$user->id => "{$user->name} - {$jobTitle}"];
                                             });
                                     })
@@ -149,13 +149,14 @@ class AssetTransferResource extends Resource
                                             'job_title_id' => $data['job_title_id'],
                                         ]);
                                         Cache::forget('user_options');
+
                                         return $user->id;
                                     })
                                     ->searchable()
                                     ->required(),
                                 DatePicker::make('transfer_date')
                                     ->native(false)
-                                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->required(),
                             ])
                             ->columnSpan(1),
@@ -163,24 +164,24 @@ class AssetTransferResource extends Resource
                             ->preserveFilenames()
                             ->directory('document')
                             ->getUploadedFileNameForStorageUsing(
-                                fn(TemporaryUploadedFile $file): string => (string) Str::of($file->getClientOriginalName())
-                                    ->prepend(mt_rand(100, 999) . '-')
+                                fn (TemporaryUploadedFile $file): string => (string) Str::of($file->getClientOriginalName())
+                                    ->prepend(mt_rand(100, 999).'-')
                             )
                             ->columnSpan(1)
-                            ->hidden(fn($context) => $context === 'create'),
+                            ->hidden(fn ($context) => $context === 'create'),
                     ])
                     ->columns(1)
                     ->columnSpan(1),
                 Repeater::make('details')
                     ->relationship('details')
-                    ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                     ->schema([
                         Select::make('asset_id')
                             ->reactive()
                             ->required()
                             ->translateLabel()
                             ->searchable()
-                            ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin)
+                            ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                             ->options(function (callable $get) {
                                 $fromUserId = $get('../../from_user_id');
                                 $selectedAssets = collect($get('../../details'))->pluck('asset_id')->filter()->all();
@@ -200,7 +201,7 @@ class AssetTransferResource extends Resource
                                 }
 
                                 // Exclude already selected assets
-                                if (!empty($selectedAssets)) {
+                                if (! empty($selectedAssets)) {
                                     $query->whereNotIn('id', $selectedAssets);
                                 }
 
@@ -211,11 +212,11 @@ class AssetTransferResource extends Resource
                             }),
                         TextInput::make('equipment')
                             ->translateLabel()
-                            ->disabled(fn($context) => $context === 'edit' && !$isSuperAdmin),
+                            ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin),
                     ])
                     ->translateLabel()
                     ->required()
-                    ->hidden(fn(callable $get) => !$get('from_user_id')) // Hide the repeater when from_user_id is not selected
+                    ->hidden(fn (callable $get) => ! $get('from_user_id')) // Hide the repeater when from_user_id is not selected
                     ->columns(2)
                     ->columnSpan(2),
             ])->columns(3);
@@ -228,8 +229,9 @@ class AssetTransferResource extends Resource
                 TextColumn::make('businessEntity.name') // Mengambil nama dari relasi businessEntity
                     ->translateLabel()
                     ->badge()
-                    ->color(fn($record) => $record->businessEntity->color)
-                    ->getStateUsing(fn($record) => $record->businessEntity->name),
+                    ->color(fn ($record) => $record->businessEntity->color)
+                    ->getStateUsing(fn ($record) => $record->businessEntity->name)
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->badge()
                     ->colors([
@@ -240,41 +242,67 @@ class AssetTransferResource extends Resource
                     ])
                     ->getStateUsing(function ($record) {
                         return $record->status;
-                    }),
+                    })
+                    ->toggleable(),
                 TextColumn::make('letter_number')
                     ->translateLabel()
-                    ->badge(),
+                    ->badge()
+                    ->toggleable(),
                 TextColumn::make('fromUser.name')
                     ->translateLabel()
                     ->badge()
                     ->color('danger')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('toUser.name')
                     ->translateLabel()
                     ->badge()
                     ->color('success')
-                    ->searchable(),
-                TextColumn::make('transfer_date')->translateLabel()->date(),
+                    ->searchable()
+                    ->toggleable(),
+                TextColumn::make('transfer_date')->translateLabel()->date()->toggleable(),
                 TextColumn::make('document')
-                    ->url(fn($record) => $record && $record->document ? Storage::url($record->document) : null, true) // Membuat kolom URL untuk unduh
+                    ->url(fn ($record) => $record && $record->document ? Storage::url($record->document) : null, true) // Membuat kolom URL untuk unduh
                     ->openUrlInNewTab()
                     ->translateLabel()
-                    ->getStateUsing(fn($record) => $record && $record->document ? 'Dokumen' : '-')
-                    ->icon('heroicon-o-document-text'),
+                    ->getStateUsing(fn ($record) => $record && $record->document ? 'Dokumen' : '-')
+                    ->icon('heroicon-o-document-text')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
                 SelectFilter::make('businessEntity')->relationship('businessEntity', 'name')->translateLabel(),
+                SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'BERITA ACARA SERAH TERIMA' => 'BERITA ACARA SERAH TERIMA',
+                        'BERITA ACARA PENGALIHAN BARANG' => 'BERITA ACARA PENGALIHAN BARANG',
+                        'BERITA ACARA PENGEMBALIAN BARANG' => 'BERITA ACARA PENGEMBALIAN BARANG',
+                    ]),
+                SelectFilter::make('fromUser')
+                    ->relationship('fromUser', 'name')
+                    ->label('Dari Pengguna')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('toUser')
+                    ->relationship('toUser', 'name')
+                    ->label('Ke Pengguna')
+                    ->searchable()
+                    ->preload(),
             ])
+            ->persistFiltersInSession()
+            ->persistSearchInSession()
+            ->persistSortInSession()
+            ->columnToggleFormColumns(2)
             ->actions([
                 Action::make('download')
                     ->label('Template')
-                    ->url(fn(AssetTransfer $record): string => route('asset-transfer.download', $record))
-                    ->visible(fn(AssetTransfer $record): bool => $record->document === null)
+                    ->url(fn (AssetTransfer $record): string => route('asset-transfer.download', $record))
+                    ->visible(fn (AssetTransfer $record): bool => $record->document === null)
                     ->color('success'),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -302,7 +330,7 @@ class AssetTransferResource extends Resource
 
     private static function generateLetterNumber(?BusinessEntity $businessEntity, $newNumber = null): string
     {
-        if (!$businessEntity) {
+        if (! $businessEntity) {
             return '';
         }
 
@@ -356,17 +384,17 @@ class AssetTransferResource extends Resource
                                 TextEntry::make('transfer_date')
                                     ->label('Tanggal Transfer')
                                     ->date()
-                                    ->formatStateUsing(fn($state) => \Carbon\Carbon::parse($state)->format('d M Y'))
+                                    ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d M Y'))
                                     ->extraAttributes(['style' => 'font-weight: bold;']),
                                 TextEntry::make('businessEntity.name')
                                     ->label('Entitas Bisnis')
                                     ->icon('heroicon-o-briefcase'),
                                 TextEntry::make('document')
                                     ->label('Dokumen')
-                                    ->url(fn($record) => $record->document ? Storage::url($record->document) : null, true)
+                                    ->url(fn ($record) => $record->document ? Storage::url($record->document) : null, true)
                                     ->openUrlInNewTab()
                                     ->icon('heroicon-o-document')
-                                    ->getStateUsing(fn($record) => $record && $record->document ? 'Unduh Dokumen' : 'Tidak Ada Dokumen')
+                                    ->getStateUsing(fn ($record) => $record && $record->document ? 'Unduh Dokumen' : 'Tidak Ada Dokumen')
                                     ->extraAttributes(['style' => 'font-weight:bold;color:#007bff;']),
                             ]),
                     ])
@@ -382,7 +410,7 @@ class AssetTransferResource extends Resource
                                             ->label('Nama Aset')
                                             ->extraAttributes(['style' => 'font-weight: bold;']),  // Font lebih tebal untuk nama aset
                                         TextEntry::make('equipment')
-                                            ->label('Keterangan Peralatan')
+                                            ->label('Keterangan Peralatan'),
                                     ]),
                             ])
                             ->columnSpan(2),  // Luaskan kolom agar detailnya rapi

@@ -4,15 +4,18 @@ namespace App\Filament\Resources\AssetResource\Pages;
 
 use App\Filament\Resources\AssetResource;
 use App\Imports\AssetImport;
-use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
+use Asmit\ResizedColumn\HasResizableColumn;
 use EightyNine\ExcelImport\ExcelImportAction;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class ListAssets extends ListRecords
 {
+    use HasResizableColumn;
+
     protected static string $resource = AssetResource::class;
 
     protected function getHeaderActions(): array
@@ -48,10 +51,10 @@ class ListAssets extends ListRecords
                                 ->heading('Custom Attributes')
                                 ->getStateUsing(fn ($record) => $record->attributes->map(fn($attr) => $attr->customAttribute?->name . ': ' . $attr->attribute_value)->implode(', ')),
                         ])
-                        ->withFilename('export_asset_' . date('Y-m-d')),
+                        ->withFilename('export_asset_'.date('Y-m-d')),
                 ]),
             ExcelImportAction::make()
-                ->color("success")
+                ->color('success')
                 ->use(AssetImport::class),
             Actions\CreateAction::make(),
         ];

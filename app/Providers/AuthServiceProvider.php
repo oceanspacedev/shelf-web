@@ -4,8 +4,12 @@ namespace App\Providers;
 
 // use Illuminate\Support\Facades\Gate;
 
+use App\Models\ApprovalLevel;
+use App\Models\PublicAssetRequest;
 use App\Policies\ActivityPolicy;
+use App\Policies\ApprovalLevelPolicy;
 use App\Policies\ExceptionPolicy;
+use App\Policies\PublicAssetRequestPolicy;
 use App\Policies\RolePolicy;
 use BezhanSalleh\FilamentExceptions\Models\Exception;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -22,8 +26,10 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        ApprovalLevel::class => ApprovalLevelPolicy::class,
         Activity::class => ActivityPolicy::class,
         Exception::class => ExceptionPolicy::class,
+        PublicAssetRequest::class => PublicAssetRequestPolicy::class,
         Role::class => RolePolicy::class,
     ];
 

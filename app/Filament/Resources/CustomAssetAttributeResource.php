@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CustomAssetAttributeResource\Pages;
-use App\Filament\Resources\CustomAssetAttributeResource\RelationManagers;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use Filament\Forms;
@@ -11,8 +10,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CustomAssetAttributeResource extends Resource
 {
@@ -77,16 +74,16 @@ class CustomAssetAttributeResource extends Resource
                             ->default(true),
 
                         Forms\Components\Select::make('category_id')
-                        ->label('Kategori')
-                        ->options(self::getCategoryOptions())
-                        ->multiple()
-                        ->searchable()
-                        ->placeholder('Pilih kategori yang relevan')
-                        ->afterStateHydrated(function ($state, callable $set) {
-                            if ($state) {
-                                $set('category_id', array_map('intval', $state)); // Konversi ke integer saat dihydrate
-                            }
-                        }),
+                            ->label('Kategori')
+                            ->options(self::getCategoryOptions())
+                            ->multiple()
+                            ->searchable()
+                            ->placeholder('Pilih kategori yang relevan')
+                            ->afterStateHydrated(function ($state, callable $set) {
+                                if ($state) {
+                                    $set('category_id', array_map('intval', $state)); // Konversi ke integer saat dihydrate
+                                }
+                            }),
 
                     ])
                     ->columns(3),
@@ -111,7 +108,7 @@ class CustomAssetAttributeResource extends Resource
                             ->helperText('Jenis notifikasi yang akan dikirimkan.')
                             ->required()
                             ->reactive()
-                            ->visible(fn(callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
+                            ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
 
                         // Pengaturan yang akan tampil jika 'relative_date' dipilih
                         Forms\Components\TextInput::make('notification_offset')
@@ -119,13 +116,13 @@ class CustomAssetAttributeResource extends Resource
                             ->placeholder('Masukkan offset notifikasi (dalam hari)')
                             ->numeric()
                             ->helperText('Jumlah hari sebelum notifikasi dikirim.')
-                            ->visible(fn(callable $get) => $get('notification_type') === 'relative_date'),
+                            ->visible(fn (callable $get) => $get('notification_type') === 'relative_date'),
 
                         // Pengaturan yang akan tampil jika 'fixed_date' dipilih
                         Forms\Components\DatePicker::make('fixed_notification_date')
                             ->label('Tanggal Notifikasi Tetap')
                             ->placeholder('Pilih tanggal tetap untuk notifikasi')
-                            ->visible(fn(callable $get) => $get('notification_type') === 'fixed_date'),
+                            ->visible(fn (callable $get) => $get('notification_type') === 'fixed_date'),
                     ])
                     ->visible(fn (callable $get) => $get('type') === 'date')
                     ->columns(3)
@@ -134,19 +131,22 @@ class CustomAssetAttributeResource extends Resource
             ]);
     }
 
-
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('type')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('required')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('is_active')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(),
                 Tables\Columns\BadgeColumn::make('category_id')
                     ->label('Kategori')
                     ->colors([
@@ -155,11 +155,14 @@ class CustomAssetAttributeResource extends Resource
                     ->formatStateUsing(function ($state) {
                         // Jika category_id menyimpan ID kategori, ubah menjadi nama kategori
                         $categories = Category::whereIn('id', is_array($state) ? $state : [$state])->pluck('name')->toArray();
+
                         return implode(', ', $categories); // Menggabungkan nama kategori dengan koma jika ada lebih dari satu
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('is_notifiable')
-                    ->boolean(),
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('notification_type')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('notification_offset')
@@ -180,8 +183,25 @@ class CustomAssetAttributeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Tipe Input')
+                    ->options([
+                        'text' => 'Text Input',
+                        'number' => 'Number Input',
+                        'textarea' => 'Textarea',
+                        'date' => 'Date Picker',
+                    ]),
+                Tables\Filters\TernaryFilter::make('required')
+                    ->label('Wajib Diisi'),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Aktif'),
+                Tables\Filters\TernaryFilter::make('is_notifiable')
+                    ->label('Notifikasi'),
             ])
+            ->persistFiltersInSession()
+            ->persistSearchInSession()
+            ->persistSortInSession()
+            ->columnToggleFormColumns(2)
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])

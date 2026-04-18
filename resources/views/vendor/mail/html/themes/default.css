@@ -1,0 +1,371 @@
+body,
+body *:not(html):not(style):not(br):not(tr):not(code) {
+    box-sizing: border-box;
+    font-family: Roboto, Arial, Helvetica, sans-serif;
+    position: relative;
+}
+
+body {
+    -webkit-text-size-adjust: none;
+    background-color: #f6f8fb;
+    color: #202124;
+    height: 100%;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    width: 100% !important;
+}
+
+p,
+ul,
+ol {
+    line-height: 1.6;
+    text-align: left;
+}
+
+a {
+    color: #1a73e8;
+}
+
+a img {
+    border: none;
+}
+
+h1 {
+    color: #202124;
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.2px;
+    margin: 0 0 16px;
+    text-align: left;
+}
+
+h2 {
+    color: #202124;
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 12px;
+    text-align: left;
+}
+
+h3 {
+    color: #202124;
+    font-size: 15px;
+    font-weight: 500;
+    margin: 0 0 8px;
+    text-align: left;
+}
+
+p {
+    color: #202124;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 0;
+    text-align: left;
+}
+
+p.sub {
+    font-size: 12px;
+}
+
+img {
+    max-width: 100%;
+}
+
+.wrapper {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #f6f8fb;
+    margin: 0;
+    padding: 28px 0;
+    width: 100%;
+}
+
+.content {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.header {
+    padding: 0 0 14px;
+    text-align: left;
+}
+
+.header a {
+    color: #5f6368;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+}
+
+.logo {
+    height: 32px;
+    max-height: 32px;
+    width: auto;
+}
+
+.body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    background-color: #f6f8fb;
+    border: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.inner-body {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 640px;
+    background-color: #ffffff;
+    border: 1px solid #dadce0;
+    border-top: 6px solid #1a73e8;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.08);
+    margin: 0 auto;
+    padding: 0;
+    width: 640px;
+}
+
+.inner-body a {
+    word-break: break-word;
+}
+
+.subcopy {
+    border-top: 1px solid #e8eaed;
+    margin-top: 24px;
+    padding-top: 16px;
+}
+
+.subcopy p {
+    color: #5f6368;
+    font-size: 12px;
+}
+
+.footer {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 640px;
+    margin: 0 auto;
+    padding: 12px 0 0;
+    text-align: center;
+    width: 640px;
+}
+
+.footer p {
+    color: #5f6368;
+    font-size: 12px;
+    text-align: center;
+}
+
+.footer a {
+    color: #5f6368;
+    text-decoration: underline;
+}
+
+.content-cell {
+    max-width: 100vw;
+    padding: 36px 32px;
+}
+
+.table table {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 20px 0 24px;
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid #e8eaed;
+    color: #5f6368;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 0;
+    padding: 0 0 10px;
+    text-transform: uppercase;
+}
+
+.table td {
+    border-bottom: 1px solid #f1f3f4;
+    color: #202124;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 10px 0;
+}
+
+.action {
+    -premailer-cellpadding: 0;
+    -premailer-cellspacing: 0;
+    -premailer-width: 100%;
+    margin: 28px auto 24px;
+    padding: 0;
+    text-align: left;
+    width: 100%;
+}
+
+.button {
+    -webkit-text-size-adjust: none;
+    border-radius: 999px;
+    color: #ffffff;
+    display: inline-block;
+    overflow: hidden;
+    text-decoration: none;
+}
+
+.button-blue,
+.button-primary {
+    background-color: #1a73e8;
+    border-bottom: 12px solid #1a73e8;
+    border-left: 22px solid #1a73e8;
+    border-right: 22px solid #1a73e8;
+    border-top: 12px solid #1a73e8;
+}
+
+.button-green,
+.button-success {
+    background-color: #137333;
+    border-bottom: 12px solid #137333;
+    border-left: 22px solid #137333;
+    border-right: 22px solid #137333;
+    border-top: 12px solid #137333;
+}
+
+.button-red,
+.button-error {
+    background-color: #c5221f;
+    border-bottom: 12px solid #c5221f;
+    border-left: 22px solid #c5221f;
+    border-right: 22px solid #c5221f;
+    border-top: 12px solid #c5221f;
+}
+
+.panel {
+    border-left: #1a73e8 solid 4px;
+    margin: 20px 0;
+}
+
+.panel-content {
+    background-color: #f8fbff;
+    color: #202124;
+    padding: 14px 16px;
+}
+
+.panel-content p {
+    color: #202124;
+}
+
+.mail-section {
+    margin: 24px 0;
+}
+
+.mail-section-title {
+    color: #202124;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 10px;
+}
+
+.mail-copy {
+    color: #202124;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 10px;
+}
+
+.mail-helper {
+    color: #5f6368;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.mail-hero {
+    background-color: #f8fbff;
+    border: 1px solid #d6e4ff;
+    border-radius: 10px;
+    margin: 0 0 24px;
+    padding: 18px 18px 16px;
+}
+
+.mail-hero p:last-child {
+    margin-bottom: 0;
+}
+
+.section-card {
+    background-color: #fafbfc;
+    border: 1px solid #eceff3;
+    border-radius: 10px;
+    margin-top: 10px;
+    padding: 18px;
+}
+
+.summary-table {
+    border-collapse: collapse;
+    margin: 0;
+    width: 100%;
+}
+
+.summary-table td {
+    border-bottom: 1px solid #f1f3f4;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 10px 0;
+    vertical-align: top;
+}
+
+.summary-table tr:first-child td {
+    padding-top: 0;
+}
+
+.summary-table tr:last-child td {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.summary-label {
+    color: #5f6368;
+    font-weight: 500;
+    padding-right: 16px;
+    width: 170px;
+}
+
+.summary-value {
+    color: #202124;
+}
+
+.note-box {
+    background-color: #f8fbff;
+    border: 1px solid #d6e4ff;
+    border-radius: 10px;
+    color: #3c4043;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 18px 0 0;
+    padding: 14px 16px;
+}
+
+.status-text {
+    font-weight: 500;
+}
+
+.status-text.status-approved {
+    color: #137333;
+}
+
+.status-text.status-rejected {
+    color: #c5221f;
+}
+
+.status-text.status-pending {
+    color: #b45309;
+}

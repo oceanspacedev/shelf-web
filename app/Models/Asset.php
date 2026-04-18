@@ -10,9 +10,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\AssetTransferDetail;
-use App\Models\AssetTransfer;
-use App\Models\User;
 
 class Asset extends Model
 {
@@ -111,7 +108,7 @@ class Asset extends Model
 
     private function formatDiff($value, $unit)
     {
-        return $value . ' ' . $unit;
+        return $value.' '.$unit;
     }
 
     public function getItemAgeAttribute()
@@ -119,22 +116,26 @@ class Asset extends Model
         $purchaseDate = Carbon::parse($this->attributes['purchase_date']);
         $now = Carbon::now();
 
-        $diffInDays = $purchaseDate->diffInDays($now);
-        $diffInMonths = $purchaseDate->diffInMonths($now);
-        $diffInYears = $purchaseDate->diffInYears($now);
+        $diff = $purchaseDate->diff($now);
 
-        if ($diffInYears > 0) {
-            return $this->formatDiff($diffInYears, 'tahun');
-        } elseif ($diffInMonths > 0) {
-            return $this->formatDiff($diffInMonths, 'bulan');
-        } else {
-            return $this->formatDiff($diffInDays, 'hari');
+        if ($diff->y > 0 && $diff->m > 0) {
+            return $diff->y.' tahun '.$diff->m.' bulan';
         }
+
+        if ($diff->y > 0) {
+            return $this->formatDiff($diff->y, 'tahun');
+        }
+
+        if ($diff->m > 0) {
+            return $this->formatDiff($diff->m, 'bulan');
+        }
+
+        return $this->formatDiff($diff->d, 'hari');
     }
 
     public function scopeSortByItemAge(Builder $query, string $direction = 'asc')
     {
-        $query->orderByRaw('DATEDIFF(NOW(), purchase_date) ' . $direction);
+        $query->orderByRaw('DATEDIFF(NOW(), purchase_date) '.$direction);
     }
 
     public function getIsAvailableAttribute($value)
@@ -188,7 +189,7 @@ class Asset extends Model
         $this->attributes['is_available'] = $enum === AssetCondition::Available;
 
         if (in_array($enum, [AssetCondition::Lost, AssetCondition::Damaged], true)) {
-            if (($this->attributes['nbh_status'] ?? null) === NbhStatus::None->value || !isset($this->attributes['nbh_status'])) {
+            if (($this->attributes['nbh_status'] ?? null) === NbhStatus::None->value || ! isset($this->attributes['nbh_status'])) {
                 $this->setNbhStatusAttribute(NbhStatus::Pending);
             }
         } else {
@@ -238,6 +239,7 @@ class Asset extends Model
         }
 
         $this->cachedValidRecipientResult = $this->performValidRecipientCheck();
+
         return $this->cachedValidRecipientResult;
     }
 
@@ -247,13 +249,13 @@ class Asset extends Model
             ->latest()
             ->first();
 
-        if (!$latestTransferDetail) {
+        if (! $latestTransferDetail) {
             return true;
         }
 
         $latestTransfer = AssetTransfer::find($latestTransferDetail->asset_transfer_id);
 
-        if (!$latestTransfer) {
+        if (! $latestTransfer) {
             return true;
         }
 
@@ -263,7 +265,7 @@ class Asset extends Model
 
         $recipient = $this->recipient ?? User::find($this->recipient_id);
 
-        if (!$recipient) {
+        if (! $recipient) {
             return false;
         }
 
@@ -275,8 +277,8 @@ class Asset extends Model
             }
 
             if ($this->nbh_status === NbhStatus::Resolved) {
-                return !empty($this->audit_document_path)
-                    && !empty($this->nbh_responsible_user_id);
+                return ! empty($this->audit_document_path)
+                    && ! empty($this->nbh_responsible_user_id);
             }
 
             return true;
@@ -286,7 +288,7 @@ class Asset extends Model
             return false;
         }
 
-        if (!$hasGeneralAffairRole && $this->condition_status !== AssetCondition::Transferred) {
+        if (! $hasGeneralAffairRole && $this->condition_status !== AssetCondition::Transferred) {
             return false;
         }
 
