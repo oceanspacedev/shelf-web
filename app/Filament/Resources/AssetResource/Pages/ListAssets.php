@@ -25,6 +25,7 @@ class ListAssets extends ListRecords
                 ->exports([
                     ExcelExport::make()
                         ->fromTable()
+                        ->modifyQueryUsing(fn ($query) => $query->with('attributes.customAttribute'))
                         ->withColumns([
                             Column::make('purchase_date')->heading('Tanggal Pembelian'),
                             Column::make('businessEntity.name')->heading('Badan Usaha'),
@@ -43,6 +44,9 @@ class ListAssets extends ListRecords
                             Column::make('nbh_reported_at')->heading('Tanggal Insiden'),
                             Column::make('recipient.name')->heading('Penerima Aset'),
                             Column::make('recipientBusinessEntity.name')->heading('Badan Usaha Penerima'),
+                            Column::make('attributes')
+                                ->heading('Custom Attributes')
+                                ->getStateUsing(fn ($record) => $record->attributes->map(fn($attr) => $attr->customAttribute?->name . ': ' . $attr->attribute_value)->implode(', ')),
                         ])
                         ->withFilename('export_asset_' . date('Y-m-d')),
                 ]),
