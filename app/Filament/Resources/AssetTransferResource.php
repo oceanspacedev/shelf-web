@@ -96,10 +96,7 @@ class AssetTransferResource extends Resource
                                                 $details = [['asset_id' => '', 'equipment' => '']];
                                             } else {
                                                 $assets->where('recipient_id', $fromUserId)
-                                                    ->whereNotIn('condition_status', [
-                                                        AssetCondition::Lost->value,
-                                                        AssetCondition::Damaged->value,
-                                                    ]);
+                                                    ->whereIn('condition_status', AssetCondition::transferableValues());
 
                                                 $details = $assets->get()->map(function ($asset) {
                                                     return ['asset_id' => $asset->id, 'equipment' => ''];
@@ -193,10 +190,7 @@ class AssetTransferResource extends Resource
                                         $query->where('condition_status', AssetCondition::Available->value);
                                     } else {
                                         $query->where('recipient_id', $fromUserId)
-                                            ->whereNotIn('condition_status', [
-                                                AssetCondition::Lost->value,
-                                                AssetCondition::Damaged->value,
-                                            ]);
+                                            ->whereIn('condition_status', AssetCondition::transferableValues());
                                     }
                                 }
 

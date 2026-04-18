@@ -18,6 +18,7 @@ class CustomAssetWidget extends BaseWidget
         Log::info('CustomAssetWidget getStats called');
         $availableUnits = Asset::where('condition_status', AssetCondition::Available->value)->count();
         $transferredUnits = Asset::where('condition_status', AssetCondition::Transferred->value)->count();
+        $soldUnits = Asset::where('condition_status', AssetCondition::Sold->value)->count();
         $lostUnits = Asset::where('condition_status', AssetCondition::Lost->value)->count();
         $damagedUnits = Asset::where('condition_status', AssetCondition::Damaged->value)->count();
         $totalAssets = Asset::count();
@@ -26,6 +27,7 @@ class CustomAssetWidget extends BaseWidget
         return [
             Stat::make(__('Aset Tersedia'), $availableUnits)->color('success'),
             Stat::make(__('Aset Digunakan'), $transferredUnits)->color('warning'),
+            Stat::make(__('Aset Dijual'), $soldUnits)->color('gray'),
             Stat::make(__('Aset Hilang'), $lostUnits)->color('danger'),
             Stat::make(__('Aset Rusak'), $damagedUnits)->color('danger'),
             Stat::make(__('Jumlah Aset'), $totalAssets)->color('primary'),

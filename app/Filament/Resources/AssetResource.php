@@ -76,6 +76,38 @@ class AssetResource extends Resource
         return $customAttribute ? $customAttribute->type : null;
     }
 
+    protected static function shouldShowSaleAuditFields(callable $get): bool
+    {
+        return $get('condition_status') === AssetCondition::Sold->value
+            || filled($get('sold_at'))
+            || filled($get('sold_to'))
+            || filled($get('sold_price'))
+            || filled($get('sale_document_path'))
+            || filled($get('sale_notes'));
+    }
+
+    protected static function hasSaleAuditRecord(Asset $record): bool
+    {
+        return filled($record->sold_at)
+            || filled($record->sold_to)
+            || filled($record->sold_price)
+            || filled($record->sale_document_path)
+            || filled($record->sale_notes);
+    }
+
+    protected static function resolveDocumentUrl(?string $path): ?string
+    {
+        if (! filled($path)) {
+            return null;
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        return Storage::url($path);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -253,7 +285,7 @@ class AssetResource extends Resource
                             ->schema([
                                 Placeholder::make('lifecycle_hint')
                                     ->label('Panduan')
-                                    ->content('Kelola kondisi fisik aset serta dokumen NBH bila terjadi kehilangan atau kerusakan.')
+                                    ->content('Kelola kondisi fisik aset, dokumen NBH saat insiden, dan audit penjualan saat aset dijual.')
                                     ->columnSpanFull()
                                     ->extraAttributes([
                                         'class' => 'text-sm text-gray-500',
@@ -264,10 +296,10 @@ class AssetResource extends Resource
                                     ->default(AssetCondition::Available->value)
                                     ->required()
                                     ->reactive()
-                                    ->helperText('Ubah ke “Hilang” atau “Rusak” ketika ditemukan insiden.')
+                                    ->helperText('Pilih “Dijual” untuk aset yang sudah keluar inventaris, lalu lengkapi audit penjualannya.')
                                     ->columnSpan(1)
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        if (in_array($state, [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)) {
+                                        if (in_array($state, AssetCondition::incidentValues(), true)) {
                                             if (! $get('nbh_status') || $get('nbh_status') === NbhStatus::None->value) {
                                                 $set('nbh_status', NbhStatus::Pending->value);
                                             }
@@ -276,13 +308,24 @@ class AssetResource extends Resource
                                             $set('nbh_responsible_user_id', null);
                                             $set('nbh_reported_at', null);
                                         }
+
+                                        if ($state === AssetCondition::Sold->value) {
+                                            $set('recipient_id', null);
+                                            $set('recipient_business_entity_id', null);
+                                        } else {
+                                            $set('sold_at', null);
+                                            $set('sold_to', null);
+                                            $set('sold_price', null);
+                                            $set('sale_document_path', null);
+                                            $set('sale_notes', null);
+                                        }
                                     }),
                                 Select::make('nbh_status')
                                     ->label('Status NBH')
                                     ->options(function (callable $get): array {
                                         $condition = $get('condition_status');
 
-                                        if (in_array($condition, [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)) {
+                                        if (in_array($condition, AssetCondition::incidentValues(), true)) {
                                             return collect(NbhStatus::cases())
                                                 ->reject(fn (NbhStatus $status) => $status === NbhStatus::None)
                                                 ->mapWithKeys(fn (NbhStatus $status) => [$status->value => $status->label()])
@@ -294,12 +337,12 @@ class AssetResource extends Resource
                                     ->reactive()
                                     ->helperText('Perbarui saat proses penggantian selesai.')
                                     ->columnSpan(1)
-                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true) || $get('nbh_status') !== NbhStatus::None->value),
                                 DatePicker::make('nbh_reported_at')
                                     ->label('Tanggal Insiden')
                                     ->helperText('Tanggal ditemukannya aset hilang atau rusak.')
                                     ->columnSpan(1)
-                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true) || $get('nbh_status') !== NbhStatus::None->value),
                                 Select::make('nbh_responsible_user_id')
                                     ->label('Penanggung Jawab')
                                     ->options(fn () => Cache::remember('user_options', 300, fn () => User::orderBy('name')->pluck('name', 'id')))
@@ -307,7 +350,7 @@ class AssetResource extends Resource
                                     ->helperText('Pihak yang bertanggung jawab atas NBH.')
                                     ->columnSpan(1)
                                     ->required(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
-                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') === NbhStatus::Resolved->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true) || $get('nbh_status') === NbhStatus::Resolved->value),
                                 FileUpload::make('audit_document_path')
                                     ->label('Dokumen Audit')
                                     ->directory('asset-audit')
@@ -317,7 +360,7 @@ class AssetResource extends Resource
                                     ->helperText('Unggah berita acara atau bukti audit (PDF/JPG, maks 4 MB). Wajib saat NBH selesai.')
                                     ->columnSpan(2)
                                     ->required(fn (callable $get) => $get('nbh_status') === NbhStatus::Resolved->value)
-                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true)),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true)),
                                 FileUpload::make('nbh_document_path')
                                     ->label('Nota Barang Hilang (NBH)')
                                     ->directory('asset-nbh')
@@ -333,7 +376,43 @@ class AssetResource extends Resource
                                     ->placeholder('Masukkan kronologi singkat, hasil audit, atau tindak lanjut.')
                                     ->rows(3)
                                     ->columnSpanFull()
-                                    ->visible(fn (callable $get) => in_array($get('condition_status'), [AssetCondition::Lost->value, AssetCondition::Damaged->value], true) || $get('nbh_status') !== NbhStatus::None->value),
+                                    ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true) || $get('nbh_status') !== NbhStatus::None->value),
+                                DatePicker::make('sold_at')
+                                    ->label('Tanggal Jual')
+                                    ->native(false)
+                                    ->helperText('Tanggal efektif aset dijual.')
+                                    ->required(fn (callable $get) => $get('condition_status') === AssetCondition::Sold->value)
+                                    ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
+                                TextInput::make('sold_to')
+                                    ->label('Dijual Ke')
+                                    ->maxLength(255)
+                                    ->placeholder('Nama pembeli, vendor, atau tujuan penjualan')
+                                    ->helperText('Isi pihak tujuan penjualan untuk kebutuhan audit.')
+                                    ->required(fn (callable $get) => $get('condition_status') === AssetCondition::Sold->value)
+                                    ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
+                                TextInput::make('sold_price')
+                                    ->label('Harga Jual')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->helperText('Nilai transaksi penjualan aset.')
+                                    ->required(fn (callable $get) => $get('condition_status') === AssetCondition::Sold->value)
+                                    ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
+                                FileUpload::make('sale_document_path')
+                                    ->label('Dokumen Penjualan')
+                                    ->directory('asset-sales')
+                                    ->preserveFilenames()
+                                    ->maxSize(4096)
+                                    ->acceptedFileTypes(['application/pdf', 'image/*'])
+                                    ->helperText('Unggah kuitansi, invoice, BA penjualan, atau bukti transfer (PDF/JPG, maks 4 MB).')
+                                    ->required(fn (callable $get) => $get('condition_status') === AssetCondition::Sold->value)
+                                    ->columnSpan(2)
+                                    ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
+                                Textarea::make('sale_notes')
+                                    ->label('Catatan Penjualan')
+                                    ->placeholder('Nomor referensi, alasan penjualan, metode pembayaran, atau detail audit lainnya.')
+                                    ->rows(3)
+                                    ->columnSpanFull()
+                                    ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
                             ])
                             ->columns(3)
                             ->visible(fn () => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false),
@@ -453,6 +532,18 @@ class AssetResource extends Resource
                     ->badge()
                     ->color(fn ($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
                     ->toggleable(),
+                TextColumn::make('sold_at')
+                    ->label('Tanggal Jual')
+                    ->date()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('sold_to')
+                    ->label('Dijual Ke')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('sold_price')
+                    ->label('Harga Jual')
+                    ->money('IDR', true)
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('nbh_status_label')
                     ->label('Status NBH')
                     ->badge()
@@ -687,6 +778,27 @@ class AssetResource extends Resource
                             ->visible(fn (Asset $record): bool => filled($record->nbh_notes)),
                     ]),
 
+                ComponentsSection::make('Audit Penjualan')
+                    ->schema([
+                        ComponentsGrid::make(3)
+                            ->schema([
+                                TextEntry::make('sold_at')
+                                    ->label(__('Tanggal Jual'))
+                                    ->state(fn (Asset $record): string => optional($record->sold_at)?->format('d M Y') ?? '-'),
+                                TextEntry::make('sold_to')
+                                    ->label(__('Dijual Ke'))
+                                    ->state(fn (Asset $record): string => $record->sold_to ?? '-'),
+                                TextEntry::make('sold_price')
+                                    ->label(__('Harga Jual'))
+                                    ->state(fn (Asset $record): string => $record->sold_price !== null ? 'Rp '.number_format($record->sold_price, 0, ',', '.') : '-'),
+                            ]),
+                        TextEntry::make('sale_notes')
+                            ->label(__('Catatan Penjualan'))
+                            ->columnSpanFull()
+                            ->visible(fn (Asset $record): bool => filled($record->sale_notes)),
+                    ])
+                    ->visible(fn (Asset $record): bool => self::hasSaleAuditRecord($record)),
+
                 ComponentsSection::make('Dokumen Pendukung')
                     ->schema([
                         ComponentsGrid::make(2)
@@ -701,9 +813,14 @@ class AssetResource extends Resource
                                     ->url(fn (Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
                                     ->openUrlInNewTab()
                                     ->visible(fn (Asset $record): bool => filled($record->nbh_document_path)),
+                                TextEntry::make('sale_document_path')
+                                    ->label(__('Dokumen Penjualan'))
+                                    ->url(fn (Asset $record) => self::resolveDocumentUrl($record->sale_document_path), true)
+                                    ->openUrlInNewTab()
+                                    ->visible(fn (Asset $record): bool => filled($record->sale_document_path)),
                             ]),
                     ])
-                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path)),
+                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path) || filled($record->sale_document_path)),
             ])
             ->columns(1); // Atur agar semua bagian ditampilkan secara vertikal (atas-bawah)
     }

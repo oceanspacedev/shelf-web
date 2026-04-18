@@ -15,7 +15,7 @@ class CustomAssetAttributeResource extends Resource
 {
     protected static ?string $model = CustomAssetAttribute::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-adjustments-horizontal';
 
     public static function getCategoryOptions()
     {

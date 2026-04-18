@@ -35,6 +35,11 @@ class Asset extends Model
         'nbh_document_path',
         'nbh_notes',
         'nbh_responsible_user_id',
+        'sold_at',
+        'sold_to',
+        'sold_price',
+        'sale_document_path',
+        'sale_notes',
         'qty',
         'is_available',
         'recipient_id',
@@ -46,6 +51,8 @@ class Asset extends Model
         'condition_status' => AssetCondition::class,
         'nbh_status' => NbhStatus::class,
         'nbh_reported_at' => 'date',
+        'sold_at' => 'date',
+        'sold_price' => 'integer',
     ];
 
     public function attributes(): HasMany
@@ -188,13 +195,29 @@ class Asset extends Model
         $this->attributes['condition_status'] = $enum->value;
         $this->attributes['is_available'] = $enum === AssetCondition::Available;
 
-        if (in_array($enum, [AssetCondition::Lost, AssetCondition::Damaged], true)) {
+        if ($enum === AssetCondition::Sold) {
+            $this->attributes['recipient_id'] = null;
+            $this->attributes['recipient_business_entity_id'] = null;
+        } else {
+            $this->clearSaleAuditAttributes();
+        }
+
+        if ($enum->isIncident()) {
             if (($this->attributes['nbh_status'] ?? null) === NbhStatus::None->value || ! isset($this->attributes['nbh_status'])) {
                 $this->setNbhStatusAttribute(NbhStatus::Pending);
             }
         } else {
             $this->setNbhStatusAttribute(NbhStatus::None);
         }
+    }
+
+    protected function clearSaleAuditAttributes(): void
+    {
+        $this->attributes['sold_at'] = null;
+        $this->attributes['sold_to'] = null;
+        $this->attributes['sold_price'] = null;
+        $this->attributes['sale_document_path'] = null;
+        $this->attributes['sale_notes'] = null;
     }
 
     public function getNbhStatusLabelAttribute(): string
@@ -245,6 +268,10 @@ class Asset extends Model
 
     protected function performValidRecipientCheck(): bool
     {
+        if ($this->condition_status === AssetCondition::Sold) {
+            return true;
+        }
+
         $latestTransferDetail = AssetTransferDetail::where('asset_id', $this->id)
             ->latest()
             ->first();
@@ -271,7 +298,7 @@ class Asset extends Model
 
         $hasGeneralAffairRole = $recipient->hasRole('general_affair');
 
-        if (in_array($this->condition_status, [AssetCondition::Lost, AssetCondition::Damaged], true)) {
+        if ($this->condition_status instanceof AssetCondition && $this->condition_status->isIncident()) {
             if ($this->nbh_status === NbhStatus::None) {
                 return false;
             }

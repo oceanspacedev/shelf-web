@@ -28,7 +28,7 @@ class EditAssetTransfer extends EditRecord
             $asset->condition_status = $hasGeneralAffairRole
                 ? AssetCondition::Available
                 : AssetCondition::Transferred;
-            if (in_array($asset->condition_status, [AssetCondition::Available, AssetCondition::Transferred], true)) {
+            if ($asset->condition_status instanceof AssetCondition && $asset->condition_status->isTransferable()) {
                 $asset->nbh_status = NbhStatus::None;
                 $asset->nbh_responsible_user_id = null;
             }
