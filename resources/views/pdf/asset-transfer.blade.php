@@ -146,12 +146,12 @@
                     <tr>
                         <td style="width: 10%;">Nama</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;"><strong>{{ $assetTransfer->fromUser->name }}</strong></td>
+                        <td style="width: 79%;"><strong>{{ $assetTransfer->fromUser->name === 'GA' ? '' : $assetTransfer->fromUser->name }}</strong></td>
                     </tr>
                     <tr>
                         <td style="width: 10%;">Jabatan</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;">{{ optional($assetTransfer->fromUser->jobTitle)->title }}</td>
+                        <td style="width: 79%;">{{ $assetTransfer->fromUser->name === 'GA' ? '' : optional($assetTransfer->fromUser->jobTitle)->title }}</td>
                     </tr>
                 </table>
             @endif
@@ -207,7 +207,7 @@
                 <td>
                     <p>Pemberi</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $assetTransfer->fromUser->name }}</strong></p>
+                    <p><strong>{{ $assetTransfer->fromUser->name === 'GA' ? '' : $assetTransfer->fromUser->name }}</strong></p>
                 </td>
                 @if ($assetTransfer->status === 'BERITA ACARA PENGEMBALIAN BARANG')
                     <td>
