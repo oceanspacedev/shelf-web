@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Console\Commands\SendScheduledNotifications;
 use App\Models\Asset;
 use App\Models\CustomAssetAttribute;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -58,6 +59,42 @@ class FonnteWhatsappNotificationTest extends TestCase
         ]);
 
         $command = app(SendScheduledNotifications::class);
+        $method = new ReflectionMethod($command, 'resolveWhatsappRecipients');
+        $method->setAccessible(true);
+
+        $this->assertSame(['6281234567890'], $method->invoke($command, $attribute));
+    }
+
+    public function test_whatsapp_recipients_are_resolved_from_selected_internal_users(): void
+    {
+        config([
+            'services.fonnte.country_code' => '62',
+            'services.fonnte.default_target' => null,
+        ]);
+
+        $attribute = new CustomAssetAttribute;
+        $attribute->forceFill([
+            'notification_recipient_user_ids' => [5, 6],
+        ]);
+
+        $command = new class extends SendScheduledNotifications
+        {
+            protected function recipientUsers(CustomAssetAttribute $attribute)
+            {
+                return collect([
+                    new User([
+                        'name' => 'Bayu',
+                        'email' => 'bayu@example.com',
+                        'whatsapp_number' => '0812 3456 7890',
+                    ]),
+                    new User([
+                        'name' => 'User Tanpa WA',
+                        'email' => 'tanpa-wa@example.com',
+                    ]),
+                ]);
+            }
+        };
+
         $method = new ReflectionMethod($command, 'resolveWhatsappRecipients');
         $method->setAccessible(true);
 
