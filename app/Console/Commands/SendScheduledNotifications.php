@@ -6,6 +6,7 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -110,14 +111,30 @@ class SendScheduledNotifications extends Command
         if ($attribute->usesNotificationChannel(CustomAssetAttribute::CHANNEL_WHATSAPP)) {
             foreach ($this->resolveWhatsappRecipients($attribute) as $phoneNumber) {
                 $hasRecipient = true;
-                $this->sendWhatsappNotification($message, $asset, $phoneNumber);
+                $lockKey = $this->dailyDispatchLockKey($attribute, $asset, CustomAssetAttribute::CHANNEL_WHATSAPP, $phoneNumber);
+
+                if (! $this->acquireDailyDispatchLock($lockKey)) {
+                    continue;
+                }
+
+                if (! $this->sendWhatsappNotification($message, $asset, $phoneNumber)) {
+                    Cache::forget($lockKey);
+                }
             }
         }
 
         if ($attribute->usesNotificationChannel(CustomAssetAttribute::CHANNEL_EMAIL)) {
             foreach ($this->resolveEmailRecipients($attribute) as $email) {
                 $hasRecipient = true;
-                $this->sendEmailNotification($subject, $message, $asset, $email);
+                $lockKey = $this->dailyDispatchLockKey($attribute, $asset, CustomAssetAttribute::CHANNEL_EMAIL, $email);
+
+                if (! $this->acquireDailyDispatchLock($lockKey)) {
+                    continue;
+                }
+
+                if (! $this->sendEmailNotification($subject, $message, $asset, $email)) {
+                    Cache::forget($lockKey);
+                }
             }
         }
 
@@ -132,13 +149,21 @@ class SendScheduledNotifications extends Command
 
     protected function resolveWhatsappRecipients(CustomAssetAttribute $attribute): array
     {
-        $recipients = $attribute->notificationRecipientWhatsappNumbers();
+        $recipients = collect($attribute->notificationRecipientWhatsappNumbers())
+            ->map(fn ($recipient) => $this->normalizeWhatsappTarget($recipient))
+            ->filter()
+            ->values()
+            ->all();
 
-        if ($recipients === [] && filled(env('DEFAULT_NOTIFICATION_PHONE'))) {
-            $recipients[] = env('DEFAULT_NOTIFICATION_PHONE');
+        if ($recipients === [] && filled(config('services.fonnte.default_target'))) {
+            $recipients[] = $this->normalizeWhatsappTarget(config('services.fonnte.default_target'));
         }
 
-        return array_values(array_unique($recipients));
+        return collect($recipients)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function resolveEmailRecipients(CustomAssetAttribute $attribute): array
@@ -164,7 +189,45 @@ class SendScheduledNotifications extends Command
             ->all();
     }
 
-    protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): void
+    protected function normalizeWhatsappTarget(string|int|null $phoneNumber): ?string
+    {
+        if (! is_string($phoneNumber) && ! is_numeric($phoneNumber)) {
+            return null;
+        }
+
+        $target = preg_replace('/\D+/', '', (string) $phoneNumber);
+
+        if (! filled($target)) {
+            return null;
+        }
+
+        $countryCode = preg_replace('/\D+/', '', (string) config('services.fonnte.country_code', '62'));
+
+        if (filled($countryCode) && str_starts_with($target, '0')) {
+            return $countryCode.substr($target, 1);
+        }
+
+        return $target;
+    }
+
+    protected function dailyDispatchLockKey(CustomAssetAttribute $attribute, $asset, string $channel, string $recipient): string
+    {
+        return implode(':', [
+            'asset-reminder',
+            CarbonImmutable::now()->toDateString(),
+            $attribute->getKey() ?: 'attribute-none',
+            $asset?->id ?: 'asset-none',
+            $channel,
+            sha1($recipient),
+        ]);
+    }
+
+    protected function acquireDailyDispatchLock(string $key): bool
+    {
+        return Cache::add($key, true, now()->addHours(30));
+    }
+
+    protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): bool
     {
         $apiEndpoint = config('services.fonnte.endpoint', 'https://api.fonnte.com/send');
         $token = config('services.fonnte.token');
@@ -176,11 +239,17 @@ class SendScheduledNotifications extends Command
                 'provider' => 'fonnte',
             ]);
 
-            return;
+            return false;
         }
 
         try {
             $response = Http::asForm()
+                ->timeout((int) config('services.fonnte.timeout', 10))
+                ->retry(
+                    (int) config('services.fonnte.retry_times', 2),
+                    (int) config('services.fonnte.retry_sleep', 500),
+                    throw: false,
+                )
                 ->withHeaders([
                     'Authorization' => $token,
                 ])
@@ -195,28 +264,38 @@ class SendScheduledNotifications extends Command
                     'asset_id' => $asset?->id,
                     'receiver' => $phoneNumber,
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'body' => mb_substr($response->body(), 0, 1000),
                 ]);
+
+                return false;
             }
+
+            return true;
         } catch (Throwable $e) {
             Log::error('Gagal mengirim pesan WhatsApp via Fonnte: '.$e->getMessage(), [
                 'asset_id' => $asset?->id,
                 'receiver' => $phoneNumber,
             ]);
+
+            return false;
         }
     }
 
-    protected function sendEmailNotification(string $subject, string $message, $asset, string $email): void
+    protected function sendEmailNotification(string $subject, string $message, $asset, string $email): bool
     {
         try {
             Mail::raw($message, function ($mail) use ($email, $subject) {
                 $mail->to($email)->subject($subject);
             });
+
+            return true;
         } catch (Throwable $e) {
             Log::error('Gagal mengirim email pengingat aset: '.$e->getMessage(), [
                 'asset_id' => $asset?->id,
                 'email' => $email,
             ]);
+
+            return false;
         }
     }
 }

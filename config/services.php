@@ -35,6 +35,10 @@ return [
         'endpoint' => env('FONNTE_API_ENDPOINT', env('WHATSAPP_API_ENDPOINT', 'https://api.fonnte.com/send')),
         'token' => env('FONNTE_TOKEN', env('WHATSAPP_API_KEY')),
         'country_code' => env('FONNTE_COUNTRY_CODE', '62'),
+        'default_target' => env('FONNTE_DEFAULT_TARGET', env('DEFAULT_NOTIFICATION_PHONE')),
+        'timeout' => env('FONNTE_TIMEOUT', 10),
+        'retry_times' => env('FONNTE_RETRY_TIMES', 2),
+        'retry_sleep' => env('FONNTE_RETRY_SLEEP', 500),
     ],
 
 ];
