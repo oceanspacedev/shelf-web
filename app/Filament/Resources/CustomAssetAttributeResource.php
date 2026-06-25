@@ -104,7 +104,7 @@ class CustomAssetAttributeResource extends Resource
                                             ->options(CustomAssetAttribute::notificationChannelOptions())
                                             ->default([CustomAssetAttribute::CHANNEL_WHATSAPP])
                                             ->columns(2)
-                                            ->helperText('Pilih satu atau lebih channel pengingat.')
+                                            ->helperText('Pilih satu atau lebih channel. Email dan WhatsApp memakai kontak dari user penerima.')
                                             ->visible(fn (callable $get) => $get('is_notifiable')),
 
                                         Forms\Components\Select::make('notification_recipient_user_ids')
@@ -113,24 +113,9 @@ class CustomAssetAttributeResource extends Resource
                                             ->multiple()
                                             ->searchable()
                                             ->preload()
-                                            ->helperText('Email akan dikirim ke email user yang dipilih. Nomor WhatsApp bisa ditambahkan di field nomor WhatsApp.')
+                                            ->placeholder('Pilih orang penerima pengingat')
+                                            ->helperText('Email dikirim ke email user. WhatsApp dikirim ke Nomor WhatsApp pada data user.')
                                             ->visible(fn (callable $get) => $get('is_notifiable'))
-                                            ->columnSpanFull(),
-
-                                        Forms\Components\TagsInput::make('notification_recipient_emails')
-                                            ->label('Email Tambahan')
-                                            ->placeholder('admin@example.com')
-                                            ->helperText('Opsional. Gunakan untuk penerima di luar user internal.')
-                                            ->visible(fn (callable $get) => $get('is_notifiable')
-                                                && in_array(CustomAssetAttribute::CHANNEL_EMAIL, $get('notification_channels') ?? [], true))
-                                            ->columnSpanFull(),
-
-                                        Forms\Components\TagsInput::make('notification_recipient_whatsapp_numbers')
-                                            ->label('Nomor WhatsApp Tujuan')
-                                            ->placeholder('628123456789')
-                                            ->helperText('Opsional. Jika kosong, sistem memakai DEFAULT_NOTIFICATION_PHONE sebagai fallback.')
-                                            ->visible(fn (callable $get) => $get('is_notifiable')
-                                                && in_array(CustomAssetAttribute::CHANNEL_WHATSAPP, $get('notification_channels') ?? [], true))
                                             ->columnSpanFull(),
                                     ])
                                     ->visible(fn (callable $get) => in_array($get('type'), [

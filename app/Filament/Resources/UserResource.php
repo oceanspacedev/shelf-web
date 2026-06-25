@@ -51,6 +51,13 @@ class UserResource extends Resource
                         ->options(JobTitle::all()->pluck('title', 'id'))
                         ->label('Job Title')
                         ->searchable(),
+                    TextInput::make('whatsapp_number')
+                        ->label('Nomor WhatsApp')
+                        ->tel()
+                        ->placeholder('081234567890')
+                        ->helperText('Dipakai untuk pengingat aset via WhatsApp/Fonnte.')
+                        ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
+                        ->maxLength(32),
                 ]),
                 Card::make([
                     TextInput::make('username')
@@ -96,6 +103,10 @@ class UserResource extends Resource
                     ->getStateUsing(fn ($record) => $record->businessEntity->name ?? null)
                     ->toggleable(),
                 TextColumn::make('jobTitle.title')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('whatsapp_number')
+                    ->label('WhatsApp')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('roles.name')
                     ->badge()
                     ->toggleable(isToggledHiddenByDefault: true)
@@ -188,6 +199,10 @@ class UserResource extends Resource
                                     ->columnSpan(1),
                                 TextEntry::make('email')
                                     ->label('Email Address')
+                                    ->columnSpan(1),
+                                TextEntry::make('whatsapp_number')
+                                    ->label('Nomor WhatsApp')
+                                    ->placeholder('-')
                                     ->columnSpan(1),
                             ]),
                     ]),

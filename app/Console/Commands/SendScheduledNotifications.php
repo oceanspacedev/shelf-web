@@ -6,6 +6,7 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -149,7 +150,9 @@ class SendScheduledNotifications extends Command
 
     protected function resolveWhatsappRecipients(CustomAssetAttribute $attribute): array
     {
-        $recipients = collect($attribute->notificationRecipientWhatsappNumbers())
+        $recipients = $this->recipientUsers($attribute)
+            ->pluck('whatsapp_number')
+            ->merge($attribute->notificationRecipientWhatsappNumbers())
             ->map(fn ($recipient) => $this->normalizeWhatsappTarget($recipient))
             ->filter()
             ->values()
@@ -166,22 +169,24 @@ class SendScheduledNotifications extends Command
             ->all();
     }
 
-    protected function resolveEmailRecipients(CustomAssetAttribute $attribute): array
+    protected function recipientUsers(CustomAssetAttribute $attribute): Collection
     {
-        $recipients = $attribute->notificationRecipientEmails();
         $userIds = $attribute->notificationRecipientUserIds();
 
-        if ($userIds !== []) {
-            $userEmails = User::whereKey($userIds)
-                ->whereNotNull('email')
-                ->pluck('email')
-                ->filter()
-                ->all();
-
-            $recipients = array_merge($recipients, $userEmails);
+        if ($userIds === []) {
+            return collect();
         }
 
-        return collect($recipients)
+        return User::query()
+            ->whereKey($userIds)
+            ->get(['id', 'name', 'email', 'whatsapp_number']);
+    }
+
+    protected function resolveEmailRecipients(CustomAssetAttribute $attribute): array
+    {
+        return $this->recipientUsers($attribute)
+            ->pluck('email')
+            ->merge($attribute->notificationRecipientEmails())
             ->map(fn ($email) => is_string($email) ? trim($email) : null)
             ->filter(fn ($email) => filled($email) && filter_var($email, FILTER_VALIDATE_EMAIL))
             ->unique()

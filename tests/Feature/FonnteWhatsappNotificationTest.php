@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use ReflectionMethod;
@@ -79,7 +80,7 @@ class FonnteWhatsappNotificationTest extends TestCase
 
         $command = new class extends SendScheduledNotifications
         {
-            protected function recipientUsers(CustomAssetAttribute $attribute)
+            protected function recipientUsers(CustomAssetAttribute $attribute): Collection
             {
                 return collect([
                     new User([
