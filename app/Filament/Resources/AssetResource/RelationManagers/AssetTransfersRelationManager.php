@@ -76,8 +76,16 @@ class AssetTransfersRelationManager extends RelationManager
                     ->color('success'),
             ])
             ->actions([
-                // Tables\Actions\EditAction::make(),
-                // Tables\Actions\DeleteAction::make(),
+                Tables\Actions\Action::make('removeTransferDetail')
+                    ->label('Hapus')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') ?? false)
+                    ->requiresConfirmation()
+                    ->modalHeading('Hapus Riwayat Transfer')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus riwayat transfer ini dari aset? Hanya link ke aset ini yang dihapus, data transfer utama tidak terpengaruh.')
+                    ->modalSubmitActionLabel('Ya, Hapus')
+                    ->action(fn ($record) => $record->delete()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

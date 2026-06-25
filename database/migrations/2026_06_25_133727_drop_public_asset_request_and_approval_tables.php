@@ -6,17 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        Schema::table('public_asset_requests', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        Schema::dropIfExists('request_approvals');
+        Schema::dropIfExists('approval_levels');
+        Schema::dropIfExists('public_asset_requests');
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::table('public_asset_requests', function (Blueprint $table) {
-            $table->dropSoftDeletes();
-        });
+        //
     }
 };
