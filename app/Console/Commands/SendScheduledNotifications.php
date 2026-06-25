@@ -5,9 +5,8 @@ namespace App\Console\Commands;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Exception;
-use GuzzleHttp\Client;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -167,34 +166,43 @@ class SendScheduledNotifications extends Command
 
     protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): void
     {
-        // Contoh pengiriman pesan via WhatsApp menggunakan Guzzle Client
-        $client = new Client;
-        $apiEndpoint = env('WHATSAPP_API_ENDPOINT');
+        $apiEndpoint = config('services.fonnte.endpoint', 'https://api.fonnte.com/send');
+        $token = config('services.fonnte.token');
 
-        if (! filled($apiEndpoint)) {
+        if (! filled($apiEndpoint) || ! filled($token)) {
             Log::warning('Konfigurasi WhatsApp notifikasi aset belum lengkap.', [
                 'asset_id' => $asset?->id,
                 'receiver' => $phoneNumber,
+                'provider' => 'fonnte',
             ]);
 
             return;
         }
 
         try {
-            $response = $client->post($apiEndpoint, [
-                'query' => [
-                    'apikey' => env('WHATSAPP_API_KEY'),
-                    'sender' => env('WHATSAPP_SENDER_NUMBER'),
-                    'receiver' => $phoneNumber,
+            $response = Http::asForm()
+                ->withHeaders([
+                    'Authorization' => $token,
+                ])
+                ->post($apiEndpoint, [
+                    'target' => $phoneNumber,
                     'message' => $message,
-                ],
-            ]);
+                    'countryCode' => config('services.fonnte.country_code', '62'),
+                ]);
 
-            if ($response->getStatusCode() !== 200) {
-                Log::error('Gagal mengirim pesan WhatsApp: '.$response->getBody());
+            if ($response->failed() || $response->json('status') === false) {
+                Log::error('Gagal mengirim pesan WhatsApp via Fonnte.', [
+                    'asset_id' => $asset?->id,
+                    'receiver' => $phoneNumber,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
             }
-        } catch (Exception $e) {
-            Log::error('Gagal mengirim pesan WhatsApp: '.$e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Gagal mengirim pesan WhatsApp via Fonnte: '.$e->getMessage(), [
+                'asset_id' => $asset?->id,
+                'receiver' => $phoneNumber,
+            ]);
         }
     }
 

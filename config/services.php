@@ -31,4 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'fonnte' => [
+        'endpoint' => env('FONNTE_API_ENDPOINT', env('WHATSAPP_API_ENDPOINT', 'https://api.fonnte.com/send')),
+        'token' => env('FONNTE_TOKEN', env('WHATSAPP_API_KEY')),
+        'country_code' => env('FONNTE_COUNTRY_CODE', '62'),
+    ],
+
 ];
