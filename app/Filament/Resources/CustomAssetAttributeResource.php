@@ -42,23 +42,107 @@ class CustomAssetAttributeResource extends Resource
                     'lg' => 3,
                 ])
                     ->schema([
-                        Forms\Components\Section::make('Informasi Dasar')
+                        Forms\Components\Group::make()
                             ->schema([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Nama Atribut')
-                                    ->placeholder('Masukkan nama atribut')
-                                    ->required()
-                                    ->maxLength(255),
+                                Forms\Components\Section::make('Informasi Dasar')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('name')
+                                            ->label('Nama Atribut')
+                                            ->placeholder('Masukkan nama atribut')
+                                            ->required()
+                                            ->maxLength(255),
 
-                                Forms\Components\Select::make('type')
-                                    ->label('Tipe Input')
-                                    ->required()
-                                    ->options(CustomAssetAttribute::typeOptions())
-                                    ->searchable()
-                                    ->placeholder('Pilih tipe input')
-                                    ->reactive(),
+                                        Forms\Components\Select::make('type')
+                                            ->label('Tipe Input')
+                                            ->required()
+                                            ->options(CustomAssetAttribute::typeOptions())
+                                            ->searchable()
+                                            ->placeholder('Pilih tipe input')
+                                            ->reactive(),
+                                    ])
+                                    ->columns(2),
+
+                                Forms\Components\Section::make('Pengaturan Notifikasi')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('is_notifiable')
+                                            ->label('Aktifkan Pengingat')
+                                            ->inline(false)
+                                            ->default(false)
+                                            ->helperText('Kirim pengingat harian saat dokumen atau tanggal atribut masuk masa pembaruan.')
+                                            ->reactive(),
+
+                                        Forms\Components\Select::make('notification_type')
+                                            ->label('Pola Pengingat')
+                                            ->options([
+                                                'relative_date' => 'Harian sebelum tanggal berlaku habis',
+                                                'fixed_date' => 'Tanggal tetap',
+                                            ])
+                                            ->default('relative_date')
+                                            ->placeholder('Pilih pola pengingat')
+                                            ->helperText('Untuk dokumen masa berlaku, gunakan pola harian sebelum tanggal berlaku habis.')
+                                            ->required()
+                                            ->reactive()
+                                            ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
+
+                                        // Pengaturan yang akan tampil jika 'relative_date' dipilih
+                                        Forms\Components\TextInput::make('notification_offset')
+                                            ->label('Mulai Pengingat H-')
+                                            ->placeholder('Contoh: 30, 14, 7')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->helperText('Notifikasi muncul setiap hari mulai H-ini sampai tanggal/lampiran diperbarui.')
+                                            ->visible(fn (callable $get) => $get('notification_type') === 'relative_date'),
+
+                                        // Pengaturan yang akan tampil jika 'fixed_date' dipilih
+                                        Forms\Components\DatePicker::make('fixed_notification_date')
+                                            ->label('Tanggal Notifikasi Tetap')
+                                            ->placeholder('Pilih tanggal tetap untuk notifikasi')
+                                            ->visible(fn (callable $get) => $get('notification_type') === 'fixed_date'),
+
+                                        Forms\Components\CheckboxList::make('notification_channels')
+                                            ->label('Kirim Lewat')
+                                            ->options(CustomAssetAttribute::notificationChannelOptions())
+                                            ->default([CustomAssetAttribute::CHANNEL_WHATSAPP])
+                                            ->columns(2)
+                                            ->helperText('Pilih satu atau lebih channel pengingat.')
+                                            ->visible(fn (callable $get) => $get('is_notifiable')),
+
+                                        Forms\Components\Select::make('notification_recipient_user_ids')
+                                            ->label('Penerima Internal')
+                                            ->options(fn () => User::orderBy('name')->pluck('name', 'id'))
+                                            ->multiple()
+                                            ->searchable()
+                                            ->preload()
+                                            ->helperText('Email akan dikirim ke email user yang dipilih. Nomor WhatsApp bisa ditambahkan di field nomor WhatsApp.')
+                                            ->visible(fn (callable $get) => $get('is_notifiable'))
+                                            ->columnSpanFull(),
+
+                                        Forms\Components\TagsInput::make('notification_recipient_emails')
+                                            ->label('Email Tambahan')
+                                            ->placeholder('admin@example.com')
+                                            ->helperText('Opsional. Gunakan untuk penerima di luar user internal.')
+                                            ->visible(fn (callable $get) => $get('is_notifiable')
+                                                && in_array(CustomAssetAttribute::CHANNEL_EMAIL, $get('notification_channels') ?? [], true))
+                                            ->columnSpanFull(),
+
+                                        Forms\Components\TagsInput::make('notification_recipient_whatsapp_numbers')
+                                            ->label('Nomor WhatsApp Tujuan')
+                                            ->placeholder('628123456789')
+                                            ->helperText('Opsional. Jika kosong, sistem memakai DEFAULT_NOTIFICATION_PHONE sebagai fallback.')
+                                            ->visible(fn (callable $get) => $get('is_notifiable')
+                                                && in_array(CustomAssetAttribute::CHANNEL_WHATSAPP, $get('notification_channels') ?? [], true))
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->visible(fn (callable $get) => in_array($get('type'), [
+                                        CustomAssetAttribute::TYPE_DATE,
+                                        CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY,
+                                    ], true))
+                                    ->columns([
+                                        'default' => 1,
+                                        'md' => 2,
+                                    ])
+                                    ->collapsed(false), // Section ini tetap terbuka
                             ])
-                            ->columns(2)
                             ->columnSpan([
                                 'default' => 1,
                                 'lg' => 2,
@@ -94,91 +178,6 @@ class CustomAssetAttributeResource extends Resource
                                 'default' => 1,
                                 'lg' => 1,
                             ]),
-
-                        Forms\Components\Section::make('Pengaturan Notifikasi')
-                            ->schema([
-                                Forms\Components\Toggle::make('is_notifiable')
-                                    ->label('Aktifkan Pengingat')
-                                    ->inline(false)
-                                    ->default(false)
-                                    ->helperText('Kirim pengingat harian saat dokumen atau tanggal atribut masuk masa pembaruan.')
-                                    ->reactive(),
-
-                                Forms\Components\Select::make('notification_type')
-                                    ->label('Pola Pengingat')
-                                    ->options([
-                                        'relative_date' => 'Harian sebelum tanggal berlaku habis',
-                                        'fixed_date' => 'Tanggal tetap',
-                                    ])
-                                    ->default('relative_date')
-                                    ->placeholder('Pilih pola pengingat')
-                                    ->helperText('Untuk dokumen masa berlaku, gunakan pola harian sebelum tanggal berlaku habis.')
-                                    ->required()
-                                    ->reactive()
-                                    ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
-
-                                // Pengaturan yang akan tampil jika 'relative_date' dipilih
-                                Forms\Components\TextInput::make('notification_offset')
-                                    ->label('Mulai Pengingat H-')
-                                    ->placeholder('Contoh: 30, 14, 7')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->helperText('Notifikasi muncul setiap hari mulai H-ini sampai tanggal/lampiran diperbarui.')
-                                    ->visible(fn (callable $get) => $get('notification_type') === 'relative_date'),
-
-                                // Pengaturan yang akan tampil jika 'fixed_date' dipilih
-                                Forms\Components\DatePicker::make('fixed_notification_date')
-                                    ->label('Tanggal Notifikasi Tetap')
-                                    ->placeholder('Pilih tanggal tetap untuk notifikasi')
-                                    ->visible(fn (callable $get) => $get('notification_type') === 'fixed_date'),
-
-                                Forms\Components\CheckboxList::make('notification_channels')
-                                    ->label('Kirim Lewat')
-                                    ->options(CustomAssetAttribute::notificationChannelOptions())
-                                    ->default([CustomAssetAttribute::CHANNEL_WHATSAPP])
-                                    ->columns(2)
-                                    ->helperText('Pilih satu atau lebih channel pengingat.')
-                                    ->visible(fn (callable $get) => $get('is_notifiable')),
-
-                                Forms\Components\Select::make('notification_recipient_user_ids')
-                                    ->label('Penerima Internal')
-                                    ->options(fn () => User::orderBy('name')->pluck('name', 'id'))
-                                    ->multiple()
-                                    ->searchable()
-                                    ->preload()
-                                    ->helperText('Email akan dikirim ke email user yang dipilih. Nomor WhatsApp bisa ditambahkan di field nomor WhatsApp.')
-                                    ->visible(fn (callable $get) => $get('is_notifiable'))
-                                    ->columnSpanFull(),
-
-                                Forms\Components\TagsInput::make('notification_recipient_emails')
-                                    ->label('Email Tambahan')
-                                    ->placeholder('admin@example.com')
-                                    ->helperText('Opsional. Gunakan untuk penerima di luar user internal.')
-                                    ->visible(fn (callable $get) => $get('is_notifiable')
-                                        && in_array(CustomAssetAttribute::CHANNEL_EMAIL, $get('notification_channels') ?? [], true))
-                                    ->columnSpanFull(),
-
-                                Forms\Components\TagsInput::make('notification_recipient_whatsapp_numbers')
-                                    ->label('Nomor WhatsApp Tujuan')
-                                    ->placeholder('628123456789')
-                                    ->helperText('Opsional. Jika kosong, sistem memakai DEFAULT_NOTIFICATION_PHONE sebagai fallback.')
-                                    ->visible(fn (callable $get) => $get('is_notifiable')
-                                        && in_array(CustomAssetAttribute::CHANNEL_WHATSAPP, $get('notification_channels') ?? [], true))
-                                    ->columnSpanFull(),
-                            ])
-                            ->visible(fn (callable $get) => in_array($get('type'), [
-                                CustomAssetAttribute::TYPE_DATE,
-                                CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY,
-                            ], true))
-                            ->columns([
-                                'default' => 1,
-                                'md' => 2,
-                            ])
-                            ->columnSpan([
-                                'default' => 1,
-                                'lg' => 2,
-                            ])
-                            ->collapsed(false), // Section ini tetap terbuka
                     ]),
             ]);
     }
