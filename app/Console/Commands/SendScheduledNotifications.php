@@ -3,10 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Models\CustomAssetAttribute;
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class SendScheduledNotifications extends Command
 {
@@ -77,7 +81,12 @@ class SendScheduledNotifications extends Command
             $message .= "\nPengingat ini akan muncul setiap hari sampai dokumen diperbarui dengan tanggal berlaku dan lampiran baru.\n\n";
             $message .= '— Bot';
 
-            $this->sendNotification($message, $assetAttribute->asset);
+            $this->sendNotification(
+                $message,
+                $assetAttribute->asset,
+                $attribute,
+                "Pengingat {$attribute->name} - {$assetName}"
+            );
         }
 
         unset($assetAttributes);
@@ -91,20 +100,81 @@ class SendScheduledNotifications extends Command
             // Mengirim notifikasi
             $message = "🔔 *Notifikasi Atribut Tetap* 🔔\n\n";
             $message .= "Atribut {$attribute->name} memiliki notifikasi pada tanggal tetap.\n\n—";
-            $this->sendNotification($message, null);
+            $this->sendNotification($message, null, $attribute, "Notifikasi {$attribute->name}");
         }
     }
 
-    protected function sendNotification($message, $asset)
+    protected function sendNotification(string $message, $asset, CustomAssetAttribute $attribute, string $subject): void
+    {
+        $hasRecipient = false;
+
+        if ($attribute->usesNotificationChannel(CustomAssetAttribute::CHANNEL_WHATSAPP)) {
+            foreach ($this->resolveWhatsappRecipients($attribute) as $phoneNumber) {
+                $hasRecipient = true;
+                $this->sendWhatsappNotification($message, $asset, $phoneNumber);
+            }
+        }
+
+        if ($attribute->usesNotificationChannel(CustomAssetAttribute::CHANNEL_EMAIL)) {
+            foreach ($this->resolveEmailRecipients($attribute) as $email) {
+                $hasRecipient = true;
+                $this->sendEmailNotification($subject, $message, $asset, $email);
+            }
+        }
+
+        if (! $hasRecipient) {
+            Log::warning('Tidak ada penerima notifikasi aset yang valid.', [
+                'custom_attribute_id' => $attribute->id,
+                'asset_id' => $asset?->id,
+                'channels' => $attribute->notificationChannels(),
+            ]);
+        }
+    }
+
+    protected function resolveWhatsappRecipients(CustomAssetAttribute $attribute): array
+    {
+        $recipients = $attribute->notificationRecipientWhatsappNumbers();
+
+        if ($recipients === [] && filled(env('DEFAULT_NOTIFICATION_PHONE'))) {
+            $recipients[] = env('DEFAULT_NOTIFICATION_PHONE');
+        }
+
+        return array_values(array_unique($recipients));
+    }
+
+    protected function resolveEmailRecipients(CustomAssetAttribute $attribute): array
+    {
+        $recipients = $attribute->notificationRecipientEmails();
+        $userIds = $attribute->notificationRecipientUserIds();
+
+        if ($userIds !== []) {
+            $userEmails = User::whereKey($userIds)
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->all();
+
+            $recipients = array_merge($recipients, $userEmails);
+        }
+
+        return collect($recipients)
+            ->map(fn ($email) => is_string($email) ? trim($email) : null)
+            ->filter(fn ($email) => filled($email) && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): void
     {
         // Contoh pengiriman pesan via WhatsApp menggunakan Guzzle Client
         $client = new Client;
         $apiEndpoint = env('WHATSAPP_API_ENDPOINT');
-        $phoneNumber = env('DEFAULT_NOTIFICATION_PHONE');
 
-        if (! filled($apiEndpoint) || ! filled($phoneNumber)) {
+        if (! filled($apiEndpoint)) {
             Log::warning('Konfigurasi WhatsApp notifikasi aset belum lengkap.', [
                 'asset_id' => $asset?->id,
+                'receiver' => $phoneNumber,
             ]);
 
             return;
@@ -123,8 +193,22 @@ class SendScheduledNotifications extends Command
             if ($response->getStatusCode() !== 200) {
                 Log::error('Gagal mengirim pesan WhatsApp: '.$response->getBody());
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Gagal mengirim pesan WhatsApp: '.$e->getMessage());
+        }
+    }
+
+    protected function sendEmailNotification(string $subject, string $message, $asset, string $email): void
+    {
+        try {
+            Mail::raw($message, function ($mail) use ($email, $subject) {
+                $mail->to($email)->subject($subject);
+            });
+        } catch (Throwable $e) {
+            Log::error('Gagal mengirim email pengingat aset: '.$e->getMessage(), [
+                'asset_id' => $asset?->id,
+                'email' => $email,
+            ]);
         }
     }
 }

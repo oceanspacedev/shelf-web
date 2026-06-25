@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CustomAssetAttributeResource\Pages;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -120,6 +121,40 @@ class CustomAssetAttributeResource extends Resource
                             ->label('Tanggal Notifikasi Tetap')
                             ->placeholder('Pilih tanggal tetap untuk notifikasi')
                             ->visible(fn (callable $get) => $get('notification_type') === 'fixed_date'),
+
+                        Forms\Components\CheckboxList::make('notification_channels')
+                            ->label('Kirim Lewat')
+                            ->options(CustomAssetAttribute::notificationChannelOptions())
+                            ->default([CustomAssetAttribute::CHANNEL_WHATSAPP])
+                            ->columns(2)
+                            ->helperText('Pilih satu atau lebih channel pengingat.')
+                            ->visible(fn (callable $get) => $get('is_notifiable')),
+
+                        Forms\Components\Select::make('notification_recipient_user_ids')
+                            ->label('Penerima Internal')
+                            ->options(fn () => User::orderBy('name')->pluck('name', 'id'))
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Email akan dikirim ke email user yang dipilih. Nomor WhatsApp bisa ditambahkan di field nomor WhatsApp.')
+                            ->visible(fn (callable $get) => $get('is_notifiable'))
+                            ->columnSpanFull(),
+
+                        Forms\Components\TagsInput::make('notification_recipient_emails')
+                            ->label('Email Tambahan')
+                            ->placeholder('admin@example.com')
+                            ->helperText('Opsional. Gunakan untuk penerima di luar user internal.')
+                            ->visible(fn (callable $get) => $get('is_notifiable')
+                                && in_array(CustomAssetAttribute::CHANNEL_EMAIL, $get('notification_channels') ?? [], true))
+                            ->columnSpanFull(),
+
+                        Forms\Components\TagsInput::make('notification_recipient_whatsapp_numbers')
+                            ->label('Nomor WhatsApp Tujuan')
+                            ->placeholder('628123456789')
+                            ->helperText('Opsional. Jika kosong, sistem memakai DEFAULT_NOTIFICATION_PHONE sebagai fallback.')
+                            ->visible(fn (callable $get) => $get('is_notifiable')
+                                && in_array(CustomAssetAttribute::CHANNEL_WHATSAPP, $get('notification_channels') ?? [], true))
+                            ->columnSpanFull(),
                     ])
                     ->visible(fn (callable $get) => in_array($get('type'), [
                         CustomAssetAttribute::TYPE_DATE,
@@ -164,6 +199,12 @@ class CustomAssetAttributeResource extends Resource
                     ->boolean()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('notification_type')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('notification_channels')
+                    ->label('Channel')
+                    ->formatStateUsing(fn (CustomAssetAttribute $record): string => collect($record->notificationChannels())
+                        ->map(fn (string $channel): string => CustomAssetAttribute::notificationChannelOptions()[$channel] ?? $channel)
+                        ->implode(', '))
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('notification_offset')
                     ->numeric()
