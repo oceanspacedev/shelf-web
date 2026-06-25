@@ -48,12 +48,7 @@ class CustomAssetAttributeResource extends Resource
                         Forms\Components\Select::make('type')
                             ->label('Tipe Input')
                             ->required()
-                            ->options([
-                                'text' => 'Text Input',
-                                'number' => 'Number Input',
-                                'textarea' => 'Textarea',
-                                'date' => 'Date Picker',
-                            ])
+                            ->options(CustomAssetAttribute::typeOptions())
                             ->searchable()
                             ->placeholder('Pilih tipe input')
                             ->reactive(),
@@ -92,30 +87,32 @@ class CustomAssetAttributeResource extends Resource
                 Forms\Components\Section::make('Pengaturan Notifikasi')
                     ->schema([
                         Forms\Components\Toggle::make('is_notifiable')
-                            ->label('Mengaktifkan Notifikasi')
+                            ->label('Aktifkan Pengingat')
                             ->inline(false)
                             ->default(false)
-                            ->helperText('Aktifkan untuk menerima notifikasi.')
+                            ->helperText('Kirim pengingat harian saat dokumen atau tanggal atribut masuk masa pembaruan.')
                             ->reactive(),
 
                         Forms\Components\Select::make('notification_type')
-                            ->label('Tipe Notifikasi')
+                            ->label('Pola Pengingat')
                             ->options([
-                                'fixed_date' => 'Fixed Date',
-                                'relative_date' => 'Relative Date',
+                                'relative_date' => 'Harian sebelum tanggal berlaku habis',
+                                'fixed_date' => 'Tanggal tetap',
                             ])
-                            ->placeholder('Pilih tipe notifikasi')
-                            ->helperText('Jenis notifikasi yang akan dikirimkan.')
+                            ->default('relative_date')
+                            ->placeholder('Pilih pola pengingat')
+                            ->helperText('Untuk dokumen masa berlaku, gunakan pola harian sebelum tanggal berlaku habis.')
                             ->required()
                             ->reactive()
                             ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
 
                         // Pengaturan yang akan tampil jika 'relative_date' dipilih
                         Forms\Components\TextInput::make('notification_offset')
-                            ->label('Offset Notifikasi')
-                            ->placeholder('Masukkan offset notifikasi (dalam hari)')
+                            ->label('Mulai Pengingat H-')
+                            ->placeholder('Contoh: 30, 14, 7')
                             ->numeric()
-                            ->helperText('Jumlah hari sebelum notifikasi dikirim.')
+                            ->minValue(0)
+                            ->helperText('Notifikasi muncul setiap hari mulai H-ini sampai tanggal/lampiran diperbarui.')
                             ->visible(fn (callable $get) => $get('notification_type') === 'relative_date'),
 
                         // Pengaturan yang akan tampil jika 'fixed_date' dipilih
@@ -124,7 +121,10 @@ class CustomAssetAttributeResource extends Resource
                             ->placeholder('Pilih tanggal tetap untuk notifikasi')
                             ->visible(fn (callable $get) => $get('notification_type') === 'fixed_date'),
                     ])
-                    ->visible(fn (callable $get) => $get('type') === 'date')
+                    ->visible(fn (callable $get) => in_array($get('type'), [
+                        CustomAssetAttribute::TYPE_DATE,
+                        CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY,
+                    ], true))
                     ->columns(3)
                     ->collapsed(false), // Section ini tetap terbuka
 
@@ -185,12 +185,7 @@ class CustomAssetAttributeResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
                     ->label('Tipe Input')
-                    ->options([
-                        'text' => 'Text Input',
-                        'number' => 'Number Input',
-                        'textarea' => 'Textarea',
-                        'date' => 'Date Picker',
-                    ]),
+                    ->options(CustomAssetAttribute::typeOptions()),
                 Tables\Filters\TernaryFilter::make('required')
                     ->label('Wajib Diisi'),
                 Tables\Filters\TernaryFilter::make('is_active')

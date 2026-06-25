@@ -54,7 +54,7 @@ class ListAssets extends ListRecords
                             Column::make('recipientBusinessEntity.name')->heading('Badan Usaha Penerima'),
                             Column::make('attributes')
                                 ->heading('Custom Attributes')
-                                ->getStateUsing(fn ($record) => $record->attributes->map(fn($attr) => $attr->customAttribute?->name . ': ' . $attr->attribute_value)->implode(', ')),
+                                ->getStateUsing(fn ($record) => $record->attributes->map(fn ($attr) => $attr->customAttribute?->name.': '.$attr->displayValue())->implode(', ')),
                         ])
                         ->withFilename('export_asset_'.date('Y-m-d')),
                 ]),

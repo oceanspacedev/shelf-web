@@ -2,17 +2,16 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\CustomAssetAttribute;
-use App\Models\AssetAttribute;
+use Carbon\CarbonImmutable;
 use GuzzleHttp\Client;
-use Illuminate\Support\Facades\Notification;
-use App\Notifications\CustomAssetNotification;
-use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class SendScheduledNotifications extends Command
 {
     protected $signature = 'notifications:send-scheduled';
+
     protected $description = 'Mengirim notifikasi terjadwal berdasarkan konfigurasi CustomAssetAttribute';
 
     public function __construct()
@@ -38,7 +37,6 @@ class SendScheduledNotifications extends Command
         $this->info('Proses pengiriman notifikasi terjadwal selesai.');
     }
 
-
     protected function handleRelativeDateNotification($attribute)
     {
         $assetAttributes = $attribute->assetAttributes()
@@ -46,35 +44,50 @@ class SendScheduledNotifications extends Command
             ->with(['asset.assetLocation'])
             ->get();
 
+        $today = CarbonImmutable::now();
+
         foreach ($assetAttributes as $assetAttribute) {
-            $endDate = Carbon::parse($assetAttribute->attribute_value);
-            $startDate = $endDate->copy()->subDays($attribute->notification_offset);
-
-            if (Carbon::now()->between($startDate, $endDate)) {
-                $assetName = $assetAttribute->asset->name ?? 'N/A';
-                $locationName = $assetAttribute->asset->assetLocation->name ?? 'N/A';
-
-                $message = "🔔 *Notifikasi Pengingat Aset* 🔔\n\n";
-                $message .= "Halo, berikut pengingat untuk aset Anda:\n\n";
-                $message .= "📦 *Nama Aset*: {$assetName}\n";
-                $message .= "🔖 *Atribut*: {$attribute->name}\n";
-                $message .= "📅 *Nilai Atribut*: {$assetAttribute->attribute_value}\n";
-                $message .= "📍 *Lokasi*: {$locationName}\n\n";
-                $message .= "Pesan ini untuk mengingatkan bahwa atribut *{$attribute->name}* pada aset Anda membutuhkan perhatian khusus. Harap periksa aset tersebut untuk menghindari masalah di masa depan.\n\n";
-                $message .= "— Bot";
-                $this->sendNotification($message, $assetAttribute->asset);
+            if (! $assetAttribute->shouldSendExpiryReminderOn($today)) {
+                continue;
             }
+
+            $assetName = $assetAttribute->asset->name ?? 'N/A';
+            $locationName = $assetAttribute->asset->assetLocation->name ?? 'N/A';
+            $expiryDate = $assetAttribute->expiryDate()?->format('d M Y') ?? '-';
+            $status = $assetAttribute->expiryReminderStatusLabelOn($today);
+            $documentNumber = $assetAttribute->documentNumber();
+            $documentUrl = $assetAttribute->documentUrl();
+
+            $message = "🔔 *Pengingat Dokumen Aset* 🔔\n\n";
+            $message .= "Dokumen aset membutuhkan pembaruan.\n\n";
+            $message .= "📦 *Nama Aset*: {$assetName}\n";
+            $message .= "🔖 *Dokumen*: {$attribute->name}\n";
+            $message .= "📅 *Berlaku Sampai*: {$expiryDate}\n";
+            $message .= "⚠️ *Status*: {$status}\n";
+            $message .= "📍 *Lokasi*: {$locationName}\n";
+
+            if ($documentNumber) {
+                $message .= "🧾 *Nomor Dokumen*: {$documentNumber}\n";
+            }
+
+            if ($documentUrl) {
+                $message .= "📎 *Lampiran*: {$documentUrl}\n";
+            }
+
+            $message .= "\nPengingat ini akan muncul setiap hari sampai dokumen diperbarui dengan tanggal berlaku dan lampiran baru.\n\n";
+            $message .= '— Bot';
+
+            $this->sendNotification($message, $assetAttribute->asset);
         }
 
         unset($assetAttributes);
     }
 
-
     protected function handleFixedDateNotification($attribute)
     {
-        $fixedDate = Carbon::parse($attribute->fixed_notification_date);
+        $fixedDate = CarbonImmutable::parse($attribute->fixed_notification_date);
 
-        if (Carbon::now()->isSameDay($fixedDate)) {
+        if (CarbonImmutable::now()->isSameDay($fixedDate)) {
             // Mengirim notifikasi
             $message = "🔔 *Notifikasi Atribut Tetap* 🔔\n\n";
             $message .= "Atribut {$attribute->name} memiliki notifikasi pada tanggal tetap.\n\n—";
@@ -85,9 +98,17 @@ class SendScheduledNotifications extends Command
     protected function sendNotification($message, $asset)
     {
         // Contoh pengiriman pesan via WhatsApp menggunakan Guzzle Client
-        $client = new Client();
+        $client = new Client;
         $apiEndpoint = env('WHATSAPP_API_ENDPOINT');
         $phoneNumber = env('DEFAULT_NOTIFICATION_PHONE');
+
+        if (! filled($apiEndpoint) || ! filled($phoneNumber)) {
+            Log::warning('Konfigurasi WhatsApp notifikasi aset belum lengkap.', [
+                'asset_id' => $asset?->id,
+            ]);
+
+            return;
+        }
 
         try {
             $response = $client->post($apiEndpoint, [
@@ -95,15 +116,15 @@ class SendScheduledNotifications extends Command
                     'apikey' => env('WHATSAPP_API_KEY'),
                     'sender' => env('WHATSAPP_SENDER_NUMBER'),
                     'receiver' => $phoneNumber,
-                    'message' => $message
-                ]
+                    'message' => $message,
+                ],
             ]);
 
             if ($response->getStatusCode() !== 200) {
-                \Log::error('Gagal mengirim pesan WhatsApp: ' . $response->getBody());
+                Log::error('Gagal mengirim pesan WhatsApp: '.$response->getBody());
             }
         } catch (\Exception $e) {
-            \Log::error('Gagal mengirim pesan WhatsApp: ' . $e->getMessage());
+            Log::error('Gagal mengirim pesan WhatsApp: '.$e->getMessage());
         }
     }
 }

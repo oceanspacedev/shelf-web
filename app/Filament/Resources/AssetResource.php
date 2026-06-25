@@ -108,6 +108,99 @@ class AssetResource extends Resource
         return Storage::url($path);
     }
 
+    protected static function customAttributeType($customAttributeId): ?string
+    {
+        if (! filled($customAttributeId)) {
+            return null;
+        }
+
+        return CustomAssetAttribute::find($customAttributeId)?->type;
+    }
+
+    protected static function attributeUsesType($customAttributeId, string $type): bool
+    {
+        return self::customAttributeType($customAttributeId) === $type;
+    }
+
+    protected static function customAttributeIsRequired($customAttributeId): bool
+    {
+        if (! filled($customAttributeId)) {
+            return false;
+        }
+
+        return (bool) CustomAssetAttribute::find($customAttributeId)?->required;
+    }
+
+    protected static function prepareAttributeRelationshipData(array $data): array
+    {
+        $customAttribute = CustomAssetAttribute::find($data['custom_attribute_id'] ?? null);
+
+        if ($customAttribute?->type === CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY) {
+            $documentPath = $data['document_file_path'] ?? null;
+
+            if (is_array($documentPath)) {
+                $documentPath = reset($documentPath) ?: null;
+            }
+
+            $data['attribute_value'] = AssetAttribute::documentValue([
+                'expires_at' => $data['document_expires_at'] ?? null,
+                'document_number' => $data['document_number'] ?? null,
+                'document_path' => $documentPath,
+                'notes' => $data['document_notes'] ?? null,
+            ]);
+        } elseif (is_array($data['attribute_value'] ?? null)) {
+            $data['attribute_value'] = null;
+        }
+
+        unset(
+            $data['custom_attribute_label'],
+            $data['document_expires_at'],
+            $data['document_number'],
+            $data['document_file_path'],
+            $data['document_notes']
+        );
+
+        return $data;
+    }
+
+    protected static function attributeFormState(AssetAttribute $attribute): array
+    {
+        $customAttribute = $attribute->customAttribute ?? CustomAssetAttribute::find($attribute->custom_attribute_id);
+        $attribute->setRelation('customAttribute', $customAttribute);
+        $payload = $attribute->documentPayload();
+
+        return [
+            'custom_attribute_id' => $attribute->custom_attribute_id,
+            'custom_attribute_label' => $customAttribute?->name,
+            'attribute_value' => $attribute->isDocumentExpiryAttribute() ? null : $attribute->attribute_value,
+            'document_expires_at' => $payload['expires_at'] ?? null,
+            'document_number' => $payload['document_number'] ?? null,
+            'document_file_path' => $payload['document_path'] ?? null,
+            'document_notes' => $payload['notes'] ?? null,
+        ];
+    }
+
+    protected static function documentStatusFromForm(callable $get): string
+    {
+        $customAttribute = CustomAssetAttribute::find($get('custom_attribute_id'));
+
+        if (! $customAttribute) {
+            return 'Pilih atribut dokumen terlebih dahulu.';
+        }
+
+        $attribute = new AssetAttribute([
+            'attribute_value' => AssetAttribute::documentValue([
+                'expires_at' => $get('document_expires_at'),
+                'document_number' => $get('document_number'),
+                'document_path' => $get('document_file_path'),
+                'notes' => $get('document_notes'),
+            ]),
+        ]);
+        $attribute->setRelation('customAttribute', $customAttribute);
+
+        return $attribute->expiryReminderStatusLabelOn();
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -140,6 +233,10 @@ class AssetResource extends Resource
                                                     return [
                                                         'custom_attribute_id' => $attribute->id,
                                                         'attribute_value' => '',
+                                                        'document_expires_at' => null,
+                                                        'document_number' => null,
+                                                        'document_file_path' => null,
+                                                        'document_notes' => null,
                                                     ];
                                                 })
                                                 ->toArray();
@@ -210,6 +307,13 @@ class AssetResource extends Resource
                                     ->reactive()
                                     ->searchable()
                                     ->required()
+                                    ->afterStateUpdated(function (callable $set) {
+                                        $set('attribute_value', null);
+                                        $set('document_expires_at', null);
+                                        $set('document_number', null);
+                                        $set('document_file_path', null);
+                                        $set('document_notes', null);
+                                    })
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         if ($state) {
                                             // Ambil nama atribut berdasarkan ID
@@ -226,8 +330,9 @@ class AssetResource extends Resource
                                 // Input untuk nilai atribut
                                 TextInput::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
+                                    ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->reactive()
-                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'text')
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXT))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -235,10 +340,10 @@ class AssetResource extends Resource
                                 // Input numerik
                                 TextInput::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->numeric()
                                     ->reactive()
-                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'number')
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_NUMBER))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -246,9 +351,9 @@ class AssetResource extends Resource
                                 // Input untuk textarea
                                 Textarea::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->reactive()
-                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'textarea')
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXTAREA))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
@@ -256,26 +361,59 @@ class AssetResource extends Resource
                                 // Input untuk date picker
                                 DatePicker::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
-                                    ->required(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->required)
+                                    ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->reactive()
-                                    ->visible(fn (callable $get) => $get('custom_attribute_id') && CustomAssetAttribute::find($get('custom_attribute_id'))->type === 'date')
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DATE))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
                                     }),
+
+                                TextInput::make('document_number')
+                                    ->label('Nomor Dokumen')
+                                    ->maxLength(255)
+                                    ->placeholder('Contoh: STNK-001')
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
+
+                                DatePicker::make('document_expires_at')
+                                    ->label('Berlaku Sampai')
+                                    ->required(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY))
+                                    ->reactive()
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
+
+                                FileUpload::make('document_file_path')
+                                    ->label('Lampiran Dokumen')
+                                    ->directory('asset-documents')
+                                    ->preserveFilenames()
+                                    ->maxSize(4096)
+                                    ->acceptedFileTypes(['application/pdf', 'image/*'])
+                                    ->helperText('Upload PDF/JPG/PNG sebagai bukti pembaruan dokumen.')
+                                    ->required(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY))
+                                    ->columnSpan(2)
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
+
+                                Textarea::make('document_notes')
+                                    ->label('Catatan Dokumen')
+                                    ->rows(2)
+                                    ->placeholder('Catatan opsional terkait pembaruan dokumen.')
+                                    ->columnSpan(2)
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
+
+                                Placeholder::make('document_status')
+                                    ->label('Status Pengingat')
+                                    ->content(fn (callable $get): string => self::documentStatusFromForm($get))
+                                    ->columnSpan(2)
+                                    ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
                             ])
                             ->columns(2)
                             ->columnSpan(2)
                             ->visible(fn (callable $get) => $get('category_id') !== null)
+                            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => self::prepareAttributeRelationshipData($data))
+                            ->mutateRelationshipDataBeforeSaveUsing(fn (array $data): array => self::prepareAttributeRelationshipData($data))
                             ->afterStateHydrated(function ($state, callable $set, $record) {
                                 if ($record && $record->attributes) {
                                     $state = [];
                                     foreach ($record->attributes as $attribute) {
-                                        $customAttribute = CustomAssetAttribute::find($attribute->custom_attribute_id);
-                                        $state[] = [
-                                            'custom_attribute_id' => $attribute->custom_attribute_id,
-                                            'custom_attribute_label' => $customAttribute ? $customAttribute->name : null,
-                                            'attribute_value' => $attribute->attribute_value,
-                                        ];
+                                        $state[] = self::attributeFormState($attribute);
                                     }
                                     $set('attributes', $state);
                                 }
@@ -702,9 +840,23 @@ class AssetResource extends Resource
                                 $record->load('attributes.customAttribute');
 
                                 return $record->attributes->map(function ($attribute) {
-                                    return TextEntry::make("custom_attribute_{$attribute->custom_attribute_id}")
+                                    $entry = TextEntry::make("custom_attribute_{$attribute->custom_attribute_id}")
                                         ->label($attribute->customAttribute?->name ?? 'Unknown Attribute')
-                                        ->state($attribute->attribute_value);
+                                        ->state($attribute->displayValue());
+
+                                    if ($attribute->isDocumentExpiryAttribute()) {
+                                        $entry
+                                            ->badge()
+                                            ->color(fn () => $attribute->expiryReminderStatusColorOn());
+
+                                        if ($attribute->documentUrl()) {
+                                            $entry
+                                                ->url($attribute->documentUrl(), true)
+                                                ->openUrlInNewTab();
+                                        }
+                                    }
+
+                                    return $entry;
                                 })->toArray();
                             }),
                     ]),
