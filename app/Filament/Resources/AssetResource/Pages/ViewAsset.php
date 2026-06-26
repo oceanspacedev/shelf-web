@@ -24,216 +24,257 @@ class ViewAsset extends ViewRecord
     protected function getActions(): array
     {
         return [
-            Actions\Action::make('markSold')
-                ->label('Tandai Dijual')
-                ->icon('heroicon-o-banknotes')
-                ->color('gray')
-                ->visible(fn(Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
-                    && $record->condition_status !== AssetCondition::Sold)
-                ->modalHeading('Lengkapi audit penjualan aset')
-                ->modalDescription('Isi data tujuan penjualan, nilai transaksi, dan dokumen pendukung sebelum status diubah menjadi "Dijual".')
-                ->form($this->getSaleFormSchema())
-                ->action(function (array $data): void {
-                    /** @var Asset $asset */
-                    $asset = $this->record;
-                    $this->applySaleUpdate($asset, $data);
+            Actions\ActionGroup::make([
+                Actions\Action::make('markSold')
+                    ->label('Tandai Dijual')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('gray')
+                    ->visible(fn (Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
+                        && $record->condition_status !== AssetCondition::Sold)
+                    ->modalHeading('Lengkapi audit penjualan aset')
+                    ->modalDescription('Isi data tujuan penjualan, nilai transaksi, dan dokumen pendukung sebelum status diubah menjadi "Dijual".')
+                    ->form($this->getSaleFormSchema())
+                    ->action(function (array $data): void {
+                        /** @var Asset $asset */
+                        $asset = $this->record;
+                        $this->applySaleUpdate($asset, $data);
 
-                    Notification::make()
-                        ->title('Aset ditandai dijual')
-                        ->body('Status aset berubah menjadi "Dijual" beserta data audit penjualannya.')
-                        ->success()
-                        ->send();
-                }),
-            Actions\Action::make('markDamaged')
-                ->label('Tandai Rusak')
-                ->icon('heroicon-o-wrench')
-                ->color('warning')
-                ->visible(fn(Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
-                    && ! in_array($record->condition_status, [AssetCondition::Damaged, AssetCondition::Sold], true))
-                ->form($this->getIncidentFormSchema())
-                ->action(function (array $data): void {
-                    /** @var Asset $asset */
-                    $asset = $this->record;
-                    $this->applyIncidentUpdate($asset, AssetCondition::Damaged, $data);
+                        Notification::make()
+                            ->title('Aset ditandai dijual')
+                            ->body('Status aset berubah menjadi "Dijual" beserta data audit penjualannya.')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('markDamaged')
+                    ->label('Tandai Rusak')
+                    ->icon('heroicon-o-wrench')
+                    ->color('warning')
+                    ->visible(fn (Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
+                        && ! in_array($record->condition_status, [AssetCondition::Damaged, AssetCondition::Sold], true))
+                    ->form($this->getIncidentFormSchema())
+                    ->action(function (array $data): void {
+                        /** @var Asset $asset */
+                        $asset = $this->record;
+                        $this->applyIncidentUpdate($asset, AssetCondition::Damaged, $data);
 
-                    Notification::make()
-                        ->title('Aset ditandai rusak')
-                        ->body('Status aset berubah menjadi "Rusak" dan NBH menunggu tindak lanjut.')
-                        ->success()
-                        ->send();
-                }),
-            Actions\Action::make('markLost')
-                ->label('Tandai Hilang')
-                ->icon('heroicon-o-exclamation-triangle')
-                ->color('danger')
-                ->visible(fn(Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
-                    && ! in_array($record->condition_status, [AssetCondition::Lost, AssetCondition::Sold], true))
-                ->form($this->getIncidentFormSchema())
-                ->action(function (array $data): void {
-                    /** @var Asset $asset */
-                    $asset = $this->record;
-                    $this->applyIncidentUpdate($asset, AssetCondition::Lost, $data);
+                        Notification::make()
+                            ->title('Aset ditandai rusak')
+                            ->body('Status aset berubah menjadi "Rusak" dan NBH menunggu tindak lanjut.')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('markLost')
+                    ->label('Tandai Hilang')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('danger')
+                    ->visible(fn (Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
+                        && ! in_array($record->condition_status, [AssetCondition::Lost, AssetCondition::Sold], true))
+                    ->form($this->getIncidentFormSchema())
+                    ->action(function (array $data): void {
+                        /** @var Asset $asset */
+                        $asset = $this->record;
+                        $this->applyIncidentUpdate($asset, AssetCondition::Lost, $data);
 
-                    Notification::make()
-                        ->title('Aset ditandai hilang')
-                        ->body('Status aset berubah menjadi "Hilang" dan NBH menunggu tindak lanjut.')
-                        ->success()
-                        ->send();
-                }),
-            Actions\Action::make('mergeAsset')
-                ->label('Gabungkan Aset Duplikat')
-                ->icon('heroicon-o-arrows-pointing-in')
-                ->color('warning')
-                ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') ?? false)
-                ->modalHeading('Gabungkan Aset Duplikat')
-                ->modalDescription('Pindahkan semua relasi dari aset sumber ke aset ini, lalu hapus aset sumber.')
-                ->modalSubmitActionLabel('Gabungkan')
-                ->modalWidth('xl')
-                ->form([
-                    Forms\Components\Select::make('source_asset_id')
-                        ->label('Aset Sumber (Duplikat)')
-                        ->searchable()
-                        ->getSearchResultsUsing(function (string $search): array {
-                            return Asset::where('id', '!=', $this->record->id)
-                                ->where(function ($query) use ($search) {
-                                    $query->where('name', 'like', "%{$search}%")
-                                        ->orWhere('id', 'like', "%{$search}%");
-                                })
-                                ->limit(20)
-                                ->get()
-                                ->mapWithKeys(fn (Asset $asset) => [
-                                    $asset->id => "#{$asset->id} — {$asset->name}",
-                                ])
-                                ->toArray();
-                        })
-                        ->getOptionLabelUsing(function ($value): ?string {
-                            $asset = Asset::find($value);
-                            return $asset ? "#{$asset->id} — {$asset->name}" : null;
-                        })
-                        ->required()
-                        ->helperText('Cari berdasarkan ID atau nama aset.')
-                        ->live()
-                        ->afterStateUpdated(function (callable $set, $state) {
-                            if ($state) {
-                                $allIds = AssetTransferDetail::where('asset_id', $state)->pluck('id')->toArray();
-                                $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $state);
+                        Notification::make()
+                            ->title('Aset ditandai hilang')
+                            ->body('Status aset berubah menjadi "Hilang" dan NBH menunggu tindak lanjut.')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('repairValidation')
+                    ->label('Perbaiki Validasi')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
+                        && ! $record->checkValidRecipient())
+                    ->requiresConfirmation()
+                    ->modalHeading('Perbaiki status validasi aset')
+                    ->modalDescription('Aset akan disesuaikan dengan Asset Transfer Detail terbaru: pemegang aset, entitas penerima, dan status kondisi.')
+                    ->modalSubmitActionLabel('Perbaiki')
+                    ->action(function (): void {
+                        /** @var Asset $asset */
+                        $asset = $this->record;
+
+                        if (! $asset->syncRecipientFromLatestTransferDetail()) {
+                            Notification::make()
+                                ->title('Validasi belum bisa diperbaiki')
+                                ->body('Asset Transfer Detail terbaru tidak ditemukan atau data transfernya tidak lengkap.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $this->record->refresh();
+
+                        Notification::make()
+                            ->title('Validasi aset diperbaiki')
+                            ->body('Pemegang aset, entitas penerima, dan status aset sudah disesuaikan dengan transfer terbaru.')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('mergeAsset')
+                    ->label('Gabungkan Aset Duplikat')
+                    ->icon('heroicon-o-arrows-pointing-in')
+                    ->color('warning')
+                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') ?? false)
+                    ->modalHeading('Gabungkan Aset Duplikat')
+                    ->modalDescription('Pindahkan semua relasi dari aset sumber ke aset ini, lalu hapus aset sumber.')
+                    ->modalSubmitActionLabel('Gabungkan')
+                    ->modalWidth('xl')
+                    ->form([
+                        Forms\Components\Select::make('source_asset_id')
+                            ->label('Aset Sumber (Duplikat)')
+                            ->searchable()
+                            ->getSearchResultsUsing(function (string $search): array {
+                                return Asset::where('id', '!=', $this->record->id)
+                                    ->where(function ($query) use ($search) {
+                                        $query->where('name', 'like', "%{$search}%")
+                                            ->orWhere('id', 'like', "%{$search}%");
+                                    })
+                                    ->limit(20)
+                                    ->get()
+                                    ->mapWithKeys(fn (Asset $asset) => [
+                                        $asset->id => "#{$asset->id} — {$asset->name}",
+                                    ])
+                                    ->toArray();
+                            })
+                            ->getOptionLabelUsing(function ($value): ?string {
+                                $asset = Asset::find($value);
+
+                                return $asset ? "#{$asset->id} — {$asset->name}" : null;
+                            })
+                            ->required()
+                            ->helperText('Cari berdasarkan ID atau nama aset.')
+                            ->live()
+                            ->afterStateUpdated(function (callable $set, $state) {
+                                if ($state) {
+                                    $allIds = AssetTransferDetail::where('asset_id', $state)->pluck('id')->toArray();
+                                    $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $state);
+                                    $conflictIds = $conflicts['source'] ?? [];
+                                    $safeIds = array_values(array_diff($allIds, $conflictIds));
+                                    $set('transfer_details_to_move', $safeIds);
+                                } else {
+                                    $set('transfer_details_to_move', []);
+                                }
+                            }),
+                        Placeholder::make('source_preview')
+                            ->label('Ringkasan Aset Sumber')
+                            ->content(function (callable $get): string {
+                                $sourceId = $get('source_asset_id');
+                                if (! $sourceId) {
+                                    return 'Pilih aset sumber untuk melihat ringkasan.';
+                                }
+
+                                $source = Asset::withCount(['attributes', 'assetTransferDetails', 'vehicleChecksheets'])
+                                    ->find($sourceId);
+
+                                if (! $source) {
+                                    return 'Aset tidak ditemukan.';
+                                }
+
+                                return implode(' | ', array_filter([
+                                    "Nama: {$source->name}",
+                                    "Atribut: {$source->attributes_count}",
+                                    "Transfer Detail: {$source->asset_transfer_details_count}",
+                                    "Checksheet: {$source->vehicle_checksheets_count}",
+                                ]));
+                            })
+                            ->visible(fn (callable $get): bool => filled($get('source_asset_id'))),
+                        Forms\Components\CheckboxList::make('transfer_details_to_move')
+                            ->label('Riwayat Transfer dari Aset Sumber')
+                            ->options(function (callable $get): array {
+                                $sourceId = $get('source_asset_id');
+                                if (! $sourceId) {
+                                    return [];
+                                }
+
+                                $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
                                 $conflictIds = $conflicts['source'] ?? [];
-                                $safeIds = array_values(array_diff($allIds, $conflictIds));
-                                $set('transfer_details_to_move', $safeIds);
-                            } else {
-                                $set('transfer_details_to_move', []);
-                            }
-                        }),
-                    Placeholder::make('source_preview')
-                        ->label('Ringkasan Aset Sumber')
-                        ->content(function (callable $get): string {
-                            $sourceId = $get('source_asset_id');
-                            if (! $sourceId) {
-                                return 'Pilih aset sumber untuk melihat ringkasan.';
-                            }
 
-                            $source = Asset::withCount(['attributes', 'assetTransferDetails', 'vehicleChecksheets'])
-                                ->find($sourceId);
+                                return AssetTransferDetail::where('asset_id', $sourceId)
+                                    ->with(['assetTransfer' => fn ($q) => $q->with('fromUser', 'toUser')])
+                                    ->get()
+                                    ->mapWithKeys(function (AssetTransferDetail $detail) use ($conflictIds) {
+                                        $transfer = $detail->assetTransfer;
+                                        if (! $transfer) {
+                                            return [$detail->id => "⚠️ Detail #{$detail->id} (transfer tidak ditemukan)"];
+                                        }
+                                        $from = $transfer->fromUser?->name ?? 'N/A';
+                                        $to = $transfer->toUser?->name ?? 'N/A';
+                                        $date = $transfer->transfer_date
+                                            ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
+                                            : '-';
 
-                            if (! $source) {
-                                return 'Aset tidak ditemukan.';
-                            }
+                                        $prefix = in_array($detail->id, $conflictIds) ? '⚠️ KONFLIK — ' : '✅ ';
 
-                            return implode(' | ', array_filter([
-                                "Nama: {$source->name}",
-                                "Atribut: {$source->attributes_count}",
-                                "Transfer Detail: {$source->asset_transfer_details_count}",
-                                "Checksheet: {$source->vehicle_checksheets_count}",
-                            ]));
-                        })
-                        ->visible(fn (callable $get): bool => filled($get('source_asset_id'))),
-                    Forms\Components\CheckboxList::make('transfer_details_to_move')
-                        ->label('Riwayat Transfer dari Aset Sumber')
-                        ->options(function (callable $get): array {
-                            $sourceId = $get('source_asset_id');
-                            if (! $sourceId) {
-                                return [];
-                            }
+                                        return [$detail->id => "{$prefix}{$transfer->letter_number} | {$from} → {$to} | {$date}"];
+                                    })
+                                    ->toArray();
+                            })
+                            ->helperText('Transfer bertanda ⚠️ KONFLIK otomatis tidak terpilih.')
+                            ->columns(1)
+                            ->visible(fn (callable $get): bool => filled($get('source_asset_id'))
+                                && AssetTransferDetail::where('asset_id', $get('source_asset_id'))->exists()),
+                        Placeholder::make('target_conflicts_preview')
+                            ->label('Transfer Aset Target yang Akan Dihapus (Konflik)')
+                            ->content(function (callable $get): string {
+                                $sourceId = $get('source_asset_id');
+                                if (! $sourceId) {
+                                    return '';
+                                }
 
-                            $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
-                            $conflictIds = $conflicts['source'] ?? [];
+                                $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
+                                $targetConflictIds = $conflicts['target'] ?? [];
 
-                            return AssetTransferDetail::where('asset_id', $sourceId)
-                                ->with(['assetTransfer' => fn ($q) => $q->with('fromUser', 'toUser')])
-                                ->get()
-                                ->mapWithKeys(function (AssetTransferDetail $detail) use ($conflictIds) {
-                                    $transfer = $detail->assetTransfer;
-                                    if (! $transfer) {
-                                        return [$detail->id => "⚠️ Detail #{$detail->id} (transfer tidak ditemukan)"];
-                                    }
-                                    $from = $transfer->fromUser?->name ?? 'N/A';
-                                    $to = $transfer->toUser?->name ?? 'N/A';
-                                    $date = $transfer->transfer_date
-                                        ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
-                                        : '-';
+                                if (empty($targetConflictIds)) {
+                                    return 'Tidak ada transfer detail dari aset target yang perlu dihapus.';
+                                }
 
-                                    $prefix = in_array($detail->id, $conflictIds) ? '⚠️ KONFLIK — ' : '✅ ';
+                                $details = AssetTransferDetail::whereIn('id', $targetConflictIds)
+                                    ->with(['assetTransfer' => fn ($q) => $q->with('fromUser', 'toUser')])
+                                    ->get()
+                                    ->map(function (AssetTransferDetail $detail) {
+                                        $transfer = $detail->assetTransfer;
+                                        if (! $transfer) {
+                                            return "• Detail #{$detail->id} (transfer tidak ditemukan)";
+                                        }
+                                        $from = $transfer->fromUser?->name ?? 'N/A';
+                                        $to = $transfer->toUser?->name ?? 'N/A';
+                                        $date = $transfer->transfer_date
+                                            ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
+                                            : '-';
 
-                                    return [$detail->id => "{$prefix}{$transfer->letter_number} | {$from} → {$to} | {$date}"];
-                                })
-                                ->toArray();
-                        })
-                        ->helperText('Transfer bertanda ⚠️ KONFLIK otomatis tidak terpilih.')
-                        ->columns(1)
-                        ->visible(fn (callable $get): bool => filled($get('source_asset_id'))
-                            && AssetTransferDetail::where('asset_id', $get('source_asset_id'))->exists()),
-                    Placeholder::make('target_conflicts_preview')
-                        ->label('Transfer Aset Target yang Akan Dihapus (Konflik)')
-                        ->content(function (callable $get): string {
-                            $sourceId = $get('source_asset_id');
-                            if (! $sourceId) {
-                                return '';
-                            }
+                                        return "• {$transfer->letter_number} | {$from} → {$to} | {$date}";
+                                    })
+                                    ->implode("\n");
 
-                            $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
-                            $targetConflictIds = $conflicts['target'] ?? [];
+                                return "Transfer berikut tidak cocok dengan alur timeline baru dan akan dihapus:\n\n{$details}";
+                            })
+                            ->visible(function (callable $get): bool {
+                                $sourceId = $get('source_asset_id');
+                                if (! $sourceId) {
+                                    return false;
+                                }
+                                $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
 
-                            if (empty($targetConflictIds)) {
-                                return 'Tidak ada transfer detail dari aset target yang perlu dihapus.';
-                            }
-
-                            $details = AssetTransferDetail::whereIn('id', $targetConflictIds)
-                                ->with(['assetTransfer' => fn ($q) => $q->with('fromUser', 'toUser')])
-                                ->get()
-                                ->map(function (AssetTransferDetail $detail) {
-                                    $transfer = $detail->assetTransfer;
-                                    if (! $transfer) {
-                                        return "• Detail #{$detail->id} (transfer tidak ditemukan)";
-                                    }
-                                    $from = $transfer->fromUser?->name ?? 'N/A';
-                                    $to = $transfer->toUser?->name ?? 'N/A';
-                                    $date = $transfer->transfer_date
-                                        ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
-                                        : '-';
-                                    return "• {$transfer->letter_number} | {$from} → {$to} | {$date}";
-                                })
-                                ->implode("\n");
-
-                            return "Transfer berikut tidak cocok dengan alur timeline baru dan akan dihapus:\n\n{$details}";
-                        })
-                        ->visible(function (callable $get): bool {
-                            $sourceId = $get('source_asset_id');
-                            if (!$sourceId) {
-                                return false;
-                            }
-                            $conflicts = $this->detectConflictingTransferDetails((int) $this->record->id, (int) $sourceId);
-                            return !empty($conflicts['target']);
-                        }),
-                ])
-                ->requiresConfirmation()
-                ->modalIcon('heroicon-o-exclamation-triangle')
-                ->modalIconColor('warning')
-                ->action(function (array $data): void {
-                    $this->performMerge(
-                        (int) $data['source_asset_id'],
-                        $data['transfer_details_to_move'] ?? []
-                    );
-                }),
+                                return ! empty($conflicts['target']);
+                            }),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalIcon('heroicon-o-exclamation-triangle')
+                    ->modalIconColor('warning')
+                    ->action(function (array $data): void {
+                        $this->performMerge(
+                            (int) $data['source_asset_id'],
+                            $data['transfer_details_to_move'] ?? []
+                        );
+                    }),
+            ])
+                ->label('Pilihan')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray')
+                ->button(),
             Actions\EditAction::make(),
         ];
     }
@@ -294,7 +335,7 @@ class ViewAsset extends ViewRecord
             for ($j = 0; $j < $i; $j++) {
                 // Rantai valid jika to_user[j] == from_user[i]
                 if ($combined[$j]['to_user_id'] === $combined[$i]['from_user_id']) {
-                    if ($dp[$j] + 1 > $dp[$i]) {
+                    if ($dp[$i] < $dp[$j] + 1) {
                         $dp[$i] = $dp[$j] + 1;
                         $prev[$i] = $j;
                     }
@@ -346,6 +387,7 @@ class ViewAsset extends ViewRecord
                 ->body('Tidak bisa menggabungkan aset dengan dirinya sendiri.')
                 ->danger()
                 ->send();
+
             return;
         }
 

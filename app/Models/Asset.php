@@ -96,6 +96,40 @@ class Asset extends Model
         return $this->hasMany(AssetTransferDetail::class);
     }
 
+    public function latestTransferDetail(): ?AssetTransferDetail
+    {
+        return $this->assetTransferDetails()
+            ->with(['assetTransfer.toUser'])
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+    }
+
+    public function syncRecipientFromLatestTransferDetail(): bool
+    {
+        $latestTransfer = $this->latestTransferDetail()?->assetTransfer;
+
+        if (! $latestTransfer?->toUser) {
+            return false;
+        }
+
+        $this->recipient_id = $latestTransfer->to_user_id;
+        $this->recipient_business_entity_id = $latestTransfer->business_entity_id;
+        $this->condition_status = $latestTransfer->toUser->hasRole('general_affair')
+            ? AssetCondition::Available
+            : AssetCondition::Transferred;
+
+        if ($this->condition_status instanceof AssetCondition && $this->condition_status->isTransferable()) {
+            $this->nbh_status = NbhStatus::None;
+            $this->nbh_responsible_user_id = null;
+        }
+
+        $this->unsetRelation('recipient');
+        $this->cachedValidRecipientResult = null;
+
+        return $this->save();
+    }
+
     // Relasi ke tabel users untuk recipient_id
     public function recipient()
     {
@@ -272,15 +306,7 @@ class Asset extends Model
             return true;
         }
 
-        $latestTransferDetail = AssetTransferDetail::where('asset_id', $this->id)
-            ->latest()
-            ->first();
-
-        if (! $latestTransferDetail) {
-            return true;
-        }
-
-        $latestTransfer = AssetTransfer::find($latestTransferDetail->asset_transfer_id);
+        $latestTransfer = $this->latestTransferDetail()?->assetTransfer;
 
         if (! $latestTransfer) {
             return true;

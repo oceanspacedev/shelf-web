@@ -808,173 +808,189 @@ class AssetResource extends Resource
     {
         return $infolist
             ->schema([
-                ComponentsSection::make('Informasi Aset')
+                ComponentsGrid::make(1)
                     ->schema([
-                        ComponentsGrid::make(2)
+                        ComponentsSection::make('Informasi Aset')
                             ->schema([
-                                TextEntry::make('name')
-                                    ->label(__('Nama Aset'))
-                                    ->columnSpan(2)
-                                    ->extraAttributes([
-                                        'style' => 'font-weight:bold; font-size:1.2em; color:#333;',
+                                ComponentsGrid::make(2)
+                                    ->schema([
+                                        TextEntry::make('name')
+                                            ->label(__('Nama Aset'))
+                                            ->columnSpan(2)
+                                            ->extraAttributes([
+                                                'style' => 'font-weight:bold; font-size:1.2em; color:#333;',
+                                            ]),
+                                        TextEntry::make('category.name')
+                                            ->label(__('Kategori')),
+                                        TextEntry::make('brand.name')
+                                            ->label(__('Merek')),
+                                        TextEntry::make('type')
+                                            ->label(__('Tipe')),
+                                        ImageEntry::make('image')
+                                            ->label(__('Gambar Aset'))
+                                            ->width('100px')
+                                            ->height('100px'),
                                     ]),
-                                TextEntry::make('category.name')
-                                    ->label(__('Kategori')),
-                                TextEntry::make('brand.name')
-                                    ->label(__('Merek')),
-                                TextEntry::make('type')
-                                    ->label(__('Tipe')),
-                                ImageEntry::make('image')
-                                    ->label(__('Gambar Aset'))
-                                    ->width('100px')
-                                    ->height('100px'),
-                            ]),
-                    ])
-                    ->columnSpan(2)
-                    ->grow(true),
-
-                ComponentsSection::make('Atribut Khusus')
-                    ->schema([
-                        ComponentsGrid::make(2)
-                            ->schema(function ($record) {
-                                $record->load('attributes.customAttribute');
-
-                                return $record->attributes->map(function ($attribute) {
-                                    $entry = TextEntry::make("custom_attribute_{$attribute->custom_attribute_id}")
-                                        ->label($attribute->customAttribute?->name ?? 'Unknown Attribute')
-                                        ->state($attribute->displayValue());
-
-                                    if ($attribute->isDocumentExpiryAttribute()) {
-                                        $entry
-                                            ->badge()
-                                            ->color(fn () => $attribute->expiryReminderStatusColorOn());
-
-                                        if ($attribute->documentUrl()) {
-                                            $entry
-                                                ->url($attribute->documentUrl(), true)
-                                                ->openUrlInNewTab();
-                                        }
-                                    }
-
-                                    return $entry;
-                                })->toArray();
-                            }),
-                    ]),
-
-                ComponentsSection::make('Detail Pembelian')
-                    ->schema([
-                        ComponentsGrid::make(4)
-                            ->schema([
-                                TextEntry::make('purchase_date')
-                                    ->label(__('Tanggal Pembelian'))
-                                    ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d/m/Y'))
-                                    ->extraAttributes(['style' => 'color:#007BFF;']),
-                                TextEntry::make('item_price')
-                                    ->label(__('Harga'))
-                                    ->formatStateUsing(fn ($state) => 'Rp '.number_format($state, 0, ',', '.'))
-                                    ->extraAttributes([
-                                        'style' => 'color:#28a745; font-weight:bold;',
-                                    ]),
-                                TextEntry::make('qty')
-                                    ->label(__('Kuantitas')),
-                                TextEntry::make('businessEntity.name')
-                                    ->label(__('Entitas Bisnis')),
-                            ]),
-                    ]),
-
-                ComponentsSection::make('Status & NBH')
-                    ->schema([
-                        ComponentsGrid::make(3)
-                            ->schema([
-                                TextEntry::make('condition_status_label')
-                                    ->label(__('Status Aset'))
-                                    ->badge()
-                                    ->color(fn ($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
-                                    ->extraAttributes(['style' => 'font-weight:bold;']),
-                                TextEntry::make('nbh_status_label')
-                                    ->label(__('Status NBH'))
-                                    ->badge()
-                                    ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
-                                TextEntry::make('validasi_status')
-                                    ->label(__('Status Validasi'))
-                                    ->badge()
-                                    ->color(fn ($state): string => $state === 'Valid' ? 'success' : 'danger')
-                                    ->state(fn (Asset $record): string => $record->checkValidRecipient() ? 'Valid' : 'Tidak Valid'),
-                            ]),
-                        ComponentsGrid::make(2)
-                            ->schema([
-                                TextEntry::make('asset_location_display')
-                                    ->label(__('Lokasi Aset'))
-                                    ->state(fn (Asset $record): string => $record->assetLocation?->name ?? '-'),
-                                TextEntry::make('recipient_display')
-                                    ->label(__('Pemegang Aset'))
-                                    ->state(fn (Asset $record): string => $record->recipient?->name ?? '-'),
-                            ]),
-                        ComponentsGrid::make(2)
-                            ->schema([
-                                TextEntry::make('nbh_reported_at_display')
-                                    ->label(__('Tanggal Insiden'))
-                                    ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
-                                        ? optional($record->nbh_reported_at)?->format('d M Y') ?? '-'
-                                        : '-'),
-                                TextEntry::make('nbh_responsible_display')
-                                    ->label(__('Penanggung Jawab'))
-                                    ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
-                                        ? $record->nbhResponsible?->name ?? '-'
-                                        : '-'),
                             ])
-                            ->visible(fn (Asset $record): bool => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
-                        TextEntry::make('nbh_notes')
-                            ->label(__('Catatan NBH'))
-                            ->columnSpanFull()
-                            ->visible(fn (Asset $record): bool => filled($record->nbh_notes)),
+                            ->grow(true),
+
+                        ComponentsSection::make('Atribut Khusus')
+                            ->schema([
+                                ComponentsGrid::make(2)
+                                    ->schema(function ($record) {
+                                        $record->load('attributes.customAttribute');
+
+                                        return $record->attributes->map(function ($attribute) {
+                                            $entry = TextEntry::make("custom_attribute_{$attribute->custom_attribute_id}")
+                                                ->label($attribute->customAttribute?->name ?? 'Unknown Attribute')
+                                                ->state($attribute->displayValue());
+
+                                            if ($attribute->isDocumentExpiryAttribute()) {
+                                                $entry
+                                                    ->badge()
+                                                    ->color(fn () => $attribute->expiryReminderStatusColorOn());
+
+                                                if ($attribute->documentUrl()) {
+                                                    $entry
+                                                        ->url($attribute->documentUrl(), true)
+                                                        ->openUrlInNewTab();
+                                                }
+                                            }
+
+                                            return $entry;
+                                        })->toArray();
+                                    }),
+                            ]),
+
+                        ComponentsSection::make('Detail Pembelian')
+                            ->schema([
+                                ComponentsGrid::make(4)
+                                    ->schema([
+                                        TextEntry::make('purchase_date')
+                                            ->label(__('Tanggal Pembelian'))
+                                            ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d/m/Y'))
+                                            ->extraAttributes(['style' => 'color:#007BFF;']),
+                                        TextEntry::make('item_price')
+                                            ->label(__('Harga'))
+                                            ->formatStateUsing(fn ($state) => 'Rp '.number_format($state, 0, ',', '.'))
+                                            ->extraAttributes([
+                                                'style' => 'color:#28a745; font-weight:bold;',
+                                            ]),
+                                        TextEntry::make('qty')
+                                            ->label(__('Kuantitas')),
+                                        TextEntry::make('businessEntity.name')
+                                            ->label(__('Entitas Bisnis')),
+                                    ]),
+                            ]),
+                    ])
+                    ->columnSpan([
+                        'default' => 'full',
+                        'lg' => 2,
                     ]),
 
-                ComponentsSection::make('Audit Penjualan')
+                ComponentsGrid::make(1)
                     ->schema([
-                        ComponentsGrid::make(3)
+                        ComponentsSection::make('Status & NBH')
                             ->schema([
-                                TextEntry::make('sold_at')
-                                    ->label(__('Tanggal Jual'))
-                                    ->state(fn (Asset $record): string => optional($record->sold_at)?->format('d M Y') ?? '-'),
-                                TextEntry::make('sold_to')
-                                    ->label(__('Dijual Ke'))
-                                    ->state(fn (Asset $record): string => $record->sold_to ?? '-'),
-                                TextEntry::make('sold_price')
-                                    ->label(__('Harga Jual'))
-                                    ->state(fn (Asset $record): string => $record->sold_price !== null ? 'Rp '.number_format($record->sold_price, 0, ',', '.') : '-'),
+                                ComponentsGrid::make(1)
+                                    ->schema([
+                                        TextEntry::make('condition_status_label')
+                                            ->label(__('Status Aset'))
+                                            ->badge()
+                                            ->color(fn ($state, Asset $record): string => $record->condition_status_color ?? 'secondary')
+                                            ->extraAttributes(['style' => 'font-weight:bold;']),
+                                        TextEntry::make('nbh_status_label')
+                                            ->label(__('Status NBH'))
+                                            ->badge()
+                                            ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
+                                        TextEntry::make('validasi_status')
+                                            ->label(__('Status Validasi'))
+                                            ->badge()
+                                            ->color(fn ($state): string => $state === 'Valid' ? 'success' : 'danger')
+                                            ->state(fn (Asset $record): string => $record->checkValidRecipient() ? 'Valid' : 'Tidak Valid'),
+                                    ]),
+                                ComponentsGrid::make(1)
+                                    ->schema([
+                                        TextEntry::make('asset_location_display')
+                                            ->label(__('Lokasi Aset'))
+                                            ->state(fn (Asset $record): string => $record->assetLocation?->name ?? '-'),
+                                        TextEntry::make('recipient_display')
+                                            ->label(__('Pemegang Aset'))
+                                            ->state(fn (Asset $record): string => $record->recipient?->name ?? '-'),
+                                    ]),
+                                ComponentsGrid::make(1)
+                                    ->schema([
+                                        TextEntry::make('nbh_reported_at_display')
+                                            ->label(__('Tanggal Insiden'))
+                                            ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                                ? optional($record->nbh_reported_at)?->format('d M Y') ?? '-'
+                                                : '-'),
+                                        TextEntry::make('nbh_responsible_display')
+                                            ->label(__('Penanggung Jawab'))
+                                            ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                                ? $record->nbhResponsible?->name ?? '-'
+                                                : '-'),
+                                    ])
+                                    ->visible(fn (Asset $record): bool => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
+                                TextEntry::make('nbh_notes')
+                                    ->label(__('Catatan NBH'))
+                                    ->columnSpanFull()
+                                    ->visible(fn (Asset $record): bool => filled($record->nbh_notes)),
                             ]),
-                        TextEntry::make('sale_notes')
-                            ->label(__('Catatan Penjualan'))
-                            ->columnSpanFull()
-                            ->visible(fn (Asset $record): bool => filled($record->sale_notes)),
-                    ])
-                    ->visible(fn (Asset $record): bool => self::hasSaleAuditRecord($record)),
 
-                ComponentsSection::make('Dokumen Pendukung')
-                    ->schema([
-                        ComponentsGrid::make(2)
+                        ComponentsSection::make('Audit Penjualan')
                             ->schema([
-                                TextEntry::make('audit_document_path')
-                                    ->label(__('Dokumen Audit'))
-                                    ->url(fn (Asset $record) => $record->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
-                                    ->openUrlInNewTab()
-                                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path)),
-                                TextEntry::make('nbh_document_path')
-                                    ->label(__('Nota Barang Hilang'))
-                                    ->url(fn (Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
-                                    ->openUrlInNewTab()
-                                    ->visible(fn (Asset $record): bool => filled($record->nbh_document_path)),
-                                TextEntry::make('sale_document_path')
-                                    ->label(__('Dokumen Penjualan'))
-                                    ->url(fn (Asset $record) => self::resolveDocumentUrl($record->sale_document_path), true)
-                                    ->openUrlInNewTab()
-                                    ->visible(fn (Asset $record): bool => filled($record->sale_document_path)),
-                            ]),
+                                ComponentsGrid::make(3)
+                                    ->schema([
+                                        TextEntry::make('sold_at')
+                                            ->label(__('Tanggal Jual'))
+                                            ->state(fn (Asset $record): string => optional($record->sold_at)?->format('d M Y') ?? '-'),
+                                        TextEntry::make('sold_to')
+                                            ->label(__('Dijual Ke'))
+                                            ->state(fn (Asset $record): string => $record->sold_to ?? '-'),
+                                        TextEntry::make('sold_price')
+                                            ->label(__('Harga Jual'))
+                                            ->state(fn (Asset $record): string => $record->sold_price !== null ? 'Rp '.number_format($record->sold_price, 0, ',', '.') : '-'),
+                                    ]),
+                                TextEntry::make('sale_notes')
+                                    ->label(__('Catatan Penjualan'))
+                                    ->columnSpanFull()
+                                    ->visible(fn (Asset $record): bool => filled($record->sale_notes)),
+                            ])
+                            ->visible(fn (Asset $record): bool => self::hasSaleAuditRecord($record)),
+
+                        ComponentsSection::make('Dokumen Pendukung')
+                            ->schema([
+                                ComponentsGrid::make(2)
+                                    ->schema([
+                                        TextEntry::make('audit_document_path')
+                                            ->label(__('Dokumen Audit'))
+                                            ->url(fn (Asset $record) => $record->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
+                                            ->openUrlInNewTab()
+                                            ->visible(fn (Asset $record): bool => filled($record->audit_document_path)),
+                                        TextEntry::make('nbh_document_path')
+                                            ->label(__('Nota Barang Hilang'))
+                                            ->url(fn (Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
+                                            ->openUrlInNewTab()
+                                            ->visible(fn (Asset $record): bool => filled($record->nbh_document_path)),
+                                        TextEntry::make('sale_document_path')
+                                            ->label(__('Dokumen Penjualan'))
+                                            ->url(fn (Asset $record) => self::resolveDocumentUrl($record->sale_document_path), true)
+                                            ->openUrlInNewTab()
+                                            ->visible(fn (Asset $record): bool => filled($record->sale_document_path)),
+                                    ]),
+                            ])
+                            ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path) || filled($record->sale_document_path)),
                     ])
-                    ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path) || filled($record->sale_document_path)),
+                    ->columnSpan([
+                        'default' => 'full',
+                        'lg' => 1,
+                    ]),
             ])
-            ->columns(1); // Atur agar semua bagian ditampilkan secara vertikal (atas-bawah)
+            ->columns([
+                'default' => 1,
+                'lg' => 3,
+            ]);
     }
 
     // In your AssetAttribute model
