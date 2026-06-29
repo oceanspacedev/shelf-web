@@ -10,6 +10,7 @@ use App\Models\AssetAttribute;
 use App\Models\AssetTransferDetail;
 use App\Models\User;
 use App\Models\VehicleChecksheet;
+use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Forms\Components\Placeholder;
@@ -78,6 +79,28 @@ class ViewAsset extends ViewRecord
                         Notification::make()
                             ->title('Aset ditandai hilang')
                             ->body('Status aset berubah menjadi "Hilang" dan NBH menunggu tindak lanjut.')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('completeRepair')
+                    ->label('Selesaikan Perbaikan')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Asset $record): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair'])
+                        && $record->condition_status === AssetCondition::Damaged
+                        && $record->nbh_status === NbhStatus::Pending)
+                    ->form(AssetResource::repairCompletionFormSchema())
+                    ->slideOver()
+                    ->modalWidth('md')
+                    ->action(function (array $data): void {
+                        /** @var Asset $asset */
+                        $asset = $this->record;
+                        $asset->completeRepairProcessing(auth()->user(), $data);
+                        $this->record->refresh();
+
+                        Notification::make()
+                            ->title('Perbaikan selesai')
+                            ->body('Aset sudah kembali operasional dan NBH ditutup.')
                             ->success()
                             ->send();
                     }),
@@ -203,7 +226,7 @@ class ViewAsset extends ViewRecord
                                         $from = $transfer->fromUser?->name ?? 'N/A';
                                         $to = $transfer->toUser?->name ?? 'N/A';
                                         $date = $transfer->transfer_date
-                                            ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
+                                            ? Carbon::parse($transfer->transfer_date)->format('d M Y')
                                             : '-';
 
                                         $prefix = in_array($detail->id, $conflictIds) ? '⚠️ KONFLIK — ' : '✅ ';
@@ -242,7 +265,7 @@ class ViewAsset extends ViewRecord
                                         $from = $transfer->fromUser?->name ?? 'N/A';
                                         $to = $transfer->toUser?->name ?? 'N/A';
                                         $date = $transfer->transfer_date
-                                            ? \Carbon\Carbon::parse($transfer->transfer_date)->format('d M Y')
+                                            ? Carbon::parse($transfer->transfer_date)->format('d M Y')
                                             : '-';
 
                                         return "• {$transfer->letter_number} | {$from} → {$to} | {$date}";

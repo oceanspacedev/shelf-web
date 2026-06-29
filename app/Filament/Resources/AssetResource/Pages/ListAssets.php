@@ -25,6 +25,7 @@ class ListAssets extends ListRecords
                 ->label('Export')
                 ->icon('heroicon-o-document-arrow-up')
                 ->color('warning')
+                ->visible(fn () => auth()->user()->can('export', static::$resource::getModel()))
                 ->exports([
                     ExcelExport::make()
                         ->fromTable()
@@ -60,7 +61,8 @@ class ListAssets extends ListRecords
                 ]),
             ExcelImportAction::make()
                 ->color('success')
-                ->use(AssetImport::class),
+                ->use(AssetImport::class)
+                ->visible(fn () => auth()->user()->can('import', static::$resource::getModel())),
             Actions\CreateAction::make(),
         ];
     }

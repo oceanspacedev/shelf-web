@@ -25,6 +25,16 @@ class TaskResource extends Resource
 {
     protected static ?string $model = Task::class;
 
+    public static function getModelLabel(): string
+    {
+        return __('Task');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Tasks');
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
     public static function form(Form $form): Form

@@ -7,6 +7,8 @@ use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
 use Awcodes\Overlook\OverlookPlugin;
 use Awcodes\Overlook\Widgets\OverlookWidget;
+use BezhanSalleh\FilamentExceptions\FilamentExceptionsPlugin;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -23,6 +25,8 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use TomatoPHP\FilamentPWA\FilamentPWAPlugin;
+use TomatoPHP\FilamentSettingsHub\FilamentSettingsHubPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -87,14 +91,14 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 ResizedColumnPlugin::make(),
-                \TomatoPHP\FilamentPWA\FilamentPWAPlugin::make(),
-                \TomatoPHP\FilamentSettingsHub\FilamentSettingsHubPlugin::make()
+                FilamentPWAPlugin::make(),
+                FilamentSettingsHubPlugin::make()
                     ->allowLocationSettings()
                     ->allowSiteSettings()
                     ->allowSocialMenuSettings()
                     ->allowShield(),
-                \BezhanSalleh\FilamentExceptions\FilamentExceptionsPlugin::make(),
-                \BezhanSalleh\FilamentShield\FilamentShieldPlugin::make()
+                FilamentExceptionsPlugin::make(),
+                FilamentShieldPlugin::make()
                     ->gridColumns([
                         'default' => 1,
                         'sm' => 2,

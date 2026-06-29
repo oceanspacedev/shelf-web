@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\AssetCondition;
 use App\Enums\NbhStatus;
+use App\Models\Asset;
 use App\Models\AssetLocation;
 use App\Models\Brand;
 use App\Models\BusinessEntity;
@@ -11,7 +12,7 @@ use App\Models\Category;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Asset>
+ * @extends Factory<Asset>
  */
 class AssetFactory extends Factory
 {
@@ -25,21 +26,21 @@ class AssetFactory extends Factory
         $brandsAndModels = [
             'FURNITURE' => [
                 'Ikea' => ['MEJA', 'KURSI', 'LEMARI'],
-                'Ashley' => ['SOFA', 'RAK-RAKAN', 'PAPAN TULIS']
+                'Ashley' => ['SOFA', 'RAK-RAKAN', 'PAPAN TULIS'],
             ],
             'PERKAKAS' => [
                 'Bosch' => ['OBENG', 'TOOLBOX'],
-                'Makita' => ['TALANG AC', 'TANGGA']
+                'Makita' => ['TALANG AC', 'TANGGA'],
             ],
             'BARANG ELEKTRONIK' => [
                 'Asus' => ['LAPTOP', 'HANDPHONE'],
                 'Samsung' => ['KULKAS', 'MICROWAVE'],
-                'Sony' => ['KAMERA', 'TV']
+                'Sony' => ['KAMERA', 'TV'],
             ],
             'ACCESSORIES' => [
                 'HP' => ['MOUSE', 'KEYBOARD'],
-                'Logitech' => ['MIC WIRELESS', 'POINTER PRESENTASI']
-            ]
+                'Logitech' => ['MIC WIRELESS', 'POINTER PRESENTASI'],
+            ],
         ];
 
         $category = $this->faker->randomElement(array_keys($brandsAndModels));

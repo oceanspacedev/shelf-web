@@ -3,12 +3,12 @@
 namespace App\Imports;
 
 use App\Models\VehicleChecksheet;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use Carbon\Carbon;
 
 class VehicleChecksheetImport implements ToCollection, WithChunkReading
 {
@@ -20,6 +20,7 @@ class VehicleChecksheetImport implements ToCollection, WithChunkReading
 
         $sortedCollection = $filteredCollection->sortBy(function ($row) {
             preg_match('/\d+$/', $row[0], $matches);
+
             return $matches[0] ?? 0;
         });
 
@@ -54,7 +55,7 @@ class VehicleChecksheetImport implements ToCollection, WithChunkReading
                 ];
             }
 
-            if (!empty($recordsToInsert)) {
+            if (! empty($recordsToInsert)) {
                 foreach (array_chunk($recordsToInsert, 500) as $chunk) {
                     VehicleChecksheet::insert($chunk);
                 }
@@ -84,11 +85,13 @@ class VehicleChecksheetImport implements ToCollection, WithChunkReading
         try {
             if (is_numeric($value)) {
                 $date = Carbon::instance(Date::excelToDateTimeObject($value));
+
                 return $date->format('Y-m-d H:i:s');
             }
 
             $cleanedValue = trim($value);
             $cleanedValue = str_replace(['/', '.'], ['-', ':'], $cleanedValue);
+
             return Carbon::createFromFormat('Y-m-d H:i', $cleanedValue)->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
             return null;

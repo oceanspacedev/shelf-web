@@ -7,6 +7,7 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms\Components\Card;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -25,9 +26,22 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
-class UserResource extends Resource
+class UserResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = User::class;
+
+    public static function getPermissionPrefixes(): array
+    {
+        return [
+            'view',
+            'view_any',
+            'create',
+            'update',
+            'delete',
+            'delete_any',
+            'import',
+        ];
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
@@ -65,7 +79,10 @@ class UserResource extends Resource
                         ->unique(User::class, 'username', ignoreRecord: true)
                         ->visible($isSuperAdmin),
                     TextInput::make('email')
+                        ->email()
                         ->maxLength(255)
+                        ->unique(User::class, 'email', ignoreRecord: true)
+                        ->rules(['not_regex:/[\r\n]/'])
                         ->visible($isSuperAdmin),
                     TextInput::make('password')
                         ->password()

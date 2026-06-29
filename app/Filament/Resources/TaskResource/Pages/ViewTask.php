@@ -20,8 +20,8 @@ class ViewTask extends ViewRecord
                 ->label('Download')
                 ->icon('heroicon-o-arrow-down-tray') // Use the download icon for download
                 ->color('success') // Use 'danger' for red
-                ->visible(fn($record) => $record->status === 'completed') // Only show if task is completed
-                ->url(fn($record) => route('task-completion.download', $record->id)) // Generate URL for download
+                ->visible(fn ($record) => $record->status === 'completed') // Only show if task is completed
+                ->url(fn ($record) => route('task-completion.download', $record->id)) // Generate URL for download
                 ->openUrlInNewTab(), // Open the download in a new tab
         ];
     }

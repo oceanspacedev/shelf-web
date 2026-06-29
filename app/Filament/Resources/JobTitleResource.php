@@ -3,17 +3,13 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\JobTitleResource\Pages;
-use App\Filament\Resources\JobTitleResource\RelationManagers;
 use App\Models\JobTitle;
-use Filament\Forms;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class JobTitleResource extends Resource
 {
@@ -26,11 +22,12 @@ class JobTitleResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-        ->schema([
-            TextInput::make('title')
-                ->required()
-                ->maxLength(255),
-        ]);
+            ->columns(1)
+            ->schema([
+                TextInput::make('title')
+                    ->required()
+                    ->maxLength(255),
+            ]);
     }
 
     public static function table(Table $table): Table
@@ -43,7 +40,9 @@ class JobTitleResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->slideOver()
+                    ->modalWidth('md'),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AssetResource\RelationManagers;
 
+use App\Enums\AssetTransferDocumentType;
 use Asmit\ResizedColumn\HasResizableColumn;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
@@ -45,12 +46,7 @@ class AssetTransfersRelationManager extends RelationManager
                     ->color('success'),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'primary' => 'BERITA ACARA SERAH TERIMA',
-                        'success' => 'BERITA ACARA PENGALIHAN BARANG',
-                        'danger' => 'BERITA ACARA PENGEMBALIAN BARANG',
-                        'secondary' => 'Unknown Status',
-                    ])
+                    ->colors(AssetTransferDocumentType::colors())
                     ->getStateUsing(function ($record) {
                         return $record->assetTransfer->status;
                     }),

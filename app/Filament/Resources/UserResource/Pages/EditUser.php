@@ -15,7 +15,7 @@ class EditUser extends EditRecord
     {
         $roleIds = $this->form->getState()['roles'] ?? [];
 
-        if (!is_array($roleIds)) {
+        if (! is_array($roleIds)) {
             $roleIds = explode(',', $roleIds);
         }
 

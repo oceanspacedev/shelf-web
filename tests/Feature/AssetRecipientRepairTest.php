@@ -129,6 +129,31 @@ class AssetRecipientRepairTest extends TestCase
         $this->assertTrue($asset->checkValidRecipient());
     }
 
+    public function test_available_asset_with_regular_holder_is_invalid(): void
+    {
+        $regularHolder = User::create(['name' => 'Pemegang Regular']);
+        $generalAffair = User::create(['name' => 'GA Valid']);
+        Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
+        $generalAffair->assignRole('general_affair');
+
+        $invalidAsset = Asset::create([
+            'name' => 'Aset Available Tapi Dipakai',
+            'condition_status' => AssetCondition::Available,
+            'nbh_status' => NbhStatus::None,
+            'recipient_id' => $regularHolder->id,
+        ]);
+
+        $validAsset = Asset::create([
+            'name' => 'Aset Available di GA',
+            'condition_status' => AssetCondition::Available,
+            'nbh_status' => NbhStatus::None,
+            'recipient_id' => $generalAffair->id,
+        ]);
+
+        $this->assertFalse($invalidAsset->checkValidRecipient());
+        $this->assertTrue($validAsset->checkValidRecipient());
+    }
+
     protected function createSchema(): void
     {
         Schema::create('users', function (Blueprint $table): void {

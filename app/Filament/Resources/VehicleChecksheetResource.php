@@ -3,25 +3,52 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\VehicleChecksheetResource\Pages;
+use App\Models\AssetAttribute;
 use App\Models\VehicleChecksheet;
+use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
-use Illuminate\Support\Facades\Storage;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
-class VehicleChecksheetResource extends Resource
+class VehicleChecksheetResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = VehicleChecksheet::class;
+
+    public static function getModelLabel(): string
+    {
+        return __('Vehicle Checksheet');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Vehicle Checksheets');
+    }
+
+    public static function getPermissionPrefixes(): array
+    {
+        return [
+            'view',
+            'view_any',
+            'create',
+            'update',
+            'delete',
+            'delete_any',
+            'export',
+            'import',
+        ];
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-truck';
 
@@ -47,7 +74,7 @@ class VehicleChecksheetResource extends Resource
                             ->label('Plat Nomor')
                             ->options(function () {
                                 // Ambil data dari AssetAttribute yang terkait dengan CustomAssetAttribute "Plat Nomor"
-                                return \App\Models\AssetAttribute::whereHas('customAttribute', function ($query) {
+                                return AssetAttribute::whereHas('customAttribute', function ($query) {
                                     $query->where('name', 'Plat Nomor');
                                 })->pluck('attribute_value', 'attribute_value'); // Menggunakan attribute_value sebagai key dan value
                             })
@@ -156,7 +183,7 @@ class VehicleChecksheetResource extends Resource
                                 )
                             ),
                     ])
-                    ->hidden(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord),
+                    ->hidden(fn ($livewire) => $livewire instanceof CreateRecord),
                 // Informasi Tambahan
                 Forms\Components\Section::make('Informasi Tambahan')
                     ->schema([
@@ -286,6 +313,7 @@ class VehicleChecksheetResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                     ExportBulkAction::make()
+                        ->visible(fn () => auth()->user()->can('export', static::getModel()))
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()

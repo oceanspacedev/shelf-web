@@ -26,6 +26,7 @@ class ListVehicleChecksheets extends ListRecords
                 ->label('Export')
                 ->icon('heroicon-o-document-arrow-up')
                 ->color('warning')
+                ->visible(fn () => auth()->user()->can('export', static::$resource::getModel()))
                 ->exports([
                     ExcelExport::make()
                         ->fromTable()
@@ -61,9 +62,9 @@ class ListVehicleChecksheets extends ListRecords
                 ]),
             ExcelImportAction::make()
                 ->color('success')
-                ->use(VehicleChecksheetImport::class),
+                ->use(VehicleChecksheetImport::class)
+                ->visible(fn () => auth()->user()->can('import', static::$resource::getModel())),
             Actions\CreateAction::make(),
         ];
     }
 }
-

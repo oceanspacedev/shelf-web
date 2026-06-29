@@ -6,8 +6,8 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -15,6 +15,7 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 class UserImport implements ToCollection, WithChunkReading
 {
     private array $businessEntityCache = [];
+
     private array $jobTitleCache = [];
 
     public function __construct()
@@ -43,8 +44,9 @@ class UserImport implements ToCollection, WithChunkReading
 
                 if (empty($row[1]) || empty($row[2])) {
                     Log::error('Data untuk Badan Usaha atau Jabatan hilang', [
-                        'baris' => $row
+                        'baris' => $row,
                     ]);
+
                     continue;
                 }
 
@@ -60,7 +62,7 @@ class UserImport implements ToCollection, WithChunkReading
                 ];
             }
 
-            if (!empty($usersToInsert)) {
+            if (! empty($usersToInsert)) {
                 foreach (array_chunk($usersToInsert, 500) as $chunk) {
                     User::insert($chunk);
                 }
@@ -72,7 +74,7 @@ class UserImport implements ToCollection, WithChunkReading
 
             Log::error('Kesalahan saat mengimpor data pengguna', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             throw ValidationException::withMessages(['import' => 'Terjadi kesalahan saat impor pengguna. Silakan periksa log untuk detail lebih lanjut.']);

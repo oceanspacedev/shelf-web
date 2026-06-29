@@ -114,6 +114,10 @@
 </head>
 
 <body>
+    @php
+        $documentType = $assetTransfer->documentType();
+    @endphp
+
     <div class="header">
         <img src="{{ $headerImage }}" alt="Kop Surat">
     </div>
@@ -137,10 +141,7 @@
                 </tr>
             </table>
 
-            @if (
-                $assetTransfer->status === 'BERITA ACARA SERAH TERIMA' ||
-                    $assetTransfer->status === 'BERITA ACARA PENGALIHAN BARANG' ||
-                    $assetTransfer->status === 'BERITA ACARA PENGEMBALIAN BARANG')
+            @if ($documentType)
                 <p>Menyatakan telah menerima <strong>Aset Perusahaan</strong> dari:</p>
                 <table class="details-table">
                     <tr>
@@ -184,7 +185,7 @@
             </table>
         </div>
 
-        @if ($assetTransfer->status == 'BERITA ACARA SERAH TERIMA')
+        @if ($documentType === \App\Enums\AssetTransferDocumentType::SerahTerima)
             <p class="justify">Inventaris tersebut digunakan untuk menunjang kinerja karyawan dalam menjalankan tugas dan tanggungjawab
                 pada perusahaan. Apabila masa kerja saya sudah berakhir, saya akan mengembalikannya pada perusahaan.
                 Kerusakan dan kehilangan terhadap inventaris beserta kelengkapannya sepenuhnya menjadi tanggungjawab
@@ -209,7 +210,7 @@
                     <div class="signature-space"></div>
                     <p><strong>{{ $assetTransfer->fromUser->name === 'GA' ? '' : $assetTransfer->fromUser->name }}</strong></p>
                 </td>
-                @if ($assetTransfer->status === 'BERITA ACARA PENGEMBALIAN BARANG')
+                @if ($documentType === \App\Enums\AssetTransferDocumentType::PengembalianBarang)
                     <td>
                         <p>Mengetahui</p>
                         <div class="signature-space"></div>

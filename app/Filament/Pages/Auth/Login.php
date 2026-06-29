@@ -2,9 +2,9 @@
 
 namespace App\Filament\Pages\Auth;
 
-use Filament\Pages\Auth\Login as DefaultLogin;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Pages\Auth\Login as DefaultLogin;
 use Illuminate\Validation\ValidationException;
 
 class Login extends DefaultLogin

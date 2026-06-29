@@ -105,4 +105,20 @@ class VehicleChecksheetPolicy
     {
         return $user->can('{{ Reorder }}');
     }
+
+    /**
+     * Determine whether the user can export.
+     */
+    public function export(User $user): bool
+    {
+        return $user->can('export_vehicle::checksheet');
+    }
+
+    /**
+     * Determine whether the user can import.
+     */
+    public function import(User $user): bool
+    {
+        return $user->can('import_vehicle::checksheet');
+    }
 }

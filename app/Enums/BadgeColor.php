@@ -38,7 +38,7 @@ enum BadgeColor: string implements HasColor, HasLabel
 
     public const DEFAULT = self::Indigo->value;
 
-    public function getColor(): string | array | null
+    public function getColor(): string|array|null
     {
         return match ($this) {
             self::Slate => Color::Slate,

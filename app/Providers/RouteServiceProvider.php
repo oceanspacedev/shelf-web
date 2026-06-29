@@ -28,6 +28,16 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Rate limiter untuk endpoint publik pengajuan aset (tanpa auth).
+        // Membatasi spam + memperkecil window race condition reference_number.
+        RateLimiter::for('public', function (Request $request) {
+            if (app()->environment('testing')) {
+                return Limit::none();
+            }
+
+            return Limit::perMinute(5)->by($request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

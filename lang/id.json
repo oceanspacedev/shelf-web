@@ -55,5 +55,20 @@
 
     "Name": "Nama",
     "Created at": "Dibuat pada",
-    "Updated at": "Diperbarui pada"
+    "Updated at": "Diperbarui pada",
+    "filament-panels::pages/dashboard.title": "Dasbor",
+    "Asset Transfer": "Aset Transfer",
+    "Asset Transfers": "Aset Transfer",
+    "Custom Asset Attribute": "Custom Aset Attribute",
+    "Custom Asset Attributes": "Custom Aset Attribute",
+    "Task": "Task",
+    "Tasks": "Task",
+    "Vehicle Checksheet": "Vehicle Checksheet",
+    "Vehicle Checksheets": "Vehicle Checksheet",
+    "Vendor": "Vendor",
+    "Vendors": "Vendor",
+    "Asset Request": "Pengajuan Aset",
+    "Asset Requests": "Pengajuan Aset",
+    "Division": "Divisi",
+    "Divisions": "Divisi"
 }

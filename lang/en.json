@@ -58,5 +58,20 @@
 
     "Name": "Name",
     "Created at": "Created At",
-    "Updated at": "Updated At"
+    "Updated at": "Updated At",
+    "filament-panels::pages/dashboard.title": "Dashboard",
+    "Asset Transfer": "Asset Transfer",
+    "Asset Transfers": "Asset Transfers",
+    "Custom Asset Attribute": "Custom Asset Attribute",
+    "Custom Asset Attributes": "Custom Asset Attributes",
+    "Task": "Task",
+    "Tasks": "Tasks",
+    "Vehicle Checksheet": "Vehicle Checksheet",
+    "Vehicle Checksheets": "Vehicle Checksheets",
+    "Vendor": "Vendor",
+    "Vendors": "Vendors",
+    "Asset Request": "Asset Request",
+    "Asset Requests": "Asset Requests",
+    "Division": "Division",
+    "Divisions": "Divisions"
 }

@@ -3,13 +3,16 @@
 namespace App\Models;
 
 use App\Enums\AssetCondition;
+use App\Enums\AssetRequestType;
 use App\Enums\NbhStatus;
+use App\Enums\RequestStatus;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class Asset extends Model
 {
@@ -44,6 +47,7 @@ class Asset extends Model
         'is_available',
         'recipient_id',
         'recipient_business_entity_id',
+        'asset_request_id',
     ];
 
     protected $casts = [
@@ -115,7 +119,7 @@ class Asset extends Model
 
         $this->recipient_id = $latestTransfer->to_user_id;
         $this->recipient_business_entity_id = $latestTransfer->business_entity_id;
-        $this->condition_status = $latestTransfer->toUser->hasRole('general_affair')
+        $this->condition_status = self::userHasGeneralAffairRole($latestTransfer->toUser)
             ? AssetCondition::Available
             : AssetCondition::Transferred;
 
@@ -128,6 +132,76 @@ class Asset extends Model
         $this->cachedValidRecipientResult = null;
 
         return $this->save();
+    }
+
+    /**
+     * Menutup proses perbaikan/NBH dan mengembalikan aset ke status operasional.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function completeRepairProcessing(User $actor, array $data = []): bool
+    {
+        if ($this->condition_status !== AssetCondition::Damaged) {
+            throw new \InvalidArgumentException('Hanya aset Rusak yang bisa diselesaikan perbaikannya.');
+        }
+
+        $auditDocumentPath = self::normalizeUploadPath($data['audit_document_path'] ?? $this->audit_document_path);
+        $nbhDocumentPath = self::normalizeUploadPath($data['nbh_document_path'] ?? $this->nbh_document_path);
+
+        // Tangkap nilai lama SEBELUM menulis condition_status: mutator
+        // setConditionStatusAttribute() me-null-kan kolom NBH (termasuk
+        // nbh_reported_at & nbh_notes) saat kondisi bukan Rusak, sehingga
+        // fallback `?? $this->X` setelahnya akan membaca null (dead code).
+        $originalReportedAt = $this->nbh_reported_at;
+        $originalNotes = $this->nbh_notes;
+
+        $this->condition_status = $this->operationalConditionAfterRepair();
+        $this->nbh_status = NbhStatus::Resolved;
+        // Pertahankan tanggal insiden asli (nbh_reported_at dilabel "Tanggal Insiden"
+        // pada form utama/infolist/export). Jangan timpa dengan tanggal selesai dari
+        // input agar audit trail insiden tidak rusak; tanggal selesai terekam lewat
+        // updated_at saat save().
+        $this->nbh_reported_at = $originalReportedAt;
+        $this->nbh_responsible_user_id = $data['nbh_responsible_user_id'] ?? $actor->id;
+        $this->audit_document_path = $auditDocumentPath;
+        $this->nbh_document_path = $nbhDocumentPath;
+        $this->nbh_notes = $data['nbh_notes'] ?? $originalNotes;
+
+        return $this->save();
+    }
+
+    protected function operationalConditionAfterRepair(): AssetCondition
+    {
+        if (! $this->recipient_id) {
+            return AssetCondition::Available;
+        }
+
+        $recipient = $this->relationLoaded('recipient')
+            ? $this->recipient
+            : User::find($this->recipient_id);
+
+        if (self::userHasGeneralAffairRole($recipient)) {
+            return AssetCondition::Available;
+        }
+
+        return AssetCondition::Transferred;
+    }
+
+    public static function userHasGeneralAffairRole(?User $user): bool
+    {
+        return $user !== null
+            && Schema::hasTable('roles')
+            && Schema::hasTable('model_has_roles')
+            && $user->hasRole('general_affair');
+    }
+
+    protected static function normalizeUploadPath(mixed $path): ?string
+    {
+        if (is_array($path)) {
+            $path = reset($path) ?: null;
+        }
+
+        return filled($path) ? (string) $path : null;
     }
 
     // Relasi ke tabel users untuk recipient_id
@@ -147,6 +221,91 @@ class Asset extends Model
         return $this->belongsTo(User::class, 'nbh_responsible_user_id');
     }
 
+    // Relasi ke pengajuan aset yang menjadi sumber aset ini (nullable).
+    public function assetRequest(): BelongsTo
+    {
+        return $this->belongsTo(AssetRequest::class, 'asset_request_id');
+    }
+
+    /**
+     * Pengajuan yang menargetkan aset ini sebagai subjek (penarikan/perbaikan).
+     * Berbeda dari assetRequest() (link "aset dibuat dari pengajuan X"):
+     * relasi ini me-link aset ke pengajuan yang menarik/memperbaiki aset ini.
+     */
+    public function assetRequests(): HasMany
+    {
+        return $this->hasMany(AssetRequest::class, 'asset_id');
+    }
+
+    public function assetRequestItems(): HasMany
+    {
+        return $this->hasMany(AssetRequestItem::class, 'asset_id');
+    }
+
+    /**
+     * Scope: aset yang TIDAK sedang dalam pengajuan penarikan/perbaikan terbuka
+     * (status Pending atau Approved yang belum di-fulfill). Dipakai untuk
+     * mengunci aset dari opsi transfer selama pengajuan belum selesai ditindak
+     * lanjuti, agar tidak dobel-tindak (dipindah sambil ditarik/diperbaiki).
+     */
+    public function scopeNotLockedForOpenRequest(Builder $query): Builder
+    {
+        if (! self::assetRequestLockColumnsAvailable()) {
+            return $query;
+        }
+
+        $query->whereDoesntHave('assetRequests', function (Builder $q): void {
+            $q->whereIn('type', [AssetRequestType::Penarikan->value, AssetRequestType::Perbaikan->value])
+                ->whereIn('status', [RequestStatus::Pending->value, RequestStatus::Approved->value])
+                ->whereNull('fulfilled_at');
+        });
+
+        if (Schema::hasTable('asset_request_items')) {
+            $query->whereDoesntHave('assetRequestItems.assetRequest', function (Builder $q): void {
+                $q->whereIn('type', [AssetRequestType::Penarikan->value, AssetRequestType::Perbaikan->value])
+                    ->whereIn('status', [RequestStatus::Pending->value, RequestStatus::Approved->value])
+                    ->whereNull('fulfilled_at');
+            });
+        }
+
+        return $query;
+    }
+
+    public function hasOpenAssetRequestLock(?int $exceptAssetRequestId = null): bool
+    {
+        if (! self::assetRequestLockColumnsAvailable()) {
+            return false;
+        }
+
+        $legacyLockExists = $this->assetRequests()
+            ->whereIn('type', [AssetRequestType::Penarikan->value, AssetRequestType::Perbaikan->value])
+            ->whereIn('status', [RequestStatus::Pending->value, RequestStatus::Approved->value])
+            ->whereNull('fulfilled_at')
+            ->when($exceptAssetRequestId, fn (Builder $q) => $q->whereKeyNot($exceptAssetRequestId))
+            ->exists();
+
+        if ($legacyLockExists || ! Schema::hasTable('asset_request_items')) {
+            return $legacyLockExists;
+        }
+
+        return $this->assetRequestItems()
+            ->whereHas('assetRequest', function (Builder $q) use ($exceptAssetRequestId): void {
+                $q->whereIn('type', [AssetRequestType::Penarikan->value, AssetRequestType::Perbaikan->value])
+                    ->whereIn('status', [RequestStatus::Pending->value, RequestStatus::Approved->value])
+                    ->whereNull('fulfilled_at')
+                    ->when($exceptAssetRequestId, fn (Builder $query) => $query->whereKeyNot($exceptAssetRequestId));
+            })
+            ->exists();
+    }
+
+    protected static function assetRequestLockColumnsAvailable(): bool
+    {
+        return Schema::hasTable('asset_requests')
+            && Schema::hasColumn('asset_requests', 'type')
+            && Schema::hasColumn('asset_requests', 'status')
+            && Schema::hasColumn('asset_requests', 'fulfilled_at');
+    }
+
     private function formatDiff($value, $unit)
     {
         return $value.' '.$unit;
@@ -154,7 +313,18 @@ class Asset extends Model
 
     public function getItemAgeAttribute()
     {
-        $purchaseDate = Carbon::parse($this->attributes['purchase_date']);
+        $rawPurchaseDate = $this->attributes['purchase_date'] ?? null;
+
+        if (blank($rawPurchaseDate)) {
+            return '-';
+        }
+
+        try {
+            $purchaseDate = Carbon::parse($rawPurchaseDate);
+        } catch (\Throwable) {
+            return '-';
+        }
+
         $now = Carbon::now();
 
         $diff = $purchaseDate->diff($now);
@@ -176,16 +346,23 @@ class Asset extends Model
 
     public function scopeSortByItemAge(Builder $query, string $direction = 'asc')
     {
-        $query->orderByRaw('DATEDIFF(NOW(), purchase_date) '.$direction);
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        $purchaseDateDirection = $direction === 'asc' ? 'desc' : 'asc';
+
+        return $query
+            ->orderByRaw('purchase_date IS NULL asc')
+            ->orderBy('purchase_date', $purchaseDateDirection);
     }
 
     public function getIsAvailableAttribute($value)
     {
+        // Nilai boolean murni untuk konsumsi programatik (filter/where/if).
+        // Label tampilan tersedia via getConditionStatusLabelAttribute().
         if ($this->condition_status instanceof AssetCondition) {
-            return $this->condition_status->label();
+            return $this->condition_status === AssetCondition::Available;
         }
 
-        return $value ? 'Tersedia' : 'Transfer';
+        return (bool) $value;
     }
 
     public function setIsAvailableAttribute($value): void
@@ -199,9 +376,20 @@ class Asset extends Model
         }
 
         $this->attributes['is_available'] = $boolValue;
-        $this->attributes['condition_status'] = $boolValue
-            ? AssetCondition::Available->value
-            : AssetCondition::Transferred->value;
+
+        $currentCondition = isset($this->attributes['condition_status'])
+            ? AssetCondition::tryFrom((string) $this->attributes['condition_status'])
+            : null;
+
+        if ($boolValue) {
+            $this->attributes['condition_status'] = AssetCondition::Available->value;
+
+            return;
+        }
+
+        if (! $currentCondition || $currentCondition === AssetCondition::Available) {
+            $this->attributes['condition_status'] = AssetCondition::Transferred->value;
+        }
     }
 
     public function getConditionStatusLabelAttribute(): string
@@ -308,21 +496,12 @@ class Asset extends Model
 
         $latestTransfer = $this->latestTransferDetail()?->assetTransfer;
 
-        if (! $latestTransfer) {
-            return true;
-        }
-
-        if ($this->recipient_id != $latestTransfer->to_user_id) {
+        if ($latestTransfer && $this->recipient_id != $latestTransfer->to_user_id) {
             return false;
         }
 
         $recipient = $this->recipient ?? User::find($this->recipient_id);
-
-        if (! $recipient) {
-            return false;
-        }
-
-        $hasGeneralAffairRole = $recipient->hasRole('general_affair');
+        $hasGeneralAffairRole = self::userHasGeneralAffairRole($recipient);
 
         if ($this->condition_status instanceof AssetCondition && $this->condition_status->isIncident()) {
             if ($this->nbh_status === NbhStatus::None) {
@@ -335,6 +514,14 @@ class Asset extends Model
             }
 
             return true;
+        }
+
+        if ($this->condition_status === AssetCondition::Available) {
+            return ! $recipient || $hasGeneralAffairRole;
+        }
+
+        if ($this->condition_status === AssetCondition::Transferred && ! $recipient) {
+            return false;
         }
 
         if ($hasGeneralAffairRole && $this->condition_status !== AssetCondition::Available) {

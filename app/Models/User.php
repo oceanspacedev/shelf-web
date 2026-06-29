@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use InvalidArgumentException;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -53,6 +54,23 @@ class User extends Authenticatable implements FilamentUser
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function setEmailAttribute($value): void
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['email'] = null;
+
+            return;
+        }
+
+        $email = trim((string) $value);
+
+        if (preg_match('/[\r\n]/', $email) === 1) {
+            throw new InvalidArgumentException('Email must not contain line breaks.');
+        }
+
+        $this->attributes['email'] = $email;
+    }
 
     public function canAccessPanel(Panel $panel): bool
     {

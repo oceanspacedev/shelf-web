@@ -17,12 +17,16 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class AssetImport implements ToCollection, WithHeadingRow, WithChunkReading
+class AssetImport implements ToCollection, WithChunkReading, WithHeadingRow
 {
     private array $businessEntityCache = [];
+
     private array $categoryCache = [];
+
     private array $brandCache = [];
+
     private array $assetLocationCache = [];
+
     private array $userCache = [];
 
     public function __construct()
@@ -90,7 +94,7 @@ class AssetImport implements ToCollection, WithHeadingRow, WithChunkReading
                 ];
             }
 
-            if (!empty($assetsToInsert)) {
+            if (! empty($assetsToInsert)) {
                 Asset::insert($assetsToInsert);
             }
 

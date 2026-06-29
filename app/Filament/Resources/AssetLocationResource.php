@@ -3,17 +3,13 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AssetLocationResource\Pages;
-use App\Filament\Resources\AssetLocationResource\RelationManagers;
 use App\Models\AssetLocation;
-use Filament\Forms;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AssetLocationResource extends Resource
 {
@@ -26,6 +22,7 @@ class AssetLocationResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
+            ->columns(1)
             ->schema([
                 TextInput::make('name')
                     ->required()
@@ -49,7 +46,9 @@ class AssetLocationResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->slideOver()
+                    ->modalWidth('md'),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

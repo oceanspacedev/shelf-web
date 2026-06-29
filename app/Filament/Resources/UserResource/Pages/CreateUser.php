@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\UserResource\Pages;
 
 use App\Filament\Resources\UserResource;
-use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 use Spatie\Permission\Models\Role;
 
@@ -15,7 +14,7 @@ class CreateUser extends CreateRecord
     {
         $roleIds = $this->form->getState()['roles'] ?? [];
 
-        if (!is_array($roleIds)) {
+        if (! is_array($roleIds)) {
             $roleIds = explode(',', $roleIds);
         }
 

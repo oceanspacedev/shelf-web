@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthenticatedUserController;
+use App\Http\Controllers\Integrations\WhatsappAssetQueryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,3 +16,6 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware('auth:sanctum')->get('/user', AuthenticatedUserController::class);
+
+Route::post('/integrations/whatsapp/assets/query', WhatsappAssetQueryController::class)
+    ->name('integrations.whatsapp.assets.query');

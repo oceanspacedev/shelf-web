@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use Carbon\Carbon;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -168,12 +167,12 @@ class JobTitleSeeder extends Seeder
             'Asst. Sales Manager',
             'LEADER WAREHOUSE DAN LOGISTIK',
             'RETAIL STORE MANAGER',
-            'FINANCE ACCOUNTING TAX MANAGER'
+            'FINANCE ACCOUNTING TAX MANAGER',
         ];
 
         $timestamp = Carbon::now();
 
-        $jobTitlesData = array_map(function($title) use ($timestamp) {
+        $jobTitlesData = array_map(function ($title) use ($timestamp) {
             return [
                 'title' => $title,
                 'created_at' => $timestamp,

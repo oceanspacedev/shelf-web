@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -68,8 +69,8 @@ class VehicleChecksheet extends Model
 
         // Periksa apakah kedua nilai departure_time dan return_time valid
         if (isset($this->departure_time, $this->return_time)) {
-            $departure = \Carbon\Carbon::parse($this->departure_time);
-            $return = \Carbon\Carbon::parse($this->return_time);
+            $departure = Carbon::parse($this->departure_time);
+            $return = Carbon::parse($this->return_time);
 
             // Hitung durasi dalam menit
             $durationInMinutes = $departure->diffInMinutes($return);

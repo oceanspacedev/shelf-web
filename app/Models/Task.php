@@ -22,7 +22,7 @@ class Task extends Model
         'location',
         'status',
         'attachment',
-        'document_upload'
+        'document_upload',
     ];
 
     public function businessEntity(): BelongsTo

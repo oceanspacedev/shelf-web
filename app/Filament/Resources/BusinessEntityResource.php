@@ -4,9 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Enums\BadgeColor;
 use App\Filament\Resources\BusinessEntityResource\Pages;
-use App\Filament\Resources\BusinessEntityResource\RelationManagers;
 use App\Models\BusinessEntity;
-use Filament\Forms;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -15,8 +13,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BusinessEntityResource extends Resource
 {
@@ -29,6 +25,7 @@ class BusinessEntityResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
+            ->columns(1)
             ->schema([
                 TextInput::make('name')
                     ->required()
@@ -37,16 +34,15 @@ class BusinessEntityResource extends Resource
                     ->required()
                     ->maxLength(255),
                 Select::make('color')
-                    ->columnSpan(2)
                     ->label('Color')
                     ->allowHtml()
                     ->options(
                         collect(BadgeColor::cases())
-                            ->sort(static fn($a, $b) => $a->value <=> $b->value)
-                            ->mapWithKeys(static fn($case) => [
+                            ->sort(static fn ($a, $b) => $a->value <=> $b->value)
+                            ->mapWithKeys(static fn ($case) => [
                                 $case->value => "<span class='flex items-center gap-x-4'>
-                            <span class='rounded-full w-4 h-4' style='background:rgb(" . $case->getColor()[600] . ")'></span>
-                            <span>" . $case->getLabel() . '</span>
+                            <span class='rounded-full w-4 h-4' style='background:rgb(".$case->getColor()[600].")'></span>
+                            <span>".$case->getLabel().'</span>
                             </span>',
                             ]),
                     )
@@ -56,8 +52,7 @@ class BusinessEntityResource extends Resource
                     ->image()
                     ->label('Kop Surat')
                     ->disk('public')
-                    ->directory('kopsurat')
-                    ->columnSpan(2),
+                    ->directory('kopsurat'),
             ]);
     }
 
@@ -69,8 +64,8 @@ class BusinessEntityResource extends Resource
                     ->translateLabel('Business Entity')
                     ->searchable()
                     ->badge()
-                    ->color(fn($record) => $record->color)
-                    ->getStateUsing(fn($record) => $record->name),
+                    ->color(fn ($record) => $record->color)
+                    ->getStateUsing(fn ($record) => $record->name),
                 TextColumn::make('format')->translateLabel(),
                 TextColumn::make('created_at')
                     ->translateLabel()
@@ -83,7 +78,9 @@ class BusinessEntityResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->slideOver()
+                    ->modalWidth('md'),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

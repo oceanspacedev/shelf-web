@@ -3,12 +3,14 @@
 namespace App\Filament\Resources;
 
 use App\Enums\AssetCondition;
+use App\Enums\AssetTransferDocumentType;
 use App\Filament\Resources\AssetTransferResource\Pages;
 use App\Models\Asset;
 use App\Models\AssetTransfer;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use Carbon\Carbon;
 use Filament\Forms\Components\Card;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -28,6 +30,7 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -37,6 +40,16 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 class AssetTransferResource extends Resource
 {
     protected static ?string $model = AssetTransfer::class;
+
+    public static function getModelLabel(): string
+    {
+        return __('Asset Transfer');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Asset Transfers');
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
 
@@ -64,7 +77,7 @@ class AssetTransferResource extends Resource
                                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->afterStateUpdated(fn ($state, callable $set) => $set(
                                         'letter_number',
-                                        self::generateLetterNumber(BusinessEntity::find($state), null)
+                                        AssetTransfer::generateLetterNumber(BusinessEntity::find($state), null)
                                     )),
                                 Select::make('from_user_id')
                                     ->relationship('fromUser', 'name')
@@ -96,7 +109,8 @@ class AssetTransferResource extends Resource
                                                 $details = [['asset_id' => '', 'equipment' => '']];
                                             } else {
                                                 $assets->where('recipient_id', $fromUserId)
-                                                    ->whereIn('condition_status', AssetCondition::transferableValues());
+                                                    ->whereIn('condition_status', AssetCondition::transferableValues())
+                                                    ->notLockedForOpenRequest();
 
                                                 $details = $assets->get()->map(function ($asset) {
                                                     return ['asset_id' => $asset->id, 'equipment' => ''];
@@ -111,12 +125,26 @@ class AssetTransferResource extends Resource
                                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->options(function (callable $get) {
                                         $fromUserId = $get('from_user_id');
-
-                                        return User::where('id', '!=', $fromUserId)
+                                        $query = User::query()
                                             ->whereDoesntHave('roles', function ($query) {
                                                 $query->where('name', 'super_admin');
-                                            })
+                                            });
+
+                                        if ($fromUserId) {
+                                            $query->where('id', '!=', $fromUserId);
+
+                                            $fromUser = User::with('roles')->find($fromUserId);
+
+                                            if ($fromUser?->hasRole('general_affair')) {
+                                                $query->whereDoesntHave('roles', function ($roleQuery) {
+                                                    $roleQuery->where('name', 'general_affair');
+                                                });
+                                            }
+                                        }
+
+                                        return $query
                                             ->with('jobTitle') // Load the related job title
+                                            ->orderBy('name')
                                             ->get()
                                             ->mapWithKeys(function ($user) {
                                                 // Concatenate name and job title in the format "name - jobTitle"
@@ -194,6 +222,9 @@ class AssetTransferResource extends Resource
                                     }
                                 }
 
+                                // Kunci aset yang sedang diajukan penarikan/perbaikan (belum ditindak lanjuti)
+                                $query->notLockedForOpenRequest();
+
                                 // Exclude already selected assets
                                 if (! empty($selectedAssets)) {
                                     $query->whereNotIn('id', $selectedAssets);
@@ -228,12 +259,7 @@ class AssetTransferResource extends Resource
                     ->toggleable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->colors([
-                        'primary' => 'BERITA ACARA SERAH TERIMA',
-                        'success' => 'BERITA ACARA PENGALIHAN BARANG',
-                        'danger' => 'BERITA ACARA PENGEMBALIAN BARANG',
-                        'secondary' => 'Unknown Status',
-                    ])
+                    ->colors(AssetTransferDocumentType::colors())
                     ->getStateUsing(function ($record) {
                         return $record->status;
                     })
@@ -268,11 +294,10 @@ class AssetTransferResource extends Resource
                 SelectFilter::make('businessEntity')->relationship('businessEntity', 'name')->translateLabel(),
                 SelectFilter::make('status')
                     ->label('Status')
-                    ->options([
-                        'BERITA ACARA SERAH TERIMA' => 'BERITA ACARA SERAH TERIMA',
-                        'BERITA ACARA PENGALIHAN BARANG' => 'BERITA ACARA PENGALIHAN BARANG',
-                        'BERITA ACARA PENGEMBALIAN BARANG' => 'BERITA ACARA PENGEMBALIAN BARANG',
-                    ]),
+                    ->options(AssetTransferDocumentType::options())
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->forDocumentType($data['value'])
+                        : $query),
                 SelectFilter::make('fromUser')
                     ->relationship('fromUser', 'name')
                     ->label('Dari Pengguna')
@@ -322,29 +347,6 @@ class AssetTransferResource extends Resource
         ];
     }
 
-    private static function generateLetterNumber(?BusinessEntity $businessEntity, $newNumber = null): string
-    {
-        if (! $businessEntity) {
-            return '';
-        }
-
-        $format = $businessEntity->format;
-
-        if ($newNumber === null) {
-            // Ambil nomor terakhir dari AssetTransfer dengan business_entity_id yang sesuai
-            $lastTransfer = AssetTransfer::where('business_entity_id', $businessEntity->id)
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            // Extract the numeric part from the last letter number
-            $lastNumber = $lastTransfer ? (int) preg_replace('/\D/', '', substr($lastTransfer->letter_number, -6)) : 0;
-            $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
-        }
-
-        // Generate the new letter number
-        return "{$format}{$newNumber}";
-    }
-
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -361,12 +363,7 @@ class AssetTransferResource extends Resource
                                 TextEntry::make('status')
                                     ->label('Status Transfer')
                                     ->badge() // Menambahkan Badge untuk memberikan warna berdasarkan status
-                                    ->colors([
-                                        'primary' => 'BERITA ACARA SERAH TERIMA',
-                                        'success' => 'BERITA ACARA PENGALIHAN BARANG',
-                                        'danger' => 'BERITA ACARA PENGEMBALIAN BARANG',
-                                        'secondary' => 'Unknown Status',
-                                    ]),
+                                    ->colors(AssetTransferDocumentType::colors()),
                                 TextEntry::make('fromUser.name')
                                     ->label('Dari Pengguna')
                                     ->icon('heroicon-o-user')
@@ -378,7 +375,7 @@ class AssetTransferResource extends Resource
                                 TextEntry::make('transfer_date')
                                     ->label('Tanggal Transfer')
                                     ->date()
-                                    ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d M Y'))
+                                    ->formatStateUsing(fn ($state) => Carbon::parse($state)->format('d M Y'))
                                     ->extraAttributes(['style' => 'font-weight: bold;']),
                                 TextEntry::make('businessEntity.name')
                                     ->label('Entitas Bisnis')

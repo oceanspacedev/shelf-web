@@ -20,7 +20,8 @@ class ListUsers extends ListRecords
         return [
             ExcelImportAction::make()
                 ->color('success')
-                ->use(UserImport::class),
+                ->use(UserImport::class)
+                ->visible(fn () => auth()->user()->can('import', static::$resource::getModel())),
             Actions\CreateAction::make(),
         ];
     }

@@ -2,18 +2,18 @@
 
 namespace App\Providers;
 
-// use Illuminate\Support\Facades\Gate;
-
-use App\Models\ApprovalLevel;
-use App\Models\PublicAssetRequest;
+use App\Models\AssetRequest;
+use App\Models\AssetTransfer;
+use App\Models\Task;
+use App\Models\User;
 use App\Policies\ActivityPolicy;
-use App\Policies\ApprovalLevelPolicy;
+use App\Policies\AssetRequestPolicy;
+use App\Policies\AssetTransferPolicy;
 use App\Policies\ExceptionPolicy;
-use App\Policies\PublicAssetRequestPolicy;
 use App\Policies\RolePolicy;
+use App\Policies\TaskPolicy;
 use BezhanSalleh\FilamentExceptions\Models\Exception;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
-use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
@@ -26,11 +26,12 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        ApprovalLevel::class => ApprovalLevelPolicy::class,
+        AssetRequest::class => AssetRequestPolicy::class,
+        AssetTransfer::class => AssetTransferPolicy::class,
         Activity::class => ActivityPolicy::class,
         Exception::class => ExceptionPolicy::class,
-        PublicAssetRequest::class => PublicAssetRequestPolicy::class,
         Role::class => RolePolicy::class,
+        Task::class => TaskPolicy::class,
     ];
 
     /**

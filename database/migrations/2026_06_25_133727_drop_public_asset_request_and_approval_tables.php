@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,9 +10,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('request_approvals');
-        Schema::dropIfExists('approval_levels');
-        Schema::dropIfExists('public_asset_requests');
+        foreach ($this->legacyTables() as $currentName => $archiveName) {
+            if (Schema::hasTable($currentName) && ! Schema::hasTable($archiveName)) {
+                Schema::rename($currentName, $archiveName);
+            }
+        }
     }
 
     /**
@@ -21,6 +22,22 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        foreach (array_reverse($this->legacyTables()) as $currentName => $archiveName) {
+            if (Schema::hasTable($archiveName) && ! Schema::hasTable($currentName)) {
+                Schema::rename($archiveName, $currentName);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function legacyTables(): array
+    {
+        return [
+            'request_approvals' => 'legacy_request_approvals',
+            'approval_levels' => 'legacy_approval_levels',
+            'public_asset_requests' => 'legacy_public_asset_requests',
+        ];
     }
 };

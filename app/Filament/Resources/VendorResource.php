@@ -3,20 +3,26 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\VendorResource\Pages;
-use App\Filament\Resources\VendorResource\RelationManagers;
 use App\Models\Vendor;
-use Filament\Forms;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class VendorResource extends Resource
 {
     protected static ?string $model = Vendor::class;
+
+    public static function getModelLabel(): string
+    {
+        return __('Vendor');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Vendors');
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
 
@@ -25,10 +31,19 @@ class VendorResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
+            ->columns(1)
             ->schema([
                 TextInput::make('name')
                     ->required()
                     ->maxLength(255),
+                TextInput::make('contact_person')
+                    ->label('Contact Person (CP)')
+                    ->maxLength(255)
+                    ->placeholder('Nama / No. HP contact person'),
+                TextInput::make('location')
+                    ->label('Lokasi')
+                    ->maxLength(255)
+                    ->placeholder('Alamat / Kota vendor'),
                 TextInput::make('last_price')
                     ->label('Harga Terakhir (Rp)')
                     ->numeric() // Mengatur agar input hanya angka
@@ -43,6 +58,12 @@ class VendorResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('contact_person')
+                    ->label('Contact Person')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('location')
+                    ->label('Lokasi')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('last_price')
                     ->money('IDR'),
@@ -59,7 +80,9 @@ class VendorResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->slideOver()
+                    ->modalWidth('md'),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

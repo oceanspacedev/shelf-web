@@ -14,7 +14,10 @@ use App\Models\BusinessEntity;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
+use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
+use Carbon\Carbon;
 use Filament\Forms\Components\Card;
+use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
@@ -44,9 +47,23 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
-class AssetResource extends Resource
+class AssetResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Asset::class;
+
+    public static function getPermissionPrefixes(): array
+    {
+        return [
+            'view',
+            'view_any',
+            'create',
+            'update',
+            'delete',
+            'delete_any',
+            'export',
+            'import',
+        ];
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-archive-box';
 
@@ -201,6 +218,48 @@ class AssetResource extends Resource
         return $attribute->expiryReminderStatusLabelOn();
     }
 
+    /**
+     * @return array<int, Component>
+     */
+    public static function repairCompletionFormSchema(): array
+    {
+        return [
+            Grid::make(2)
+                ->schema([
+                    DatePicker::make('nbh_reported_at')
+                        ->label('Tanggal Insiden')
+                        ->native(false)
+                        ->helperText('Tanggal insiden NBH (terjaga, tidak diubah saat penyelesaian perbaikan).'),
+                    Select::make('nbh_responsible_user_id')
+                        ->label('Penanggung Jawab')
+                        ->options(fn () => Cache::remember('user_options', 300, fn () => User::orderBy('name')->pluck('name', 'id')))
+                        ->default(fn () => auth()->id())
+                        ->searchable()
+                        ->required(),
+                    FileUpload::make('audit_document_path')
+                        ->label('Bukti Perbaikan / Dokumen Audit')
+                        ->directory('asset-audit')
+                        ->preserveFilenames()
+                        ->acceptedFileTypes(['application/pdf', 'image/*'])
+                        ->maxSize(4096)
+                        ->helperText('Upload bukti servis, BAP audit, foto, atau dokumen pendukung.')
+                        ->columnSpanFull(),
+                    FileUpload::make('nbh_document_path')
+                        ->label('Dokumen NBH / Bukti Penutupan')
+                        ->directory('asset-nbh')
+                        ->preserveFilenames()
+                        ->acceptedFileTypes(['application/pdf', 'image/*'])
+                        ->maxSize(4096)
+                        ->columnSpanFull(),
+                    Textarea::make('nbh_notes')
+                        ->label('Catatan Penyelesaian')
+                        ->rows(3)
+                        ->maxLength(65535)
+                        ->columnSpanFull(),
+                ]),
+        ];
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -266,6 +325,12 @@ class AssetResource extends Resource
                                 TextInput::make('name')
                                     ->label(__('Nama'))
                                     ->required()
+                                    ->maxLength(255)
+                                    ->columnSpan(2),
+                                TextInput::make('type')
+                                    ->label('Model / Tipe Barang')
+                                    ->placeholder('Contoh: ThinkPad T14, iPhone 15, Rak Gudang A')
+                                    ->helperText('Isi model, varian, atau tipe barang dari vendor. Ini berbeda dari kategori aset.')
                                     ->maxLength(255)
                                     ->columnSpan(2),
                             ])
@@ -626,7 +691,7 @@ class AssetResource extends Resource
                                 return $assetLocation->id;
                             }),
                         FileUpload::make('image')
-                            ->label('Gambar Aset')
+                            ->label('Foto Aset')
                             ->directory('assets') // Define the directory to store images
                             ->image() // Only allow image uploads
                             ->maxSize(2048)
@@ -651,7 +716,7 @@ class AssetResource extends Resource
                 TextColumn::make('name')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('category.name')->translateLabel()->sortable()->toggleable(),
                 TextColumn::make('brand.name')->translateLabel()->sortable()->searchable()->toggleable(),
-                TextColumn::make('type')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('type')->label('Model / Tipe')->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('serial_number')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('imei1')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('imei2')->translateLabel()->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
@@ -760,6 +825,25 @@ class AssetResource extends Resource
                 ->label('Filter Audit')
                 ->slideOver())
             ->actions([
+                Action::make('completeRepair')
+                    ->label('Selesaikan Perbaikan')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Asset $record): bool => (auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false)
+                        && $record->condition_status === AssetCondition::Damaged
+                        && $record->nbh_status === NbhStatus::Pending)
+                    ->form(self::repairCompletionFormSchema())
+                    ->slideOver()
+                    ->modalWidth('md')
+                    ->action(function (Asset $record, array $data): void {
+                        $record->completeRepairProcessing(auth()->user(), $data);
+
+                        Notification::make()
+                            ->title('Perbaikan selesai')
+                            ->body("Aset \"{$record->name}\" sudah kembali operasional dan NBH ditutup.")
+                            ->success()
+                            ->send();
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
@@ -825,9 +909,9 @@ class AssetResource extends Resource
                                         TextEntry::make('brand.name')
                                             ->label(__('Merek')),
                                         TextEntry::make('type')
-                                            ->label(__('Tipe')),
+                                            ->label('Model / Tipe'),
                                         ImageEntry::make('image')
-                                            ->label(__('Gambar Aset'))
+                                            ->label('Foto Aset')
                                             ->width('100px')
                                             ->height('100px'),
                                     ]),
@@ -868,7 +952,7 @@ class AssetResource extends Resource
                                     ->schema([
                                         TextEntry::make('purchase_date')
                                             ->label(__('Tanggal Pembelian'))
-                                            ->formatStateUsing(fn ($state) => \Carbon\Carbon::parse($state)->format('d/m/Y'))
+                                            ->formatStateUsing(fn ($state) => Carbon::parse($state)->format('d/m/Y'))
                                             ->extraAttributes(['style' => 'color:#007BFF;']),
                                         TextEntry::make('item_price')
                                             ->label(__('Harga'))

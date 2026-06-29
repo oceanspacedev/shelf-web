@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Asset;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class AssetPolicy
@@ -104,5 +104,21 @@ class AssetPolicy
     public function reorder(User $user): bool
     {
         return $user->can('{{ Reorder }}');
+    }
+
+    /**
+     * Determine whether the user can export.
+     */
+    public function export(User $user): bool
+    {
+        return $user->can('export_asset');
+    }
+
+    /**
+     * Determine whether the user can import.
+     */
+    public function import(User $user): bool
+    {
+        return $user->can('import_asset');
     }
 }

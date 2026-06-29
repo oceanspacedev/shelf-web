@@ -3,12 +3,11 @@
 namespace App\Filament\Resources\AssetResource\Widgets;
 
 use App\Enums\AssetCondition;
-use Filament\Widgets\StatsOverviewWidget as BaseWidget;
-use Filament\Widgets\StatsOverviewWidget\Stat;
 use App\Models\Asset;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class CustomAssetWidget extends BaseWidget
 {
@@ -21,7 +20,6 @@ class CustomAssetWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        Log::info('CustomAssetWidget getStats called');
         $availableUnits = Asset::where('condition_status', AssetCondition::Available->value)->count();
         $transferredUnits = Asset::where('condition_status', AssetCondition::Transferred->value)->count();
         $soldUnits = Asset::where('condition_status', AssetCondition::Sold->value)->count();
@@ -40,8 +38,8 @@ class CustomAssetWidget extends BaseWidget
             Stat::make(__('Aset Hilang'), $lostUnits)->color('danger'),
             Stat::make(__('Aset Rusak'), $damagedUnits)->color('danger'),
             Stat::make(__('Jumlah Aset'), $totalAssets)->color('primary'),
-            Stat::make(__('Nilai Aset Aktif'), 'IDR ' . number_format($activeAssetValue))->color('primary'),
-            Stat::make(__('Nilai Aset Dijual'), 'IDR ' . number_format($soldAssetValue))->color('gray'),
+            Stat::make(__('Nilai Aset Aktif'), 'IDR '.number_format($activeAssetValue))->color('primary'),
+            Stat::make(__('Nilai Aset Dijual'), 'IDR '.number_format($soldAssetValue))->color('gray'),
         ];
     }
 }

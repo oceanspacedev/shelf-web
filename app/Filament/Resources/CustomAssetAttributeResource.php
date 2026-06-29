@@ -16,6 +16,16 @@ class CustomAssetAttributeResource extends Resource
 {
     protected static ?string $model = CustomAssetAttribute::class;
 
+    public static function getModelLabel(): string
+    {
+        return __('Custom Asset Attribute');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('Custom Asset Attributes');
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-adjustments-horizontal';
 
     public static function getCategoryOptions()
