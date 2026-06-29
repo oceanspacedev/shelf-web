@@ -38,6 +38,9 @@ class WhatsappAssetQueryController extends Controller
             'query.asset_tag' => ['nullable', 'string', 'max:100'],
             'query.serial_number' => ['nullable', 'string', 'max:100'],
             'query.imei' => ['nullable', 'string', 'max:100'],
+            'query.plate_number' => ['nullable', 'string', 'max:50'],
+            'query.license_plate' => ['nullable', 'string', 'max:50'],
+            'query.plat_nomor' => ['nullable', 'string', 'max:50'],
             'query.person_name' => ['nullable', 'string', 'max:150'],
             'query.recipient_name' => ['nullable', 'string', 'max:150'],
             'query.person_phone' => ['nullable', 'string', 'max:50'],
@@ -84,6 +87,7 @@ class WhatsappAssetQueryController extends Controller
         $assetTag = $this->text($query['asset_tag'] ?? '');
         $serialNumber = $this->text($query['serial_number'] ?? '');
         $imei = preg_replace('/\D+/', '', $this->text($query['imei'] ?? '')) ?: '';
+        $plateNumber = $this->plateNumber($query);
         $phone = WhatsappService::normalizeNumber(
             $this->text($query['recipient_phone'] ?? '') ?: $this->text($query['person_phone'] ?? '')
         );
@@ -94,6 +98,7 @@ class WhatsappAssetQueryController extends Controller
         $hasUniqueKey = ($assetTag !== '' && ctype_digit($assetTag))
             || $serialNumber !== ''
             || $imei !== ''
+            || $plateNumber !== ''
             || filled($phone);
         $hasBroadScope = $this->bool($query['allow_broad_search'] ?? false)
             && $location !== ''
@@ -107,8 +112,8 @@ class WhatsappAssetQueryController extends Controller
                 'ok' => false,
                 'result_status' => 'validation_error',
                 'next_question' => $hasNameOnly
-                    ? 'Nama bisa sama. Kirim nomor WhatsApp, serial number, IMEI, atau asset_id.'
-                    : 'Kirim asset_id, serial number, IMEI, nomor WhatsApp pemegang, atau lokasi + jenis aset.',
+                    ? 'Nama bisa sama. Kirim serial number, IMEI, plat nomor, atau nomor WhatsApp pemegang.'
+                    : 'Kirim serial number, IMEI, plat nomor, nomor WhatsApp pemegang, atau lokasi + jenis aset.',
             ], 422);
         }
 
@@ -192,6 +197,7 @@ class WhatsappAssetQueryController extends Controller
         $assetTag = $this->text($query['asset_tag'] ?? '');
         $serialNumber = $this->text($query['serial_number'] ?? '');
         $imei = preg_replace('/\D+/', '', $this->text($query['imei'] ?? '')) ?: '';
+        $plateNumber = $this->plateNumber($query);
         $phone = WhatsappService::normalizeNumber(
             $this->text($query['recipient_phone'] ?? '') ?: $this->text($query['person_phone'] ?? '')
         );
@@ -207,6 +213,8 @@ class WhatsappAssetQueryController extends Controller
                 'recipient.businessEntity:id,name',
                 'recipient.jobTitle:id,title',
                 'recipientBusinessEntity:id,name',
+                'attributes:id,asset_id,custom_attribute_id,attribute_value',
+                'attributes.customAttribute:id,name,is_active',
                 'assetTransferDetails.assetTransfer.businessEntity:id,name',
                 'assetTransferDetails.assetTransfer.fromUser:id,name,whatsapp_number,business_entity_id',
                 'assetTransferDetails.assetTransfer.toUser:id,name,whatsapp_number,business_entity_id',
@@ -217,14 +225,15 @@ class WhatsappAssetQueryController extends Controller
         }
 
         if ($serialNumber !== '') {
-            $assetQuery->where('serial_number', 'like', '%'.$serialNumber.'%');
+            $this->whereIdentifierMatches($assetQuery, ['serial_number'], ['Serial Number'], $serialNumber);
         }
 
         if ($imei !== '') {
-            $assetQuery->where(function (Builder $q) use ($imei): void {
-                $q->where('imei1', 'like', '%'.$imei.'%')
-                    ->orWhere('imei2', 'like', '%'.$imei.'%');
-            });
+            $this->whereIdentifierMatches($assetQuery, ['imei1', 'imei2'], ['IMEI1', 'IMEI2'], $imei);
+        }
+
+        if ($plateNumber !== '') {
+            $this->whereIdentifierMatches($assetQuery, [], ['Plat Nomor'], $plateNumber);
         }
 
         if (filled($phone)) {
@@ -295,6 +304,64 @@ class WhatsappAssetQueryController extends Controller
     }
 
     /**
+     * @param  array<int, string>  $nativeColumns
+     * @param  array<int, string>  $customAttributeNames
+     */
+    private function whereIdentifierMatches(
+        Builder $query,
+        array $nativeColumns,
+        array $customAttributeNames,
+        string $value,
+    ): void {
+        $needle = $this->normalizeIdentifier($value);
+
+        if ($needle === '') {
+            return;
+        }
+
+        $query->where(function (Builder $identifier) use ($nativeColumns, $customAttributeNames, $needle): void {
+            $hasClause = false;
+
+            foreach ($nativeColumns as $column) {
+                if ($hasClause) {
+                    $identifier->orWhereRaw($this->normalizedIdentifierExpression($column).' LIKE ?', ['%'.$needle.'%']);
+                } else {
+                    $identifier->whereRaw($this->normalizedIdentifierExpression($column).' LIKE ?', ['%'.$needle.'%']);
+                    $hasClause = true;
+                }
+            }
+
+            if ($customAttributeNames !== []) {
+                $customFilter = function (Builder $attribute) use ($customAttributeNames, $needle): void {
+                    $attribute
+                        ->whereRaw($this->normalizedIdentifierExpression('attribute_value').' LIKE ?', ['%'.$needle.'%'])
+                        ->whereHas('customAttribute', function (Builder $custom) use ($customAttributeNames): void {
+                            $custom
+                                ->whereIn('name', $customAttributeNames)
+                                ->where('is_active', true);
+                        });
+                };
+
+                if ($hasClause) {
+                    $identifier->orWhereHas('attributes', $customFilter);
+                } else {
+                    $identifier->whereHas('attributes', $customFilter);
+                }
+            }
+        });
+    }
+
+    private function normalizedIdentifierExpression(string $column): string
+    {
+        return "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE($column, '')), ' ', ''), '-', ''), '.', ''), '/', ''))";
+    }
+
+    private function normalizeIdentifier(string $value): string
+    {
+        return strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $this->text($value)));
+    }
+
+    /**
      * @param  Collection<int, Asset>  $assets
      */
     private function assetResponse(Collection $assets, bool $includeHistory): JsonResponse
@@ -320,10 +387,11 @@ class WhatsappAssetQueryController extends Controller
                 'asset_id' => $item['asset_id'],
                 'name' => $item['name'],
                 'serial_number' => $item['serial_number'],
+                'plate_number' => $item['plate_number'],
                 'recipient_name' => $item['recipient']['name'] ?? null,
                 'location_name' => $item['location']['name'] ?? null,
             ])->values() : [],
-            'next_question' => $count > 1 ? 'Pilih asset_id atau kirim serial number supaya saya ambil satu aset.' : '',
+            'next_question' => $count > 1 ? 'Pilih asset_id dari kandidat, atau kirim serial number/IMEI/plat nomor yang lebih spesifik.' : '',
             'freshness' => [
                 'newest_updated_at' => $this->newestUpdatedAt($items),
             ],
@@ -346,9 +414,10 @@ class WhatsappAssetQueryController extends Controller
             'category' => $this->idName($asset->category),
             'brand' => $this->idName($asset->brand),
             'type' => $asset->type,
-            'serial_number' => $asset->serial_number,
-            'imei1' => $asset->imei1,
-            'imei2' => $asset->imei2,
+            'serial_number' => $this->assetIdentifier($asset, 'serial_number', ['Serial Number']),
+            'imei1' => $this->assetIdentifier($asset, 'imei1', ['IMEI1']),
+            'imei2' => $this->assetIdentifier($asset, 'imei2', ['IMEI2']),
+            'plate_number' => $this->customAssetIdentifier($asset, ['Plat Nomor']),
             'condition_status' => $condition ? [
                 'value' => $condition->value,
                 'label' => $condition->label(),
@@ -548,6 +617,67 @@ class WhatsappAssetQueryController extends Controller
     private function text(mixed $value): string
     {
         return trim((string) ($value ?? ''));
+    }
+
+    private function plateNumber(array $query): string
+    {
+        return $this->text($query['plate_number'] ?? '')
+            ?: $this->text($query['plat_nomor'] ?? '')
+            ?: $this->text($query['license_plate'] ?? '');
+    }
+
+    /**
+     * @param  array<int, string>  $customAttributeNames
+     */
+    private function assetIdentifier(Asset $asset, string $nativeColumn, array $customAttributeNames): ?string
+    {
+        $nativeValue = $this->text($asset->getAttribute($nativeColumn));
+
+        if ($nativeValue !== '' && ! $this->isPlaceholderIdentifier($nativeValue)) {
+            return $nativeValue;
+        }
+
+        return $this->customAssetIdentifier($asset, $customAttributeNames);
+    }
+
+    /**
+     * @param  array<int, string>  $customAttributeNames
+     */
+    private function customAssetIdentifier(Asset $asset, array $customAttributeNames): ?string
+    {
+        $allowedNames = array_map('strtolower', $customAttributeNames);
+        $attributes = $asset->relationLoaded('attributes')
+            ? $asset->attributes
+            : $asset->attributes()->with('customAttribute:id,name,is_active')->get();
+
+        foreach ($attributes as $attribute) {
+            $customAttribute = $attribute->customAttribute;
+            $value = $this->text($attribute->attribute_value);
+
+            if (! $customAttribute?->is_active || $value === '' || $this->isPlaceholderIdentifier($value)) {
+                continue;
+            }
+
+            if (in_array(strtolower((string) $customAttribute->name), $allowedNames, true)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function isPlaceholderIdentifier(string $value): bool
+    {
+        return in_array(strtolower($this->text($value)), [
+            '-',
+            '0',
+            '00',
+            '000',
+            '0000',
+            'n/a',
+            'na',
+            'tidak ada',
+        ], true);
     }
 
     private function bool(mixed $value): bool

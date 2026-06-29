@@ -88,6 +88,104 @@ class WhatsappAssetIntegrationTest extends TestCase
             ->assertJsonPath('items.0.history', []);
     }
 
+    public function test_it_returns_asset_by_custom_serial_number_for_ita(): void
+    {
+        $asset = $this->createAssetFixture();
+        $asset->forceFill(['serial_number' => null])->save();
+
+        $serialAttribute = CustomAssetAttribute::create([
+            'name' => 'Serial Number',
+            'type' => CustomAssetAttribute::TYPE_TEXT,
+            'required' => false,
+            'is_active' => true,
+            'category_id' => [$asset->category_id],
+        ]);
+
+        AssetAttribute::create([
+            'asset_id' => $asset->id,
+            'custom_attribute_id' => $serialAttribute->id,
+            'attribute_value' => 'CUST-SERIAL-7788',
+        ]);
+
+        $this->postJson(route('integrations.whatsapp.assets.query'), [
+            'route' => 'shelf.search_asset',
+            'query' => [
+                'serial_number' => 'CUST-SERIAL-7788',
+            ],
+        ])->assertOk()
+            ->assertJsonPath('result_status', 'confirmed')
+            ->assertJsonPath('items.0.asset_id', $asset->id)
+            ->assertJsonPath('items.0.serial_number', 'CUST-SERIAL-7788');
+    }
+
+    public function test_it_returns_vehicle_by_plate_number_for_ita(): void
+    {
+        $asset = $this->createAssetFixture();
+        $asset->forceFill([
+            'name' => 'Mobil Operasional',
+            'serial_number' => null,
+            'imei1' => null,
+            'imei2' => null,
+        ])->save();
+
+        $plateAttribute = CustomAssetAttribute::create([
+            'name' => 'Plat Nomor',
+            'type' => CustomAssetAttribute::TYPE_TEXT,
+            'required' => true,
+            'is_active' => true,
+            'category_id' => [$asset->category_id],
+        ]);
+
+        AssetAttribute::create([
+            'asset_id' => $asset->id,
+            'custom_attribute_id' => $plateAttribute->id,
+            'attribute_value' => 'B 1234 XYZ',
+        ]);
+
+        $this->postJson(route('integrations.whatsapp.assets.query'), [
+            'route' => 'shelf.search_asset',
+            'query' => [
+                'plate_number' => 'B 1234 XYZ',
+            ],
+        ])->assertOk()
+            ->assertJsonPath('result_status', 'confirmed')
+            ->assertJsonPath('items.0.asset_id', $asset->id)
+            ->assertJsonPath('items.0.plate_number', 'B 1234 XYZ');
+    }
+
+    public function test_it_returns_asset_by_custom_imei_for_ita(): void
+    {
+        $asset = $this->createAssetFixture();
+        $asset->forceFill([
+            'imei1' => null,
+            'imei2' => null,
+        ])->save();
+
+        $imeiAttribute = CustomAssetAttribute::create([
+            'name' => 'IMEI1',
+            'type' => CustomAssetAttribute::TYPE_NUMBER,
+            'required' => false,
+            'is_active' => true,
+            'category_id' => [$asset->category_id],
+        ]);
+
+        AssetAttribute::create([
+            'asset_id' => $asset->id,
+            'custom_attribute_id' => $imeiAttribute->id,
+            'attribute_value' => '359876543210123',
+        ]);
+
+        $this->postJson(route('integrations.whatsapp.assets.query'), [
+            'route' => 'shelf.search_asset',
+            'query' => [
+                'imei' => '359876543210123',
+            ],
+        ])->assertOk()
+            ->assertJsonPath('result_status', 'confirmed')
+            ->assertJsonPath('items.0.asset_id', $asset->id)
+            ->assertJsonPath('items.0.imei1', '359876543210123');
+    }
+
     public function test_it_includes_asset_history_for_history_route(): void
     {
         $asset = $this->createAssetFixture();
