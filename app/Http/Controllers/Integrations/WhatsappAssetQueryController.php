@@ -716,7 +716,7 @@ class WhatsappAssetQueryController extends Controller
     private function phoneOptions(string $normalized): array
     {
         $options = [$normalized];
-        $countryCode = preg_replace('/\D+/', '', (string) config('services.fonnte.country_code', '62'));
+        $countryCode = preg_replace('/\D+/', '', (string) config('services.whatsapp_gateway.country_code', '62'));
 
         if ($countryCode !== '' && str_starts_with($normalized, $countryCode)) {
             $options[] = '0'.substr($normalized, strlen($countryCode));

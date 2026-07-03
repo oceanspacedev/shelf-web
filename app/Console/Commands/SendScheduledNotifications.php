@@ -4,11 +4,11 @@ namespace App\Console\Commands;
 
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
+use App\Services\WhatsappService;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -153,13 +153,13 @@ class SendScheduledNotifications extends Command
         $recipients = $this->recipientUsers($attribute)
             ->pluck('whatsapp_number')
             ->merge($attribute->notificationRecipientWhatsappNumbers())
-            ->map(fn ($recipient) => $this->normalizeWhatsappTarget($recipient))
+            ->map(fn ($recipient) => WhatsappService::normalizeNumber($recipient))
             ->filter()
             ->values()
             ->all();
 
-        if ($recipients === [] && filled(config('services.fonnte.default_target'))) {
-            $recipients[] = $this->normalizeWhatsappTarget(config('services.fonnte.default_target'));
+        if ($recipients === [] && filled(config('services.whatsapp_gateway.default_target'))) {
+            $recipients[] = WhatsappService::normalizeNumber(config('services.whatsapp_gateway.default_target'));
         }
 
         return collect($recipients)
@@ -194,25 +194,18 @@ class SendScheduledNotifications extends Command
             ->all();
     }
 
-    protected function normalizeWhatsappTarget(string|int|null $phoneNumber): ?string
+    protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): bool
     {
-        if (! is_string($phoneNumber) && ! is_numeric($phoneNumber)) {
-            return null;
+        $sent = WhatsappService::send($phoneNumber, $message);
+
+        if (! $sent) {
+            Log::error('Gagal mengirim pesan WhatsApp pengingat aset.', [
+                'asset_id' => $asset?->id,
+                'receiver' => $phoneNumber,
+            ]);
         }
 
-        $target = preg_replace('/\D+/', '', (string) $phoneNumber);
-
-        if (! filled($target)) {
-            return null;
-        }
-
-        $countryCode = preg_replace('/\D+/', '', (string) config('services.fonnte.country_code', '62'));
-
-        if (filled($countryCode) && str_starts_with($target, '0')) {
-            return $countryCode.substr($target, 1);
-        }
-
-        return $target;
+        return $sent;
     }
 
     protected function dailyDispatchLockKey(CustomAssetAttribute $attribute, $asset, string $channel, string $recipient): string
@@ -230,60 +223,6 @@ class SendScheduledNotifications extends Command
     protected function acquireDailyDispatchLock(string $key): bool
     {
         return Cache::add($key, true, now()->addHours(30));
-    }
-
-    protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): bool
-    {
-        $apiEndpoint = config('services.fonnte.endpoint', 'https://api.fonnte.com/send');
-        $token = config('services.fonnte.token');
-
-        if (! filled($apiEndpoint) || ! filled($token)) {
-            Log::warning('Konfigurasi WhatsApp notifikasi aset belum lengkap.', [
-                'asset_id' => $asset?->id,
-                'receiver' => $phoneNumber,
-                'provider' => 'fonnte',
-            ]);
-
-            return false;
-        }
-
-        try {
-            $response = Http::asForm()
-                ->timeout((int) config('services.fonnte.timeout', 10))
-                ->retry(
-                    (int) config('services.fonnte.retry_times', 2),
-                    (int) config('services.fonnte.retry_sleep', 500),
-                    throw: false,
-                )
-                ->withHeaders([
-                    'Authorization' => $token,
-                ])
-                ->post($apiEndpoint, [
-                    'target' => $phoneNumber,
-                    'message' => $message,
-                    'countryCode' => config('services.fonnte.country_code', '62'),
-                ]);
-
-            if ($response->failed() || $response->json('status') === false) {
-                Log::error('Gagal mengirim pesan WhatsApp via Fonnte.', [
-                    'asset_id' => $asset?->id,
-                    'receiver' => $phoneNumber,
-                    'status' => $response->status(),
-                    'body' => mb_substr($response->body(), 0, 1000),
-                ]);
-
-                return false;
-            }
-
-            return true;
-        } catch (Throwable $e) {
-            Log::error('Gagal mengirim pesan WhatsApp via Fonnte: '.$e->getMessage(), [
-                'asset_id' => $asset?->id,
-                'receiver' => $phoneNumber,
-            ]);
-
-            return false;
-        }
     }
 
     protected function sendEmailNotification(string $subject, string $message, $asset, string $email): bool
