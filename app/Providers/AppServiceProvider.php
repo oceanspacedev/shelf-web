@@ -6,6 +6,9 @@ use BezhanSalleh\LanguageSwitch\LanguageSwitch;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureRateLimiting();
+
         View::prependNamespace('filament-panels', resource_path('views/vendor/filament-panels'));
 
         // Preserve Filament v3 layout behavior: Section/Grid/Fieldset span all columns.
@@ -36,6 +41,23 @@ class AppServiceProvider extends ServiceProvider
                 ->locales(['id', 'en'])
                 ->circular()
                 ->renderHook('panels::user-menu.before');
+        });
+    }
+
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        // Rate limiter untuk endpoint publik pengajuan aset (tanpa auth).
+        // Membatasi spam + memperkecil window race condition reference_number.
+        RateLimiter::for('public', function (Request $request) {
+            if (app()->environment('testing')) {
+                return Limit::none();
+            }
+
+            return Limit::perMinute(5)->by($request->ip());
         });
     }
 }
