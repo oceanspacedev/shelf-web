@@ -8,15 +8,14 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
-use Filament\Forms\Components\Card;
+use Filament\Schemas\Components\Section as Card;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
@@ -43,11 +42,11 @@ class UserResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
 
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static \UnitEnum|string|null $navigationGroup = 'Master Data';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         $isSuperAdmin = Auth::user()->hasRole('super_admin') || Auth::user()->hasRole('admin');
 
@@ -153,11 +152,11 @@ class UserResource extends Resource implements HasShieldPermissions
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -202,7 +201,7 @@ class UserResource extends Resource implements HasShieldPermissions
         return __('Users');
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $infolist): Schema
     {
         return $infolist
             ->schema([

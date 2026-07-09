@@ -3,13 +3,13 @@
 namespace App\Filament\Pages\Auth;
 
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Pages\Auth\Login as DefaultLogin;
+use Filament\Schemas\Schema;
+use Filament\Auth\Pages\Login as DefaultLogin;
 use Illuminate\Validation\ValidationException;
 
 class Login extends DefaultLogin
 {
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([

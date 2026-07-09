@@ -5,7 +5,7 @@ namespace App\Filament\Resources\AssetResource\RelationManagers;
 use App\Enums\AssetTransferDocumentType;
 use Asmit\ResizedColumn\HasResizableColumn;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
@@ -18,7 +18,7 @@ class AssetTransfersRelationManager extends RelationManager
 
     protected static string $relationship = 'assetTransferDetails';
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -65,14 +65,14 @@ class AssetTransfersRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\Action::make('createAssetTransfer')
+                \Filament\Actions\Action::make('createAssetTransfer')
                     ->label('Transfer Asset') // Label tombol yang akan tampil di header
                     ->url(route('filament.admin.resources.asset-transfers.create')) // URL ke halaman create
                     ->icon('heroicon-o-plus') // Ikon untuk tombol
                     ->color('success'),
             ])
             ->actions([
-                Tables\Actions\Action::make('removeTransferDetail')
+                \Filament\Actions\Action::make('removeTransferDetail')
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
@@ -84,8 +84,8 @@ class AssetTransfersRelationManager extends RelationManager
                     ->action(fn ($record) => $record->delete()),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }

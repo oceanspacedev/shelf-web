@@ -10,11 +10,10 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -35,9 +34,9 @@ class TaskResource extends Resource
         return __('Tasks');
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-clipboard-document-check';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -206,15 +205,15 @@ class TaskResource extends Resource
             ->columnToggleFormColumns(2)
             ->actions([
                 // Group the custom actions together
-                Tables\Actions\ActionGroup::make([
+                \Filament\Actions\ActionGroup::make([
                     // Edit Action (with pencil icon)
-                    Tables\Actions\EditAction::make()
+                    \Filament\Actions\EditAction::make()
                         ->label('Edit')
                         ->icon('heroicon-o-pencil') // Use the pencil icon for edit
                         ->visible(fn ($record) => ! in_array($record->status, ['in_progress', 'completed'])),
 
                     // Custom Process Action (color: blue, with play icon)
-                    Tables\Actions\Action::make('process')
+                    \Filament\Actions\Action::make('process')
                         ->label('Process')
                         ->icon('heroicon-o-play') // Use the play icon for process
                         ->color('primary') // Use 'primary' for blue
@@ -224,7 +223,7 @@ class TaskResource extends Resource
                         }),
 
                     // Custom Complete Action (color: green, with check icon)
-                    Tables\Actions\Action::make('complete')
+                    \Filament\Actions\Action::make('complete')
                         ->label('Complete')
                         ->icon('heroicon-o-check-circle') // Use the check circle icon for complete
                         ->color('success') // Use 'success' for green
@@ -246,7 +245,7 @@ class TaskResource extends Resource
                             ]);
                         }),
 
-                    Tables\Actions\Action::make('upload')
+                    \Filament\Actions\Action::make('upload')
                         ->label('Upload')
                         ->icon('heroicon-o-check-circle') // Use the check circle icon for complete
                         ->color('success') // Use 'success' for green
@@ -266,7 +265,7 @@ class TaskResource extends Resource
                         }),
 
                     // Custom Download Action (color: red, with download icon)
-                    Tables\Actions\Action::make('download')
+                    \Filament\Actions\Action::make('download')
                         ->label('Download')
                         ->icon('heroicon-o-arrow-down-tray') // Use the download icon for download
                         ->color('danger') // Use 'danger' for red
@@ -277,13 +276,13 @@ class TaskResource extends Resource
 
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $infolist): Schema
     {
         return $infolist
             ->schema([

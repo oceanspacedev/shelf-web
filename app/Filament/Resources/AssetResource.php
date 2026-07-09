@@ -16,27 +16,26 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Carbon\Carbon;
-use Filament\Forms\Components\Card;
+use Filament\Schemas\Components\Section as Card;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Grid;
+use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Infolists\Components\Grid as ComponentsGrid;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid as ComponentsGrid;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\Section as ComponentsSection;
+use Filament\Schemas\Components\Section as ComponentsSection;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkAction;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
@@ -65,7 +64,7 @@ class AssetResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-archive-box';
 
     public static function getCategoryOptions(): array
     {
@@ -260,7 +259,7 @@ class AssetResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -844,13 +843,13 @@ class AssetResource extends Resource implements HasShieldPermissions
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\ViewAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
                 BulkAction::make('pindahkanKeAtribut')
                     ->label('Pindahkan ke Atribut')
@@ -888,7 +887,7 @@ class AssetResource extends Resource implements HasShieldPermissions
         return __('Assets');
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $infolist): Schema
     {
         return $infolist
             ->schema([
@@ -1006,20 +1005,20 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->schema([
                                         TextEntry::make('nbh_reported_at_display')
                                             ->label(__('Tanggal Insiden'))
-                                            ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                            ->state(fn (?Asset $record): string => $record?->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
                                                 ? optional($record->nbh_reported_at)?->format('d M Y') ?? '-'
                                                 : '-'),
                                         TextEntry::make('nbh_responsible_display')
                                             ->label(__('Penanggung Jawab'))
-                                            ->state(fn (Asset $record): string => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
+                                            ->state(fn (?Asset $record): string => $record?->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None
                                                 ? $record->nbhResponsible?->name ?? '-'
                                                 : '-'),
                                     ])
-                                    ->visible(fn (Asset $record): bool => $record->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
+                                    ->visible(fn (?Asset $record): bool => $record?->nbh_status instanceof NbhStatus && $record->nbh_status !== NbhStatus::None),
                                 TextEntry::make('nbh_notes')
                                     ->label(__('Catatan NBH'))
                                     ->columnSpanFull()
-                                    ->visible(fn (Asset $record): bool => filled($record->nbh_notes)),
+                                    ->visible(fn (?Asset $record): bool => filled($record?->nbh_notes)),
                             ]),
 
                         ComponentsSection::make('Audit Penjualan')
@@ -1034,14 +1033,14 @@ class AssetResource extends Resource implements HasShieldPermissions
                                             ->state(fn (Asset $record): string => $record->sold_to ?? '-'),
                                         TextEntry::make('sold_price')
                                             ->label(__('Harga Jual'))
-                                            ->state(fn (Asset $record): string => $record->sold_price !== null ? 'Rp '.number_format($record->sold_price, 0, ',', '.') : '-'),
+                                            ->state(fn (?Asset $record): string => $record?->sold_price !== null ? 'Rp '.number_format($record->sold_price, 0, ',', '.') : '-'),
                                     ]),
                                 TextEntry::make('sale_notes')
                                     ->label(__('Catatan Penjualan'))
                                     ->columnSpanFull()
-                                    ->visible(fn (Asset $record): bool => filled($record->sale_notes)),
+                                    ->visible(fn (?Asset $record): bool => filled($record?->sale_notes)),
                             ])
-                            ->visible(fn (Asset $record): bool => self::hasSaleAuditRecord($record)),
+                            ->visible(fn (?Asset $record): bool => $record !== null && self::hasSaleAuditRecord($record)),
 
                         ComponentsSection::make('Dokumen Pendukung')
                             ->schema([
@@ -1049,22 +1048,22 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->schema([
                                         TextEntry::make('audit_document_path')
                                             ->label(__('Dokumen Audit'))
-                                            ->url(fn (Asset $record) => $record->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
+                                            ->url(fn (?Asset $record) => $record?->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
                                             ->openUrlInNewTab()
-                                            ->visible(fn (Asset $record): bool => filled($record->audit_document_path)),
+                                            ->visible(fn (?Asset $record): bool => filled($record?->audit_document_path)),
                                         TextEntry::make('nbh_document_path')
                                             ->label(__('Nota Barang Hilang'))
-                                            ->url(fn (Asset $record) => $record->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
+                                            ->url(fn (?Asset $record) => $record?->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
                                             ->openUrlInNewTab()
-                                            ->visible(fn (Asset $record): bool => filled($record->nbh_document_path)),
+                                            ->visible(fn (?Asset $record): bool => filled($record?->nbh_document_path)),
                                         TextEntry::make('sale_document_path')
                                             ->label(__('Dokumen Penjualan'))
-                                            ->url(fn (Asset $record) => self::resolveDocumentUrl($record->sale_document_path), true)
+                                            ->url(fn (?Asset $record) => self::resolveDocumentUrl($record?->sale_document_path), true)
                                             ->openUrlInNewTab()
-                                            ->visible(fn (Asset $record): bool => filled($record->sale_document_path)),
+                                            ->visible(fn (?Asset $record): bool => filled($record?->sale_document_path)),
                                     ]),
                             ])
-                            ->visible(fn (Asset $record): bool => filled($record->audit_document_path) || filled($record->nbh_document_path) || filled($record->sale_document_path)),
+                            ->visible(fn (?Asset $record): bool => filled($record?->audit_document_path) || filled($record?->nbh_document_path) || filled($record?->sale_document_path)),
                     ])
                     ->columnSpan([
                         'default' => 'full',

@@ -11,22 +11,21 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use Carbon\Carbon;
-use Filament\Forms\Components\Card;
+use Filament\Schemas\Components\Section as Card;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Grid;
+use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Infolists\Components\Grid as ComponentsGrid;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid as ComponentsGrid;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section as ComponentSection;
+use Filament\Schemas\Components\Section as ComponentSection;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Actions\Action;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -51,9 +50,9 @@ class AssetTransferResource extends Resource
         return __('Asset Transfers');
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-arrows-right-left';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         $user = Auth::user();
         $isSuperAdmin = $user->hasRole('super_admin');
@@ -319,13 +318,13 @@ class AssetTransferResource extends Resource
                     ->url(fn (AssetTransfer $record): string => route('asset-transfer.download', $record))
                     ->visible(fn (AssetTransfer $record): bool => $record->document === null)
                     ->color('success'),
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\ViewAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -347,7 +346,7 @@ class AssetTransferResource extends Resource
         ];
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $infolist): Schema
     {
         return $infolist
             ->schema([

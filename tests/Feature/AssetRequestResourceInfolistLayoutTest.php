@@ -3,18 +3,21 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\AssetRequestResource;
-use Filament\Infolists\Components\Grid;
+use Filament\Schemas\Concerns\InteractsWithSchemas;
+use Filament\Schemas\Components\Grid;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
+use Filament\Schemas\Contracts\HasSchemas;
+use Filament\Schemas\Schema;
+use Livewire\Component;
 use Tests\TestCase;
 
 class AssetRequestResourceInfolistLayoutTest extends TestCase
 {
     public function test_asset_request_view_uses_cesa_style_two_column_infolist_layout(): void
     {
-        $infolist = AssetRequestResource::infolist(Infolist::make());
+        $infolist = AssetRequestResource::infolist(Schema::make($this->makeSchemaLivewire()));
 
         $this->assertSame(3, $infolist->getColumns('lg'));
 
@@ -29,7 +32,7 @@ class AssetRequestResourceInfolistLayoutTest extends TestCase
 
     public function test_asset_request_view_shows_related_items_and_approvals_as_repeatable_tracking_sections(): void
     {
-        $infolist = AssetRequestResource::infolist(Infolist::make());
+        $infolist = AssetRequestResource::infolist(Schema::make($this->makeSchemaLivewire()));
         $layoutGroups = array_values($infolist->getComponents(withHidden: true));
 
         $itemSection = collect($layoutGroups[0]->getChildComponents())
@@ -52,7 +55,7 @@ class AssetRequestResourceInfolistLayoutTest extends TestCase
 
     public function test_asset_request_approval_tracking_does_not_show_internal_level_labels(): void
     {
-        $infolist = AssetRequestResource::infolist(Infolist::make());
+        $infolist = AssetRequestResource::infolist(Schema::make($this->makeSchemaLivewire()));
         $layoutGroups = array_values($infolist->getComponents(withHidden: true));
 
         $approvalSection = collect($layoutGroups[1]->getChildComponents())
@@ -85,5 +88,17 @@ class AssetRequestResourceInfolistLayoutTest extends TestCase
         }
 
         return $names;
+    }
+
+    private function makeSchemaLivewire(): Component&HasSchemas
+    {
+        return new class extends Component implements HasSchemas {
+            use InteractsWithSchemas;
+
+            public function render(): string
+            {
+                return '';
+            }
+        };
     }
 }

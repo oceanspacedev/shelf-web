@@ -7,7 +7,7 @@ use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -26,7 +26,7 @@ class CustomAssetAttributeResource extends Resource
         return __('Custom Asset Attributes');
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-adjustments-horizontal';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-adjustments-horizontal';
 
     public static function getCategoryOptions()
     {
@@ -43,7 +43,7 @@ class CustomAssetAttributeResource extends Resource
         return $options;
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -250,11 +250,11 @@ class CustomAssetAttributeResource extends Resource
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }

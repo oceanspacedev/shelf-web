@@ -16,7 +16,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Support\Enums\MaxWidth;
+use Filament\Support\Enums\Width;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -93,7 +93,6 @@ class AdminPanelProvider extends PanelProvider
                 ResizedColumnPlugin::make(),
                 FilamentPWAPlugin::make(),
                 FilamentSettingsHubPlugin::make()
-                    ->allowLocationSettings()
                     ->allowSiteSettings()
                     ->allowSocialMenuSettings()
                     ->allowShield(),
@@ -125,10 +124,7 @@ class AdminPanelProvider extends PanelProvider
                         '2xl' => null,
                     ]),
             ])
-            ->maxContentWidth(MaxWidth::Full)
-            ->resources([
-                config('filament-logger.activity_resource'),
-            ])
+            ->maxContentWidth(Width::Full)
             ->viteTheme('resources/css/filament/admin/theme.css');
     }
 }

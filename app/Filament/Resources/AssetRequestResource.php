@@ -14,12 +14,11 @@ use App\Models\JobTitle;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Infolists\Components\Grid as InfolistGrid;
+use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid as InfolistGrid;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section as InfolistSection;
+use Filament\Schemas\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -54,7 +53,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     public static function getModelLabel(): string
     {
@@ -107,7 +106,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
         return new HtmlString('<div class="space-y-1 text-sm">'.implode('', $rows).'</div>');
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -316,7 +315,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
             ]);
     }
 
-    public static function infolist(Infolist $infolist): Infolist
+    public static function infolist(Schema $infolist): Schema
     {
         return $infolist
             ->columns([
@@ -485,8 +484,8 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                     ->formatStateUsing(fn (): string => 'Buka halaman approval')
                                                     ->badge()
                                                     ->color('primary')
-                                                    ->url(fn ($state, AssetRequestApproval $record): ?string => $record->status === RequestStatus::Pending ? $record->publicApprovalUrl() : null, true)
-                                                    ->visible(fn ($state, AssetRequestApproval $record): bool => $record->status === RequestStatus::Pending)
+                                                    ->url(fn ($state, ?AssetRequestApproval $record): ?string => $record?->status === RequestStatus::Pending ? $record->publicApprovalUrl() : null, true)
+                                                    ->visible(fn ($state, ?AssetRequestApproval $record): bool => $record?->status === RequestStatus::Pending)
                                                     ->columnSpanFull(),
                                                 TextEntry::make('decidedBy.name')
                                                     ->label('Diputuskan Oleh')
@@ -695,7 +694,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
-                Tables\Actions\Action::make('approve')
+                \Filament\Actions\Action::make('approve')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -715,7 +714,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->maxLength(65535),
                     ]),
 
-                Tables\Actions\Action::make('reject')
+                \Filament\Actions\Action::make('reject')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
@@ -736,14 +735,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->maxLength(65535),
                     ]),
 
-                Tables\Actions\Action::make('openPublicProgress')
+                \Filament\Actions\Action::make('openPublicProgress')
                     ->label('Lihat Progress Publik')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->color('gray')
                     ->url(fn (AssetRequest $record): string => $record->publicProgressUrl())
                     ->openUrlInNewTab(),
 
-                Tables\Actions\Action::make('resendApprovalNotification')
+                \Filament\Actions\Action::make('resendApprovalNotification')
                     ->label('Kirim Ulang Approval')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('info')
@@ -770,7 +769,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         }
                     }),
 
-                Tables\Actions\Action::make('resendRequesterNotification')
+                \Filament\Actions\Action::make('resendRequesterNotification')
                     ->label('Kirim Ulang ke Pengaju')
                     ->icon('heroicon-o-envelope')
                     ->color('info')
@@ -796,7 +795,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         }
                     }),
 
-                Tables\Actions\Action::make('fulfillPengadaan')
+                \Filament\Actions\Action::make('fulfillPengadaan')
                     ->label('Lanjutkan: Buat Aset')
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
@@ -807,7 +806,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         'asset_request_id' => $record->id,
                     ])),
 
-                Tables\Actions\Action::make('fulfillPenarikan')
+                \Filament\Actions\Action::make('fulfillPenarikan')
                     ->label('Lanjutkan: Buat BA')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
@@ -818,7 +817,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         'asset_request_id' => $record->id,
                     ])),
 
-                Tables\Actions\Action::make('fulfillPerbaikan')
+                \Filament\Actions\Action::make('fulfillPerbaikan')
                     ->label('Lanjutkan: Tandai Perbaikan')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('warning')
@@ -838,15 +837,15 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->send();
                     }),
 
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\ViewAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\ForceDeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
+                    \Filament\Actions\ForceDeleteBulkAction::make(),
+                    \Filament\Actions\RestoreBulkAction::make(),
                     ExportBulkAction::make()
                         ->visible(fn () => auth()->user()->can('export', static::getModel()))
                         ->exports([

@@ -7,7 +7,7 @@ use App\Models\AssetAttribute;
 use App\Models\VehicleChecksheet;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -50,9 +50,9 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-truck';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-truck';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -307,11 +307,11 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                     ExportBulkAction::make()
                         ->visible(fn () => auth()->user()->can('export', static::getModel()))
                         ->exports([
