@@ -8,6 +8,9 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -47,14 +50,14 @@ class CustomAssetAttributeResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Grid::make([
+                Grid::make([
                     'default' => 1,
                     'lg' => 3,
                 ])
                     ->schema([
-                        Forms\Components\Group::make()
+                        Group::make()
                             ->schema([
-                                Forms\Components\Section::make('Informasi Dasar')
+                                Section::make('Informasi Dasar')
                                     ->schema([
                                         Forms\Components\TextInput::make('name')
                                             ->label('Nama Atribut')
@@ -72,7 +75,7 @@ class CustomAssetAttributeResource extends Resource
                                     ])
                                     ->columns(2),
 
-                                Forms\Components\Section::make('Pengaturan Notifikasi')
+                                Section::make('Pengaturan Notifikasi')
                                     ->schema([
                                         Forms\Components\Toggle::make('is_notifiable')
                                             ->label('Aktifkan Pengingat')
@@ -143,7 +146,7 @@ class CustomAssetAttributeResource extends Resource
                                 'lg' => 2,
                             ]),
 
-                        Forms\Components\Section::make('Status Atribut')
+                        Section::make('Status Atribut')
                             ->schema([
                                 Forms\Components\Toggle::make('required')
                                     ->label('Wajib Diisi')

@@ -1,6 +1,14 @@
-@import '/vendor/filament/filament/resources/css/theme.css';
+@import '../../../../vendor/apriansyahrs/mekaya-theme/resources/css/theme.css';
 
-@source '../../../../app/Filament/**/*';
-@source '../../../../resources/views/filament/**/*';
-@source '../../../../resources/views/vendor/filament-settings-hub/**/*';
-@source '../../../../vendor/awcodes/overlook/resources/**/*.blade.php';
+/* Ensure language switcher utilities are generated for the Mekaya appshell. */
+@source '../../../../vendor/bezhansalleh/filament-language-switch/resources/views/**/*.blade.php';
+
+@layer components {
+    .mky-header .language-switch-trigger {
+        @apply shrink-0;
+    }
+
+    .mky-header .fi-dropdown.fi-user-menu:has(.language-switch-trigger) {
+        @apply inline-flex items-center;
+    }
+}

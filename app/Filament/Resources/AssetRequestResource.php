@@ -15,7 +15,11 @@ use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Grid as InfolistGrid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Schemas\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -110,10 +114,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
     {
         return $form
             ->schema([
-                Forms\Components\Grid::make(3)
+                Grid::make(3)
                     ->schema([
                         // Left Column (width 1): Informasi Pemohon
-                        Forms\Components\Section::make('Informasi Pemohon')
+                        Section::make('Informasi Pemohon')
                             ->schema([
                                 Forms\Components\TextInput::make('reference_number')
                                     ->label('Nomor Referensi')
@@ -182,9 +186,9 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->columnSpan(1),
 
                         // Right Column (width 2): Detail Pengajuan, Lampiran, Status & Catatan
-                        Forms\Components\Grid::make(1)
+                        Grid::make(1)
                             ->schema([
-                                Forms\Components\Section::make('Detail Pengajuan')
+                                Section::make('Detail Pengajuan')
                                     ->schema([
                                         Forms\Components\Select::make('type')
                                             ->label('Jenis Pengajuan')
@@ -201,7 +205,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->label('Daftar Item / Aset')
                                             ->schema([
                                                 Forms\Components\Select::make('asset_id')
-                                                    ->relationship('asset', 'name', modifyQueryUsing: fn ($query, Forms\Get $get) => $query->with('recipient')->notLockedForOpenRequest()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
+                                                    ->relationship('asset', 'name', modifyQueryUsing: fn ($query, Get $get) => $query->with('recipient')->notLockedForOpenRequest()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
                                                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->name}".($record->serial_number ? " (SN: {$record->serial_number})" : '').($record->recipient ? " - Pemegang: {$record->recipient->name}" : ' - (Di GA / Tidak Digunakan)'))
                                                     ->label('Pilih Aset')
                                                     ->searchable()
@@ -209,10 +213,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                     ->required()
                                                     ->distinct()
                                                     ->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                                    ->visible(fn (Forms\Get $get) => in_array($get('../../type'), ['penarikan', 'perbaikan']))
+                                                    ->visible(fn (Get $get) => in_array($get('../../type'), ['penarikan', 'perbaikan']))
                                                     ->columnSpanFull()
                                                     ->live()
-                                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                    ->afterStateUpdated(function ($state, Set $set) {
                                                         if ($state) {
                                                             $asset = Asset::with('recipient')->find($state);
                                                             if ($asset && $asset->recipient_id) {
@@ -224,14 +228,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                     ->label('Nama Aset Baru')
                                                     ->required()
                                                     ->maxLength(255)
-                                                    ->visible(fn (Forms\Get $get) => $get('../../type') === 'pengadaan'),
+                                                    ->visible(fn (Get $get) => $get('../../type') === 'pengadaan'),
                                                 Forms\Components\TextInput::make('qty')
                                                     ->label('Jumlah')
                                                     ->numeric()
                                                     ->default(1)
                                                     ->required()
                                                     ->minValue(1)
-                                                    ->visible(fn (Forms\Get $get) => $get('../../type') === 'pengadaan'),
+                                                    ->visible(fn (Get $get) => $get('../../type') === 'pengadaan'),
                                             ])
                                             ->minItems(1)
                                             ->columnSpanFull()
@@ -248,7 +252,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ])
                                     ->columns(2),
 
-                                Forms\Components\Section::make('Lampiran')
+                                Section::make('Lampiran')
                                     ->schema([
                                         Forms\Components\FileUpload::make('attachment')
                                             ->label('Lampiran / Dokumen Pendukung')
@@ -260,7 +264,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->required(fn (?AssetRequest $record): bool => $record === null)
                                             ->columnSpanFull(),
                                     ]),
-                                Forms\Components\Section::make('Status & Catatan')
+                                Section::make('Status & Catatan')
                                     ->visible(fn ($record) => $record !== null)
                                     ->schema([
                                         Forms\Components\TextInput::make('status')
@@ -278,7 +282,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->columnSpan(2),
                     ]),
 
-                Forms\Components\Section::make('Lifecycle Pengajuan')
+                Section::make('Lifecycle Pengajuan')
                     ->visible(fn ($record) => $record !== null)
                     ->schema([
                         Forms\Components\Placeholder::make('lifecycle_summary')
@@ -286,7 +290,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->content(fn (AssetRequest $record) => self::lifecycleSummaryHtml($record)),
                     ]),
 
-                Forms\Components\Section::make('Alur Persetujuan (Approval Tracking)')
+                Section::make('Alur Persetujuan (Approval Tracking)')
                     ->visible(fn ($record) => $record !== null && $record->approvals()->exists())
                     ->schema([
                         Forms\Components\Repeater::make('approvals')

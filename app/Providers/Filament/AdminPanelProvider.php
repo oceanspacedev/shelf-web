@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use Apriansyahrs\MekayaTheme\Livewire\MekayaSidebar;
+use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
@@ -36,34 +38,13 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
+            ->plugin(
+                MekayaPlugin::make()
+                    ->colors(['primary' => Color::Blue]),
+            )
+            ->sidebarLivewireComponent(MekayaSidebar::class)
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
-            ->colors([
-                'primary' => Color::Blue,
-
-                'slate' => Color::Slate,
-                'gray' => Color::Gray,
-                'zinc' => Color::Zinc,
-                'neutral' => Color::Neutral,
-                'stone' => Color::Stone,
-                'red' => Color::Red,
-                'orange' => Color::Orange,
-                'amber' => Color::Amber,
-                'yellow' => Color::Yellow,
-                'lime' => Color::Lime,
-                'green' => Color::Green,
-                'emerald' => Color::Emerald,
-                'teal' => Color::Teal,
-                'cyan' => Color::Cyan,
-                'sky' => Color::Sky,
-                'blue' => Color::Blue,
-                'indigo' => Color::Indigo,
-                'violet' => Color::Violet,
-                'purple' => Color::Purple,
-                'fuchsia' => Color::Fuchsia,
-                'pink' => Color::Pink,
-                'rose' => Color::Rose,
-            ])
-            ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -124,7 +105,6 @@ class AdminPanelProvider extends PanelProvider
                         '2xl' => null,
                     ]),
             ])
-            ->maxContentWidth(Width::Full)
-            ->viteTheme('resources/css/filament/admin/theme.css');
+            ->maxContentWidth(Width::Full);
     }
 }

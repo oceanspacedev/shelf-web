@@ -17,7 +17,7 @@ class JobTitleResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-briefcase';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Master Data';
+    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
 
     public static function form(Schema $form): Schema
     {

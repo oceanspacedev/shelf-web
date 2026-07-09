@@ -4,8 +4,16 @@
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/apriansyahrs/mekaya-theme.git",
+            "no-api": true
+        }
+    ],
     "require": {
         "php": "^8.2",
+        "apriansyahrs/mekaya-theme": "@dev",
         "asmit/resized-column": "^3.0",
         "awcodes/overlook": "^3.0",
         "barryvdh/laravel-dompdf": "^3.1",

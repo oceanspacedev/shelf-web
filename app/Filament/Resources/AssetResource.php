@@ -693,8 +693,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                             ->label('Foto Aset')
                             ->directory('assets') // Define the directory to store images
                             ->image() // Only allow image uploads
-                            ->maxSize(2048)
-                            ->resize(50),
+                            ->maxSize(2048),
                     ])
                     ->columns(1)
                     ->columnSpan(1),

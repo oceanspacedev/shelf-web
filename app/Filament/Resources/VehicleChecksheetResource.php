@@ -8,6 +8,7 @@ use App\Models\VehicleChecksheet;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -57,7 +58,7 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
         return $form
             ->schema([
                 // Informasi Kendaraan
-                Forms\Components\Section::make('Informasi Kendaraan')
+                Section::make('Informasi Kendaraan')
                     ->schema([
                         // Forms\Components\Select::make('asset_id')
                         //     ->relationship('asset', 'name')
@@ -98,7 +99,7 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                     ]),
 
                 // Informasi Keberangkatan
-                Forms\Components\Section::make('Informasi Keberangkatan')
+                Section::make('Informasi Keberangkatan')
                     ->schema([
                         Forms\Components\TextInput::make('start_km')
                             ->required()
@@ -111,7 +112,6 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                             ->default(now()),
                         Forms\Components\FileUpload::make('departure_photo')
                             ->image()
-                            ->resize(50)
                             ->required()
                             ->label('Foto Keberangkatan')
                             ->directory('vehiclechecksheet')
@@ -126,7 +126,6 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                             ),
                         Forms\Components\FileUpload::make('departure_damage_report')
                             ->image()
-                            ->resize(50)
                             ->required()
                             ->label('Laporan Kerusakan Saat Keberangkatan')
                             ->directory('vehiclechecksheet')
@@ -142,7 +141,7 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                     ]),
 
                 // Informasi Pengembalian
-                Forms\Components\Section::make('Informasi Pengembalian')
+                Section::make('Informasi Pengembalian')
                     ->schema([
                         Forms\Components\TextInput::make('end_km')
                             ->required()
@@ -155,7 +154,6 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                         Forms\Components\FileUpload::make('return_photo')
                             ->required()
                             ->image()
-                            ->resize(50)
                             ->label('Foto Pengembalian')
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
@@ -170,7 +168,6 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                         Forms\Components\FileUpload::make('return_damage_report')
                             ->required()
                             ->image()
-                            ->resize(50)
                             ->label('Laporan Kerusakan Saat Pengembalian')
                             ->directory('vehiclechecksheet')
                             ->visibility('public')
@@ -185,7 +182,7 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
                     ])
                     ->hidden(fn ($livewire) => $livewire instanceof CreateRecord),
                 // Informasi Tambahan
-                Forms\Components\Section::make('Informasi Tambahan')
+                Section::make('Informasi Tambahan')
                     ->schema([
                         Forms\Components\TextInput::make('rental_duration')
                             ->numeric()

@@ -40,9 +40,9 @@ class TaskResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Informasi Umum')
+                Section::make('Informasi Umum')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
                                 TextInput::make('name')
                                     ->label('Nama Pekerjaan')
@@ -87,7 +87,7 @@ class TaskResource extends Resource
                     ]),
 
                 // Vendor Information Section
-                Forms\Components\Section::make('Informasi Vendor')
+                Section::make('Informasi Vendor')
                     ->schema([
                         Select::make('vendor_id')
                             ->label('Vendor')
@@ -110,7 +110,7 @@ class TaskResource extends Resource
                     ]),
 
                 // Attachment Section
-                Forms\Components\Section::make('Lampiran')
+                Section::make('Lampiran')
                     ->schema([
                         FileUpload::make('document_upload')
                             ->label('Upload Dokumen')
