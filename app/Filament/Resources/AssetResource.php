@@ -274,7 +274,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->options(self::getCategoryOptions())
                                     ->searchable()
                                     ->required()
-                                    ->reactive()
+                                    ->live()
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         if ($state) {
                                             $set('attributes', []);
@@ -368,7 +368,7 @@ class AssetResource extends Resource implements HasShieldPermissions
 
                                         return [];
                                     })
-                                    ->reactive()
+                                    ->live()
                                     ->searchable()
                                     ->required()
                                     ->afterStateUpdated(function (callable $set) {
@@ -395,7 +395,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                 TextInput::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXT))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
@@ -406,7 +406,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->numeric()
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_NUMBER))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
@@ -416,7 +416,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                 Textarea::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXTAREA))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
@@ -426,7 +426,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                 DatePicker::make('attribute_value')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DATE))
                                     ->afterStateHydrated(function ($state, callable $set) {
                                         $set('attribute_value', $state ?? '');
@@ -441,7 +441,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                 DatePicker::make('document_expires_at')
                                     ->label('Berlaku Sampai')
                                     ->required(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY))
-                                    ->reactive()
+                                    ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)),
 
                                 FileUpload::make('document_file_path')
@@ -497,7 +497,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->options(AssetCondition::options())
                                     ->default(AssetCondition::Available->value)
                                     ->required()
-                                    ->reactive()
+                                    ->live()
                                     ->helperText('Pilih “Dijual” untuk aset yang sudah keluar inventaris, lalu lengkapi audit penjualannya.')
                                     ->columnSpan(1)
                                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
@@ -536,7 +536,7 @@ class AssetResource extends Resource implements HasShieldPermissions
 
                                         return NbhStatus::options();
                                     })
-                                    ->reactive()
+                                    ->live()
                                     ->helperText('Perbarui saat proses penggantian selesai.')
                                     ->columnSpan(1)
                                     ->visible(fn (callable $get) => in_array($get('condition_status'), AssetCondition::incidentValues(), true) || $get('nbh_status') !== NbhStatus::None->value),

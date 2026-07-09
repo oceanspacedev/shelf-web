@@ -1,1 +1,1 @@
-import './bootstrap';
+// Application JS entry point

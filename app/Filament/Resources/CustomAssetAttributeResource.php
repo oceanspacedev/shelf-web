@@ -71,7 +71,7 @@ class CustomAssetAttributeResource extends Resource
                                             ->options(CustomAssetAttribute::typeOptions())
                                             ->searchable()
                                             ->placeholder('Pilih tipe input')
-                                            ->reactive(),
+                                            ->live(),
                                     ])
                                     ->columns(2),
 
@@ -82,7 +82,7 @@ class CustomAssetAttributeResource extends Resource
                                             ->inline(false)
                                             ->default(false)
                                             ->helperText('Kirim pengingat harian saat dokumen atau tanggal atribut masuk masa pembaruan.')
-                                            ->reactive(),
+                                            ->live(),
 
                                         Forms\Components\Select::make('notification_type')
                                             ->label('Pola Pengingat')
@@ -94,8 +94,8 @@ class CustomAssetAttributeResource extends Resource
                                             ->placeholder('Pilih pola pengingat')
                                             ->helperText('Untuk dokumen masa berlaku, gunakan pola harian sebelum tanggal berlaku habis.')
                                             ->required()
-                                            ->reactive()
-                                            ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini reactive agar perubahan langsung mempengaruhi elemen lainnya
+                                            ->live()
+                                            ->visible(fn (callable $get) => $get('is_notifiable')), // Pastikan ini live agar perubahan langsung mempengaruhi elemen lainnya
 
                                         // Pengaturan yang akan tampil jika 'relative_date' dipilih
                                         Forms\Components\TextInput::make('notification_offset')

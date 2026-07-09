@@ -72,7 +72,7 @@ class AssetTransferResource extends Resource
                                     ->options(fn () => Cache::remember('business_entity_options', 300, fn () => BusinessEntity::orderBy('name')->pluck('name', 'id')))
                                     ->searchable()
                                     ->required()
-                                    ->reactive()
+                                    ->live()
                                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->afterStateUpdated(fn ($state, callable $set) => $set(
                                         'letter_number',
@@ -82,7 +82,7 @@ class AssetTransferResource extends Resource
                                     ->relationship('fromUser', 'name')
                                     ->required()
                                     ->translateLabel()
-                                    ->reactive()
+                                    ->live()
                                     ->searchable()
                                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                                     ->options(function () {
@@ -201,7 +201,7 @@ class AssetTransferResource extends Resource
                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
                     ->schema([
                         Select::make('asset_id')
-                            ->reactive()
+                            ->live()
                             ->required()
                             ->translateLabel()
                             ->searchable()
