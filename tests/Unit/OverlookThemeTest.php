@@ -16,10 +16,12 @@ class OverlookThemeTest extends TestCase
         $this->assertStringContainsString('font-weight: 700;', $theme);
         $this->assertStringContainsString('line-height: 1;', $theme);
         $this->assertStringContainsString('min-height: 8rem;', $theme);
-        $this->assertStringContainsString('background: rgb(255 255 255) !important;', $theme);
-        $this->assertStringContainsString('box-shadow: 0 0 0 6px rgb(249 250 251), 0 0 0 7px rgb(229 231 235) !important;', $theme);
+        $this->assertStringContainsString('border-radius: 1rem;', $theme);
+        $this->assertStringContainsString('background: rgb(249 250 251) !important;', $theme);
+        $this->assertStringContainsString('#overlook-widget .overlook-card .fi-section-content-ctn', $theme);
+        $this->assertStringContainsString('background: rgb(255 255 255);', $theme);
         $this->assertStringContainsString('.dark #overlook-widget .overlook-card', $theme);
-        $this->assertStringContainsString('box-shadow: 0 0 0 6px rgb(3 7 18), 0 0 0 7px rgb(255 255 255 / 0.1) !important;', $theme);
+        $this->assertStringContainsString('background: rgb(17 24 39);', $theme);
         $this->assertStringContainsString('padding: 1rem;', $theme);
     }
 }
