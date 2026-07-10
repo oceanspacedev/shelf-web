@@ -14,51 +14,55 @@
 
     #overlook-widget .overlook-card {
         position: relative;
-        min-height: 6rem;
+        min-height: 12rem;
         overflow: hidden;
-        border-radius: 0.75rem;
+        border: 1px solid rgb(228 228 231);
+        border-radius: 1rem;
+        background: white;
+        box-shadow: none;
     }
 
     #overlook-widget .overlook-card .fi-section-content,
     #overlook-widget .overlook-card .fi-section-content-ctn {
-        min-height: 6rem;
+        min-height: 12rem;
         padding: 0;
     }
 
     #overlook-widget .overlook-link {
         position: absolute;
         inset: 0;
-        display: block;
-        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1.5rem;
     }
 
     #overlook-widget .overlook-name {
         position: relative;
         z-index: 1;
         display: block;
-        max-width: calc(100% - 4rem);
-        font-size: 0.875rem;
+        max-width: calc(100% - 2rem);
+        font-size: 1.25rem;
         font-weight: 600;
-        line-height: 1.25rem;
+        line-height: 1.5rem;
     }
 
     #overlook-widget .overlook-count {
-        position: absolute;
-        right: 1rem;
-        bottom: 0.75rem;
+        position: relative;
+        margin-top: auto;
         z-index: 1;
-        font-size: 1.875rem;
+        font-size: 2.25rem;
         font-weight: 700;
         line-height: 1;
     }
 
     #overlook-widget .overlook-icon {
         position: absolute;
-        left: 0;
-        top: 2rem;
-        height: 6rem;
+        right: 1rem;
+        top: 1rem;
+        height: 3rem;
         width: auto;
-        opacity: 0.2;
+        opacity: 0.12;
     }
 
     .mky-header .language-switch-trigger {
