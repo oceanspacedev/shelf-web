@@ -10,13 +10,13 @@ return [
         'version' => 'v2',
 
         // Optional brand image path (relative to /public). Null falls back to the bundled mekaya icon.
-        'brand' => null,
+        'brand' => 'images/icon.svg',
 
         // Brand logo height in the panel header.
         'brand_logo_height' => '2rem',
 
         // Favicon path (relative to /public).
-        'favicon' => 'admin/images/favicons/favicon.ico',
+        'favicon' => 'images/icon.svg',
     ],
 
     'settings' => [

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+    <rect width="512" height="512" rx="108" fill="#2563EB"/>
+    <g fill="#FFFFFF">
+        <!-- Top bar (trapezoid angled up right) -->
+        <path d="M 136 112 L 376 88 L 376 152 L 136 152 Z"/>
+        <!-- Second bar (shorter rectangle shifted left) -->
+        <path d="M 96 174 H 236 V 214 H 96 Z"/>
+        <!-- Third bar (center rectangle) -->
+        <path d="M 136 236 H 376 V 276 H 136 Z"/>
+        <!-- Fourth bar (shorter rectangle shifted right) -->
+        <path d="M 276 298 H 416 V 338 H 276 Z"/>
+        <!-- Fifth bar (bottom trapezoid angled up right) -->
+        <path d="M 136 360 L 376 360 L 376 400 L 136 424 Z"/>
+    </g>
+</svg>
