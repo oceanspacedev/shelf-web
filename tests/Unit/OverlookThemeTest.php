@@ -15,5 +15,9 @@ class OverlookThemeTest extends TestCase
         $this->assertStringContainsString('font-size: 1.875rem;', $theme);
         $this->assertStringContainsString('font-weight: 700;', $theme);
         $this->assertStringContainsString('line-height: 1;', $theme);
+        $this->assertStringContainsString('border: 1px solid rgb(228 228 231);', $theme);
+        $this->assertStringContainsString('background: white;', $theme);
+        $this->assertStringContainsString('padding: 1.5rem;', $theme);
+        $this->assertStringContainsString('gap: 0.75rem;', $theme);
     }
 }
