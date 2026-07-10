@@ -12,7 +12,7 @@ class OverlookThemeTest extends TestCase
 
         $this->assertStringContainsString("@source '../../../../vendor/awcodes/overlook/resources/views/**/*.blade.php';", $theme);
         $this->assertStringContainsString('#overlook-widget .overlook-count', $theme);
-        $this->assertStringContainsString('font-size: 2.25rem;', $theme);
+        $this->assertStringContainsString('font-size: 1.875rem;', $theme);
         $this->assertStringContainsString('font-weight: 700;', $theme);
         $this->assertStringContainsString('line-height: 1;', $theme);
         $this->assertStringContainsString('min-height: 8rem;', $theme);
