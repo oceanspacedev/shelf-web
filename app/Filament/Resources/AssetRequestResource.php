@@ -682,11 +682,13 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 Tables\Columns\TextColumn::make('division.name')
                     ->label('Divisi')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('assetLocation.name')
                     ->label('Lokasi')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Nama Aset')
                     ->getStateUsing(fn (AssetRequest $record): string => $record->itemSummaryLabel())
@@ -696,12 +698,15 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                             ->orWhereHas('items', fn ($q) => $q->where('item_name', 'like', "%{$search}%")
                                 ->orWhereHas('asset', fn ($assetQuery) => $assetQuery->where('name', 'like', "%{$search}%")));
                     })
+                    ->limit(42)
+                    ->tooltip(fn (AssetRequest $record): string => $record->itemSummaryLabel())
                     ->sortable(),
                 Tables\Columns\TextColumn::make('qty')
                     ->label('Jumlah')
                     ->numeric()
                     ->getStateUsing(fn (AssetRequest $record): int => $record->itemQuantityTotal())
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -746,112 +751,23 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
-                \Filament\Actions\Action::make('approve')
-                    ->label('Setujui')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->visible(fn (AssetRequest $record) => auth()->user()?->can('approve', $record) ?? false)
-                    ->action(function (AssetRequest $record, array $data) {
-                        $record->approveCurrentLevel($data['notes'] ?? null);
-
-                        Notification::make()
-                            ->title('Pengajuan disetujui')
-                            ->success()
-                            ->send();
-                    })
-                    ->form([
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Catatan (Opsional)')
-                            ->maxLength(65535),
-                    ]),
-
-                \Filament\Actions\Action::make('reject')
-                    ->label('Tolak')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->visible(fn (AssetRequest $record) => auth()->user()?->can('approve', $record) ?? false)
-                    ->action(function (AssetRequest $record, array $data) {
-                        $record->rejectCurrentLevel($data['notes']);
-
-                        Notification::make()
-                            ->title('Pengajuan ditolak')
-                            ->success()
-                            ->send();
-                    })
-                    ->form([
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Alasan Penolakan (Wajib)')
-                            ->required()
-                            ->maxLength(65535),
-                    ]),
-
-                \Filament\Actions\Action::make('openPublicProgress')
-                    ->label('Lihat Progress Publik')
-                    ->icon('heroicon-o-arrow-top-right-on-square')
-                    ->color('gray')
-                    ->url(fn (AssetRequest $record): string => $record->publicProgressUrl())
-                    ->openUrlInNewTab(),
-
-                \Filament\Actions\Action::make('resendApprovalNotification')
-                    ->label('Kirim Ulang Approval')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->color('info')
-                    ->requiresConfirmation()
-                    ->modalHeading('Kirim ulang notifikasi approval?')
-                    ->modalDescription('Notifikasi akan dikirim ulang hanya ke approver pada level pending saat ini.')
-                    ->visible(fn (AssetRequest $record): bool => $record->status === RequestStatus::Pending
-                        && $record->currentPendingApproval() !== null)
-                    ->action(function (AssetRequest $record): void {
-                        try {
-                            $result = $record->sendCurrentApprovalReminder();
-
-                            Notification::make()
-                                ->title('Notifikasi approval dikirim ulang')
-                                ->body('Dikirim ke '.$result['recipient']->name.'.')
-                                ->success()
-                                ->send();
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->title('Gagal mengirim ulang approval')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-
-                \Filament\Actions\Action::make('resendRequesterNotification')
-                    ->label('Kirim Ulang ke Pengaju')
-                    ->icon('heroicon-o-envelope')
-                    ->color('info')
-                    ->requiresConfirmation()
-                    ->modalHeading('Kirim ulang progress ke pengaju?')
-                    ->modalDescription('Pengaju akan menerima update status terbaru beserta link progress publik.')
-                    ->visible(fn (AssetRequest $record): bool => $record->user()->exists())
-                    ->action(function (AssetRequest $record): void {
-                        try {
-                            $result = $record->sendRequesterProgressReminder();
-
-                            Notification::make()
-                                ->title('Progress dikirim ulang ke pengaju')
-                                ->body('Dikirim ke '.$result['recipient']->name.'.')
-                                ->success()
-                                ->send();
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->title('Gagal mengirim ulang ke pengaju')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
+                \Filament\Actions\Action::make('review')
+                    ->label('Review')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('warning')
+                    ->button()
+                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        && $record->status === RequestStatus::Pending
+                        && (auth()->user()?->can('approve', $record) ?? false))
+                    ->url(fn (AssetRequest $record): string => static::getUrl('view', ['record' => $record])),
 
                 \Filament\Actions\Action::make('fulfillPengadaan')
-                    ->label('Lanjutkan: Buat Aset')
+                    ->label('Buat Aset')
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
-                    ->visible(fn (AssetRequest $record): bool => $record->status === RequestStatus::Approved
+                    ->button()
+                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        && $record->status === RequestStatus::Approved
                         && ! $record->is_fulfilled
                         && $record->type === AssetRequestType::Pengadaan)
                     ->url(fn (AssetRequest $record): string => AssetResource::getUrl('create', array_filter([
@@ -860,10 +776,12 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ]))),
 
                 \Filament\Actions\Action::make('fulfillPenarikan')
-                    ->label('Lanjutkan: Buat BA')
+                    ->label('Buat BA')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
-                    ->visible(fn (AssetRequest $record): bool => $record->status === RequestStatus::Approved
+                    ->button()
+                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        && $record->status === RequestStatus::Approved
                         && ! $record->is_fulfilled
                         && $record->type === AssetRequestType::Penarikan)
                     ->url(fn (AssetRequest $record): string => AssetTransferResource::getUrl('create', [
@@ -871,12 +789,16 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ])),
 
                 \Filament\Actions\Action::make('fulfillPerbaikan')
-                    ->label('Lanjutkan: Tandai Perbaikan')
+                    ->label('Proses Perbaikan')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('warning')
+                    ->button()
                     ->requiresConfirmation()
-                    ->modalDescription('Aset terkait akan ditandai Rusak (Damaged) dan status NBH menjadi Pending untuk ditindaklanjuti. Lanjutkan?')
-                    ->visible(fn (AssetRequest $record): bool => $record->status === RequestStatus::Approved
+                    ->modalHeading('Proses aset untuk perbaikan?')
+                    ->modalDescription('Status aset akan menjadi Rusak dan NBH menjadi Pending. Pengajuan ditandai selesai setelah proses ini dijalankan.')
+                    ->modalSubmitActionLabel('Ya, proses perbaikan')
+                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        && $record->status === RequestStatus::Approved
                         && ! $record->is_fulfilled
                         && $record->type === AssetRequestType::Perbaikan
                         && $record->requestedAssetIds() !== [])
@@ -884,16 +806,94 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         $asset = $record->fulfillPerbaikan(auth()->user());
 
                         Notification::make()
-                            ->title('Aset ditandai untuk perbaikan')
+                            ->title('Aset masuk proses perbaikan')
                             ->body("Aset \"{$asset->name}\" sekarang Rusak, NBH Pending.")
                             ->warning()
                             ->send();
                     }),
 
-                \Filament\Actions\ViewAction::make(),
-                \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                \Filament\Actions\ViewAction::make()
+                    ->label('Lihat detail')
+                    ->iconButton()
+                    ->tooltip('Lihat detail'),
+
+                \Filament\Actions\ActionGroup::make([
+                    \Filament\Actions\EditAction::make()
+                        ->label('Ubah data'),
+
+                    \Filament\Actions\Action::make('openPublicProgress')
+                        ->label('Buka Progress Publik')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->color('gray')
+                        ->url(fn (AssetRequest $record): string => $record->publicProgressUrl())
+                        ->openUrlInNewTab(),
+
+                    \Filament\Actions\Action::make('resendApprovalNotification')
+                        ->label('Kirim Ulang ke Approver')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Kirim ulang notifikasi ke approver?')
+                        ->modalDescription('Pengingat hanya dikirim ke approver yang sedang menunggu. Keputusan approval tidak berubah.')
+                        ->modalSubmitActionLabel('Kirim notifikasi')
+                        ->visible(fn (?AssetRequest $record): bool => $record !== null
+                            && $record->status === RequestStatus::Pending
+                            && $record->currentPendingApproval() !== null)
+                        ->action(function (AssetRequest $record): void {
+                            try {
+                                $result = $record->sendCurrentApprovalReminder();
+
+                                Notification::make()
+                                    ->title('Notifikasi approver dikirim ulang')
+                                    ->body('Dikirim ke '.$result['recipient']->name.'.')
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Gagal mengirim ulang notifikasi approver')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
+
+                    \Filament\Actions\Action::make('resendRequesterNotification')
+                        ->label('Kirim Ulang ke Pengaju')
+                        ->icon('heroicon-o-envelope')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Kirim ulang progress ke pengaju?')
+                        ->modalDescription('Pengaju akan menerima status terbaru dan link progress publik. Status pengajuan tidak berubah.')
+                        ->modalSubmitActionLabel('Kirim notifikasi')
+                        ->visible(fn (?AssetRequest $record): bool => $record !== null
+                            && $record->user()->exists())
+                        ->action(function (AssetRequest $record): void {
+                            try {
+                                $result = $record->sendRequesterProgressReminder();
+
+                                Notification::make()
+                                    ->title('Notifikasi pengaju dikirim ulang')
+                                    ->body('Dikirim ke '.$result['recipient']->name.'.')
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Gagal mengirim ulang notifikasi pengaju')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
+
+                    \Filament\Actions\DeleteAction::make()
+                        ->label('Hapus pengajuan'),
+                ])
+                    ->label('Aksi lainnya')
+                    ->icon('heroicon-m-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Aksi lainnya'),
             ])
+            ->recordActionsColumnLabel('Tindak Lanjut')
             ->bulkActions([
                 \Filament\Actions\BulkActionGroup::make([
                     \Filament\Actions\DeleteBulkAction::make(),
