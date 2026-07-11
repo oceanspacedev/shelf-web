@@ -51,7 +51,7 @@ class AssetRequestActionLayoutTest extends TestCase
         $table = $this->makeTable();
         $columns = $table->getColumns();
 
-        $this->assertSame('asset-request-workflow-table', $table->getExtraAttributes()['class'] ?? null);
+        $this->assertTrue($table->isStackedOnMobile());
 
         $this->assertFalse($columns['reference_number']->isToggledHiddenByDefault());
         $this->assertFalse($columns['lifecycle_stage']->isToggledHiddenByDefault());
