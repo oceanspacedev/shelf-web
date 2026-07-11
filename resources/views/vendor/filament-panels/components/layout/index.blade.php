@@ -19,15 +19,15 @@
 @endphp
 
 <x-filament-panels::layout.base :livewire="$livewire">
-    <div class="flex h-screen overflow-hidden bg-gray-50 fi-layout dark:bg-gray-950" x-data @keydown.window.escape="$store.sidebar.close()">
+    <div class="fi-layout flex h-dvh max-h-dvh overflow-hidden bg-gray-50 dark:bg-gray-950" x-data @keydown.window.escape="$store.sidebar.close()">
         @if ($hasNavigation)
             @persist('sidebar')
                 @livewire(filament()->getSidebarLivewireComponent())
             @endpersist
         @endif
 
-        <div class="fi-main-ctn flex w-0 flex-1 flex-col overflow-hidden bg-white ring-1 ring-gray-200 lg:my-2 lg:rounded-tl-xl lg:rounded-bl-xl dark:bg-gray-900 dark:ring-white/20">
-            <div class="flex flex-1 flex-col justify-between overflow-hidden overflow-y-auto">
+        <div class="fi-main-ctn flex min-h-0 w-0 flex-1 flex-col overflow-hidden bg-white ring-1 ring-gray-200 lg:my-2 lg:max-h-[calc(100dvh-1rem)] lg:rounded-tl-xl lg:rounded-bl-xl dark:bg-gray-900 dark:ring-white/20">
+            <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
                 @if ($hasTopbar)
                     @livewire(filament()->getTopbarLivewireComponent())
                 @endif
@@ -40,7 +40,7 @@
                 >
                     {{ \Filament\Support\Facades\FilamentView::renderHook(\Filament\View\PanelsRenderHook::CONTENT_START, scopes: $renderHookScopes) }}
 
-                    <div {{ $attributes->twMerge(['class' => 'flex-1 min-h-full']) }}>
+                    <div {{ $attributes->twMerge(['class' => 'min-w-0 flex-1']) }}>
                         {{ $slot }}
                     </div>
 

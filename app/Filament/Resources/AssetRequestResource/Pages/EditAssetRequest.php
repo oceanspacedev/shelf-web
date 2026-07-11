@@ -20,6 +20,8 @@ class EditAssetRequest extends EditRecord
 
     protected bool $shouldSyncItems = false;
 
+    protected ?string $materialScopeFingerprintBeforeSave = null;
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         $record = $this->getRecord();
@@ -53,6 +55,8 @@ class EditAssetRequest extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $this->materialScopeFingerprintBeforeSave = $this->getRecord()->materialScopeFingerprint();
+
         // Saat repeater item dinonaktifkan (status != Pending), Filament tidak
         // mengirim request_items. Jangan ubah legacy/item sama sekali agar tracking
         // fulfillment (fulfilled_asset_id/fulfilled_at/notes) tidak terhapus.
@@ -65,12 +69,14 @@ class EditAssetRequest extends EditRecord
         $items = $data['request_items'];
         unset($data['request_items']);
 
+        // Legacy columns tetap mirror item pertama; syncItemsFromArray
+        // akan menulis ulang seluruh baris asset_request_items (termasuk item pertama).
         $firstItem = $items[0] ?? [];
         $data['asset_id'] = $firstItem['asset_id'] ?? null;
         $data['item_name'] = $firstItem['item_name'] ?? null;
         $data['qty'] = $firstItem['qty'] ?? 1;
 
-        $this->requestItems = array_slice($items, 1);
+        $this->requestItems = array_values($items);
         $this->shouldSyncItems = true;
 
         return $data;
@@ -78,14 +84,20 @@ class EditAssetRequest extends EditRecord
 
     protected function afterSave(): void
     {
-        if (! $this->shouldSyncItems) {
-            return;
+        if ($this->shouldSyncItems) {
+            $this->getRecord()->syncItemsFromArray($this->requestItems ?? []);
         }
 
-        $record = $this->getRecord();
-        $record->items()->delete();
-        foreach ($this->requestItems ?? [] as $itemRow) {
-            $record->items()->create($itemRow);
+        $record = $this->getRecord()->fresh(['items']);
+
+        if (
+            $record
+            && $record->isMaterialScopeEditable()
+            && $this->materialScopeFingerprintBeforeSave !== null
+            && $this->materialScopeFingerprintBeforeSave !== $record->materialScopeFingerprint()
+        ) {
+            $record->resetAndRebuildApprovalsForMaterialChange();
+            $this->refreshFormData(['status', 'current_level', 'notes']);
         }
     }
 
@@ -149,9 +161,10 @@ class EditAssetRequest extends EditRecord
                 ->icon('heroicon-o-plus-circle')
                 ->color('success')
                 ->visible(fn () => $this->canFulfill(AssetRequestType::Pengadaan))
-                ->url(fn (): string => AssetResource::getUrl('create', [
+                ->url(fn (): string => AssetResource::getUrl('create', array_filter([
                     'asset_request_id' => $this->getRecord()->id,
-                ])),
+                    'asset_request_item_id' => $this->getRecord()->nextUnfulfilledPengadaanItem()?->id,
+                ]))),
 
             Actions\Action::make('fulfillPerbaikan')
                 ->label('Lanjutkan: Tandai Perbaikan')

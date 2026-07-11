@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssetCondition;
 use App\Models\Asset;
 use App\Models\AssetRequest;
 use App\Models\AssetRequestApproval;
@@ -99,8 +100,16 @@ class PublicAssetRequestTest extends TestCase
             $table->id();
             $table->string('name');
             $table->string('serial_number')->nullable();
+            $table->string('condition_status')->default('available');
+            $table->string('nbh_status')->default('none');
+            $table->boolean('is_available')->default(true);
             $table->unsignedBigInteger('recipient_id')->nullable();
             $table->unsignedBigInteger('asset_request_id')->nullable();
+            $table->date('sold_at')->nullable();
+            $table->string('sold_to')->nullable();
+            $table->integer('sold_price')->nullable();
+            $table->string('sale_document_path')->nullable();
+            $table->text('sale_notes')->nullable();
             $table->timestamps();
         });
 
@@ -172,6 +181,19 @@ class PublicAssetRequestTest extends TestCase
         $response->assertSee('No. WhatsApp');
         $response->assertSee('Nama Aset yang Diajukan');
         $response->assertSee('Tambah item pengadaan');
+    }
+
+    public function test_public_asset_request_page_loads_tailwind_via_vite(): void
+    {
+        $response = $this->get(route('public.asset-requests.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('<style>', false);
+        $this->assertTrue(
+            (bool) preg_match('#build/assets/public-[^"]+\.css#', $response->getContent())
+            || str_contains($response->getContent(), 'resources/css/public.css'),
+            'Expected Vite public.css stylesheet link (build or hot).'
+        );
     }
 
     public function test_root_path_redirects_to_public_asset_request_form(): void
@@ -980,6 +1002,39 @@ class PublicAssetRequestTest extends TestCase
                 ],
             ],
         ]);
+    }
+
+    public function test_public_asset_request_rejects_damaged_lost_or_sold_assets(): void
+    {
+        $businessEntity = $this->createBusinessEntity();
+        $division = Division::create(['name' => 'IT Department']);
+        $user = User::create([
+            'name' => 'John Doe',
+            'whatsapp_number' => '08123456789',
+            'email' => 'john@example.com',
+            'business_entity_id' => $businessEntity->id,
+        ]);
+
+        $damaged = Asset::create([
+            'name' => 'Laptop Rusak',
+            'serial_number' => 'DMG-1',
+            'recipient_id' => $user->id,
+            'condition_status' => AssetCondition::Damaged,
+        ]);
+
+        $response = $this->submitRequest([
+            'type' => 'penarikan',
+            'user_id' => $user->id,
+            'whatsapp_number' => '08123456789',
+            'email' => 'john@example.com',
+            'business_entity_id' => $businessEntity->id,
+            'division_id' => $division->id,
+            'asset_id' => $damaged->id,
+        ], $user);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['asset_id']);
+        $this->assertStringContainsString('kondisi', strtolower($response->json('errors.asset_id.0')));
     }
 
     private function createBusinessEntity(): object

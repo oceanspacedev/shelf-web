@@ -77,135 +77,190 @@ class AssetRequest extends Model
 
         static::created(function ($assetRequest) {
             $assetRequest->createLegacyItemIfNeeded();
-
-            $assetRequest->loadMissing(['asset', 'items.asset', 'user', 'division']);
-
-            // Ambil approver divisi dan lewati pemohon sendiri (self-approval dilarang,
-            // lihat approveCurrentLevel()). Divisi null / tanpa approver / hanya berisi
-            // pemohon sendiri -> tidak ada approver yang valid -> auto-approve.
-            $approvers = $assetRequest->division_id
-                ? DivisionApprover::where('division_id', $assetRequest->division_id)
-                    ->orderBy('level', 'asc')
-                    ->get()
-                : collect();
-
-            $approvers = $approvers
-                ->filter(fn ($approver) => $approver->user_id !== $assetRequest->user_id)
-                ->values();
-
-            $assetName = $assetRequest->itemSummaryLabel();
-            $qtyVal = $assetRequest->itemQuantityTotal();
-
-            // Divisi tanpa approver valid -> auto-approve. Persetujuan hanya membuka jalan
-            // tindak lanjut; pembuatan aset / BA pengembalian / BA perbaikan tetap
-            // dilakukan operator secara terpisah (alur dinamis, tidak auto).
-            if ($approvers->isEmpty()) {
-                $assetRequest->update([
-                    'status' => RequestStatus::Approved,
-                    'notes' => 'Disetujui otomatis karena tidak ada approval yang dikonfigurasi untuk divisi ini.',
-                ]);
-
-                if ($assetRequest->user) {
-                    DB::afterCommit(function () use ($assetRequest, $assetName, $qtyVal) {
-                        AssetNotificationService::send(
-                            $assetRequest->user,
-                            'Pengajuan Aset Disetujui - '.$assetRequest->reference_number,
-                            sprintf(
-                                "Halo %s,\n\nSelamat! Pengajuan aset Anda dengan nomor referensi %s telah DISETUJUI SEPENUHNYA (otomatis, divisi tanpa approver).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nStatus: Disetujui\n\nLink progress pengajuan:\n%s\n\nSilakan menunggu tindak lanjut dari operator.",
-                                $assetRequest->user->name,
-                                $assetRequest->reference_number,
-                                $assetName,
-                                $qtyVal,
-                                $assetRequest->publicProgressUrl()
-                            )
-                        );
-                    });
-                }
-
-                return;
-            }
-
-            // Renumber level menjadi 1..N berurutan agar current_level selalu menunjuk
-            // approver pertama yang valid (mendukung data division_approvers yang dibuat
-            // di luar UI Filament dengan level tidak mulai dari 1).
-            $level = 1;
-            foreach ($approvers as $approver) {
-                AssetRequestApproval::create([
-                    'asset_request_id' => $assetRequest->id,
-                    'user_id' => $approver->user_id,
-                    'level' => $level,
-                    'status' => 'pending',
-                ]);
-                $level++;
-            }
-
-            $assetRequest->update(['current_level' => 1]);
-
-            $firstApprover = $approvers->first();
-            if ($firstApprover && $firstApprover->user) {
-                $firstApproval = $assetRequest->approvals()
-                    ->where('level', 1)
-                    ->first();
-                $requesterName = $assetRequest->user?->name ?? 'Pemohon';
-                $approverSubject = 'Persetujuan Pengajuan Aset Baru - '.$assetRequest->reference_number;
-                $approverMessage = sprintf(
-                    "Halo %s,\n\nAda pengajuan aset baru dengan nomor referensi %s dari %s (Divisi: %s) membutuhkan persetujuan Anda.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink approval:\n%s\n\nLink progress pengajuan:\n%s",
-                    $firstApprover->user->name,
-                    $assetRequest->reference_number,
-                    $requesterName,
-                    $assetRequest->division?->name,
-                    $assetName,
-                    $qtyVal,
-                    $assetRequest->description ?: '-',
-                    $firstApproval?->publicApprovalUrl() ?? $assetRequest->publicProgressUrl(),
-                    $assetRequest->publicProgressUrl()
-                );
-                DB::afterCommit(fn () => AssetNotificationService::send($firstApprover->user, $approverSubject, $approverMessage));
-            }
-
-            if ($assetRequest->user) {
-                $firstApproverName = $firstApprover && $firstApprover->user ? $firstApprover->user->name : '-';
-                $requesterSubject = 'Pengajuan Aset Dibuat - '.$assetRequest->reference_number;
-                $requesterMessage = sprintf(
-                    "Halo %s,\n\nPengajuan aset Anda dengan nomor referensi %s (Divisi: %s) berhasil dibuat dan saat ini sedang menunggu persetujuan dari %s (Level 1).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink progress pengajuan:\n%s",
-                    $assetRequest->user->name,
-                    $assetRequest->reference_number,
-                    $assetRequest->division?->name,
-                    $firstApproverName,
-                    $assetName,
-                    $qtyVal,
-                    $assetRequest->description ?: '-',
-                    $assetRequest->publicProgressUrl()
-                );
-                DB::afterCommit(fn () => AssetNotificationService::send($assetRequest->user, $requesterSubject, $requesterMessage));
-            }
+            $assetRequest->rebuildApprovalChain();
         });
+    }
+
+    public function isMaterialScopeEditable(): bool
+    {
+        return $this->status === RequestStatus::Pending && ! $this->isFulfilled();
+    }
+
+    public function materialScopeFingerprint(): string
+    {
+        $this->loadMissing('items');
+
+        $items = $this->items
+            ->map(fn (AssetRequestItem $item): array => [
+                'asset_id' => $item->asset_id,
+                'item_name' => $item->item_name,
+                'qty' => (int) $item->qty,
+            ])
+            ->values()
+            ->all();
+
+        $type = $this->type instanceof AssetRequestType ? $this->type->value : $this->type;
+
+        return hash('sha256', json_encode([
+            'user_id' => $this->user_id,
+            'division_id' => $this->division_id,
+            'type' => $type,
+            'asset_location_id' => $this->asset_location_id,
+            'description' => $this->description,
+            'attachment' => $this->attachment,
+            'items' => $items,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    public function resetAndRebuildApprovalsForMaterialChange(bool $notify = true): void
+    {
+        if (! $this->isMaterialScopeEditable()) {
+            return;
+        }
+
+        $this->approvals()->delete();
+
+        $this->forceFill([
+            'status' => RequestStatus::Pending,
+            'current_level' => 1,
+        ])->saveQuietly();
+
+        $this->rebuildApprovalChain($notify);
+    }
+
+    public function rebuildApprovalChain(bool $notify = true): void
+    {
+        $this->loadMissing(['asset', 'items.asset', 'user', 'division']);
+
+        // Ambil approver divisi dan lewati pemohon sendiri (self-approval dilarang,
+        // lihat approveCurrentLevel()). Divisi null / tanpa approver / hanya berisi
+        // pemohon sendiri -> tidak ada approver yang valid -> auto-approve.
+        $approvers = $this->division_id
+            ? DivisionApprover::where('division_id', $this->division_id)
+                ->orderBy('level', 'asc')
+                ->get()
+            : collect();
+
+        $approvers = $approvers
+            ->filter(fn ($approver) => $approver->user_id !== $this->user_id)
+            ->values();
+
+        $assetName = $this->itemSummaryLabel();
+        $qtyVal = $this->itemQuantityTotal();
+
+        // Divisi tanpa approver valid -> auto-approve. Persetujuan hanya membuka jalan
+        // tindak lanjut; pembuatan aset / BA pengembalian / BA perbaikan tetap
+        // dilakukan operator secara terpisah (alur dinamis, tidak auto).
+        if ($approvers->isEmpty()) {
+            $this->forceFill([
+                'status' => RequestStatus::Approved,
+                'notes' => 'Disetujui otomatis karena tidak ada approval yang dikonfigurasi untuk divisi ini.',
+            ])->saveQuietly();
+
+            if ($notify && $this->user) {
+                $assetRequest = $this;
+                DB::afterCommit(function () use ($assetRequest, $assetName, $qtyVal) {
+                    AssetNotificationService::send(
+                        $assetRequest->user,
+                        'Pengajuan Aset Disetujui - '.$assetRequest->reference_number,
+                        sprintf(
+                            "Halo %s,\n\nSelamat! Pengajuan aset Anda dengan nomor referensi %s telah DISETUJUI SEPENUHNYA (otomatis, divisi tanpa approver).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nStatus: Disetujui\n\nLink progress pengajuan:\n%s\n\nSilakan menunggu tindak lanjut dari operator.",
+                            $assetRequest->user->name,
+                            $assetRequest->reference_number,
+                            $assetName,
+                            $qtyVal,
+                            $assetRequest->publicProgressUrl()
+                        )
+                    );
+                });
+            }
+
+            return;
+        }
+
+        // Renumber level menjadi 1..N berurutan agar current_level selalu menunjuk
+        // approver pertama yang valid (mendukung data division_approvers yang dibuat
+        // di luar UI Filament dengan level tidak mulai dari 1).
+        $level = 1;
+        foreach ($approvers as $approver) {
+            AssetRequestApproval::create([
+                'asset_request_id' => $this->id,
+                'user_id' => $approver->user_id,
+                'level' => $level,
+                'status' => 'pending',
+            ]);
+            $level++;
+        }
+
+        $this->forceFill(['current_level' => 1, 'status' => RequestStatus::Pending])->saveQuietly();
+
+        if (! $notify) {
+            return;
+        }
+
+        $firstApprover = $approvers->first();
+        if ($firstApprover && $firstApprover->user) {
+            $firstApproval = $this->approvals()
+                ->where('level', 1)
+                ->first();
+            $requesterName = $this->user?->name ?? 'Pemohon';
+            $approverSubject = 'Persetujuan Pengajuan Aset Baru - '.$this->reference_number;
+            $approverMessage = sprintf(
+                "Halo %s,\n\nAda pengajuan aset baru dengan nomor referensi %s dari %s (Divisi: %s) membutuhkan persetujuan Anda.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink approval:\n%s\n\nLink progress pengajuan:\n%s",
+                $firstApprover->user->name,
+                $this->reference_number,
+                $requesterName,
+                $this->division?->name,
+                $assetName,
+                $qtyVal,
+                $this->description ?: '-',
+                $firstApproval?->publicApprovalUrl() ?? $this->publicProgressUrl(),
+                $this->publicProgressUrl()
+            );
+            $approverUser = $firstApprover->user;
+            DB::afterCommit(fn () => AssetNotificationService::send($approverUser, $approverSubject, $approverMessage));
+        }
+
+        if ($this->user) {
+            $firstApproverName = $firstApprover && $firstApprover->user ? $firstApprover->user->name : '-';
+            $requesterSubject = 'Pengajuan Aset Dibuat - '.$this->reference_number;
+            $requesterMessage = sprintf(
+                "Halo %s,\n\nPengajuan aset Anda dengan nomor referensi %s (Divisi: %s) berhasil dibuat dan saat ini sedang menunggu persetujuan dari %s (Level 1).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink progress pengajuan:\n%s",
+                $this->user->name,
+                $this->reference_number,
+                $this->division?->name,
+                $firstApproverName,
+                $assetName,
+                $qtyVal,
+                $this->description ?: '-',
+                $this->publicProgressUrl()
+            );
+            $requester = $this->user;
+            DB::afterCommit(fn () => AssetNotificationService::send($requester, $requesterSubject, $requesterMessage));
+        }
     }
 
     public static function generateReferenceNumber(): string
     {
         return DB::transaction(function () {
             $year = date('Y');
+            $prefix = "REQ-{$year}-";
 
-            // Kunci baris terakhir tahun berjalan supaya dua submission publik
+            // Kunci baris tahun berjalan supaya dua submission publik
             // konkuren tidak membaca sequence sama (race -> duplikat nomor).
-            $latestRecord = self::withTrashed()
-                ->whereYear('created_at', $year)
-                ->orderBy('reference_number', 'desc')
+            // Sequence dihitung numerik (bukan string sort) agar 1000 > 999.
+            $references = self::withTrashed()
+                ->where('reference_number', 'like', $prefix.'%')
                 ->lockForUpdate()
-                ->first();
+                ->pluck('reference_number');
 
-            if ($latestRecord && $latestRecord->reference_number) {
-                // Extract last sequence number and increment it
-                $lastNumber = (int) Str::afterLast($latestRecord->reference_number, '-');
-                $newNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
-            } else {
-                // Start with 001 if no record exists for this year
-                $newNumber = '001';
-            }
+            $lastNumber = $references
+                ->map(fn (string $reference): int => (int) Str::afterLast($reference, '-'))
+                ->max() ?? 0;
 
-            // Format as REQ-YYYY-XXX
-            return "REQ-{$year}-{$newNumber}";
+            $newNumber = str_pad((string) ($lastNumber + 1), 3, '0', STR_PAD_LEFT);
+
+            return $prefix.$newNumber;
         });
     }
 
@@ -431,6 +486,49 @@ class AssetRequest extends Model
         $this->unsetRelation('items');
     }
 
+    /**
+     * Replace all request items and mirror the first row onto legacy columns.
+     *
+     * @param  array<int, array{asset_id?: mixed, item_name?: mixed, qty?: mixed}>  $items
+     */
+    public function syncItemsFromArray(array $items): void
+    {
+        if (! Schema::hasTable('asset_request_items')) {
+            return;
+        }
+
+        $normalized = collect($items)
+            ->map(function (array $item): array {
+                return [
+                    'asset_id' => $item['asset_id'] ?? null,
+                    'item_name' => $item['item_name'] ?? null,
+                    'qty' => max(1, (int) ($item['qty'] ?? 1)),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $first = $normalized[0] ?? [
+            'asset_id' => null,
+            'item_name' => null,
+            'qty' => 1,
+        ];
+
+        $this->forceFill([
+            'asset_id' => $first['asset_id'],
+            'item_name' => $first['item_name'],
+            'qty' => $first['qty'],
+        ])->save();
+
+        $this->items()->delete();
+
+        foreach ($normalized as $itemRow) {
+            $this->items()->create($itemRow);
+        }
+
+        $this->unsetRelation('items');
+    }
+
     public function nextUnfulfilledPengadaanItem(): ?AssetRequestItem
     {
         if (! Schema::hasTable('asset_request_items')) {
@@ -645,7 +743,7 @@ class AssetRequest extends Model
         });
     }
 
-    public function markFulfilledByAsset(Asset $asset, User $actor): void
+    public function markFulfilledByAsset(Asset $asset, User $actor, ?int $assetRequestItemId = null): void
     {
         $this->ensureFulfillable(AssetRequestType::Pengadaan);
 
@@ -653,10 +751,10 @@ class AssetRequest extends Model
             throw new \InvalidArgumentException('Aset tidak terhubung ke pengajuan ini.');
         }
 
-        DB::transaction(function () use ($asset, $actor): void {
+        DB::transaction(function () use ($asset, $actor, $assetRequestItemId): void {
             $this->refresh();
             $this->ensureFulfillable(AssetRequestType::Pengadaan);
-            $this->markPengadaanItemFulfilledByAsset($asset);
+            $this->markPengadaanItemFulfilledByAsset($asset, $assetRequestItemId);
 
             if (! $this->hasUnfulfilledPengadaanItems()) {
                 $this->markFulfilled($actor);
@@ -664,9 +762,22 @@ class AssetRequest extends Model
         });
     }
 
-    protected function markPengadaanItemFulfilledByAsset(Asset $asset): void
+    protected function markPengadaanItemFulfilledByAsset(Asset $asset, ?int $assetRequestItemId = null): void
     {
-        $item = $this->nextUnfulfilledPengadaanItem();
+        $item = null;
+
+        if ($assetRequestItemId) {
+            $item = $this->items()
+                ->whereKey($assetRequestItemId)
+                ->whereNull('fulfilled_asset_id')
+                ->first();
+
+            if (! $item) {
+                throw new \InvalidArgumentException('Item pengadaan tidak ditemukan atau sudah dipenuhi.');
+            }
+        } else {
+            $item = $this->nextUnfulfilledPengadaanItem();
+        }
 
         if (! $item) {
             return;

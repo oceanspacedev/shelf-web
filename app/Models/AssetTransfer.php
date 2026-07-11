@@ -98,7 +98,7 @@ class AssetTransfer extends Model
 
     public function documentColor(): string
     {
-        return $this->documentType()?->color() ?? 'secondary';
+        return $this->documentType()?->color() ?? 'gray';
     }
 
     public function getStatusAttribute(): string

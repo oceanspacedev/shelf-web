@@ -4,10 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Approval Pengajuan Aset {{ $assetRequest->reference_number }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-    @include('public.asset-requests.partials.form-ui')
+    @include('public.asset-requests.partials.head-assets')
 </head>
 <body>
     <div class="form-wrapper">
@@ -67,7 +64,7 @@
                         <textarea id="decision-notes" name="notes" class="gf-input" placeholder="Tambahkan catatan keputusan" rows="3"></textarea>
                         <div class="error-msg hidden" id="decision-client-error">Alasan penolakan wajib diisi.</div>
                         @error('notes')
-                            <div class="error-msg">{{ $message }}</div>
+                            <div class="error-msg visible">{{ $message }}</div>
                         @enderror
                         <div class="form-actions">
                             <button class="submit-btn danger" type="button" onclick="requestReject()">Tolak</button>

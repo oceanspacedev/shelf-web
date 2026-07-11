@@ -133,6 +133,8 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->searchable()
                                     ->preload()
                                     ->live()
+                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
                                     ->createOptionForm([
                                         Forms\Components\TextInput::make('name')
                                             ->label('Nama')
@@ -181,13 +183,17 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->label('Divisi')
                                     ->required()
                                     ->searchable()
-                                    ->preload(),
+                                    ->preload()
+                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                 Forms\Components\Select::make('asset_location_id')
                                     ->relationship('assetLocation', 'name', modifyQueryUsing: fn ($query) => $query->orderBy('name'))
                                     ->label('Lokasi')
                                     ->required()
                                     ->searchable()
                                     ->preload()
+                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
                                     ->createOptionForm([
                                         Forms\Components\TextInput::make('name')
                                             ->label('Nama Lokasi')
@@ -229,12 +235,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->default('pengadaan')
                                             ->required()
                                             ->live()
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                         Forms\Components\Repeater::make('request_items')
                                             ->label('Daftar Item / Aset')
                                             ->schema([
                                                 Forms\Components\Select::make('asset_id')
-                                                    ->relationship('asset', 'name', modifyQueryUsing: fn ($query, Get $get) => $query->with('recipient')->notLockedForOpenRequest()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
+                                                    ->relationship('asset', 'name', modifyQueryUsing: fn ($query, Get $get) => $query->with('recipient')->eligibleForPenarikanOrPerbaikan()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
                                                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->name}".($record->serial_number ? " (SN: {$record->serial_number})" : '').($record->recipient ? " - Pemegang: {$record->recipient->name}" : ' - (Di GA / Tidak Digunakan)'))
                                                     ->label('Pilih Aset')
                                                     ->searchable()
@@ -272,12 +280,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             // Item hanya bisa diubah saat status Pending. Setelah disetujui,
                                             // mengubah item akan merusak tracking fulfillment (fulfilled_asset_id
                                             // dst.) dan mengubah scope pengajuan tanpa re-approval.
-                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && $record->status !== RequestStatus::Pending)
-                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->status === RequestStatus::Pending),
+                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                         Forms\Components\Textarea::make('description')
                                             ->label('Keterangan / Keperluan')
                                             ->maxLength(65535)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                     ])
                                     ->columns(2),
 
@@ -290,7 +300,9 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->multiple()
                                             ->required()
                                             ->minFiles(1)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
+                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                     ]),
                                 Section::make('Status & Catatan')
                                     ->visible(fn ($record) => $record !== null)
@@ -842,9 +854,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ->visible(fn (AssetRequest $record): bool => $record->status === RequestStatus::Approved
                         && ! $record->is_fulfilled
                         && $record->type === AssetRequestType::Pengadaan)
-                    ->url(fn (AssetRequest $record): string => AssetResource::getUrl('create', [
+                    ->url(fn (AssetRequest $record): string => AssetResource::getUrl('create', array_filter([
                         'asset_request_id' => $record->id,
-                    ])),
+                        'asset_request_item_id' => $record->nextUnfulfilledPengadaanItem()?->id,
+                    ]))),
 
                 \Filament\Actions\Action::make('fulfillPenarikan')
                     ->label('Lanjutkan: Buat BA')

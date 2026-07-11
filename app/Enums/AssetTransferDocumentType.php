@@ -78,7 +78,7 @@ enum AssetTransferDocumentType: string
      */
     public static function colors(): array
     {
-        $colors = ['secondary' => 'Status Transfer Tidak Valid'];
+        $colors = ['gray' => 'Status Transfer Tidak Valid'];
 
         foreach (self::cases() as $case) {
             $colors[$case->color()] = $case->label();

@@ -271,6 +271,17 @@ class Asset extends Model
         return $query;
     }
 
+    /**
+     * Aset yang boleh diajukan penarikan/perbaikan: tidak terkunci request terbuka
+     * dan kondisi masih transferable (bukan Damaged/Lost/Sold).
+     */
+    public function scopeEligibleForPenarikanOrPerbaikan(Builder $query): Builder
+    {
+        return $query
+            ->notLockedForOpenRequest()
+            ->whereIn('condition_status', AssetCondition::transferableValues());
+    }
+
     public function hasOpenAssetRequestLock(?int $exceptAssetRequestId = null): bool
     {
         if (! self::assetRequestLockColumnsAvailable()) {

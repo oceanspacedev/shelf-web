@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Enums\BadgeColor;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Support\Facades\FilamentColor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->registerFilamentBadgeColors();
 
         View::prependNamespace('filament-panels', resource_path('views/vendor/filament-panels'));
 
@@ -59,5 +62,18 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($request->ip());
         });
+    }
+
+    /**
+     * Warna BadgeColor (amber, pink, rose, …) dipakai di badge entitas bisnis.
+     * Harus didaftarkan ke Filament agar CSS variable warna ter-generate.
+     */
+    protected function registerFilamentBadgeColors(): void
+    {
+        FilamentColor::register(
+            collect(BadgeColor::cases())
+                ->mapWithKeys(fn (BadgeColor $color) => [$color->value => $color->getColor()])
+                ->all()
+        );
     }
 }

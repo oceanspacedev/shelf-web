@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AssetCondition;
 use App\Enums\AssetRequestType;
 use App\Enums\RequestStatus;
 use App\Models\Asset;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -61,7 +63,7 @@ class PublicAssetRequestController extends Controller
         $assetsByRecipient = $visibleUserIds->isEmpty()
             ? []
             : Asset::query()
-                ->notLockedForOpenRequest()
+                ->eligibleForPenarikanOrPerbaikan()
                 ->whereIn('recipient_id', $visibleUserIds)
                 ->orderBy('name')
                 ->get(['id', 'name', 'serial_number', 'recipient_id'])
@@ -327,6 +329,28 @@ class PublicAssetRequestController extends Controller
                     "Aset berikut sedang dalam proses pengajuan aktif: {$names}. Silakan tunggu hingga pengajuan sebelumnya selesai ditindaklanjuti."
                 );
             }
+
+            $ineligibleConditionAssets = Asset::query()
+                ->whereIn('id', $assetIds)
+                ->whereNotIn('condition_status', AssetCondition::transferableValues())
+                ->get(['name', 'condition_status']);
+
+            if ($ineligibleConditionAssets->isNotEmpty()) {
+                $names = $ineligibleConditionAssets
+                    ->map(function (Asset $asset): string {
+                        $condition = $asset->condition_status instanceof AssetCondition
+                            ? $asset->condition_status->label()
+                            : (string) $asset->condition_status;
+
+                        return "{$asset->name} ({$condition})";
+                    })
+                    ->implode(', ');
+
+                $validator->errors()->add(
+                    $request->has('asset_ids') ? 'asset_ids' : 'asset_id',
+                    "Aset berikut tidak dapat diajukan karena kondisinya tidak memenuhi: {$names}."
+                );
+            }
         });
 
         if ($validator->fails()) {
@@ -396,6 +420,63 @@ class PublicAssetRequestController extends Controller
             }
 
             $assetRequest = DB::transaction(function () use ($data, $attachments, $itemRows) {
+                if (in_array($data['type'], ['penarikan', 'perbaikan'], true)) {
+                    $assetIds = collect($itemRows)
+                        ->pluck('asset_id')
+                        ->filter()
+                        ->map(fn ($id): int => (int) $id)
+                        ->values()
+                        ->all();
+
+                    $lockedAssets = Asset::query()
+                        ->whereIn('id', $assetIds)
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->get();
+
+                    $stillLocked = $lockedAssets
+                        ->filter(fn (Asset $asset) => $asset->hasOpenAssetRequestLock())
+                        ->pluck('name')
+                        ->all();
+
+                    if ($stillLocked !== []) {
+                        $field = count($assetIds) > 1 ? 'asset_ids' : 'asset_id';
+                        throw ValidationException::withMessages([
+                            $field => [
+                                'Aset berikut sedang dalam proses pengajuan aktif: '.implode(', ', $stillLocked).'. Silakan tunggu hingga pengajuan sebelumnya selesai ditindaklanjuti.',
+                            ],
+                        ]);
+                    }
+
+                    $ineligible = $lockedAssets
+                        ->filter(function (Asset $asset): bool {
+                            $condition = $asset->condition_status instanceof AssetCondition
+                                ? $asset->condition_status->value
+                                : (string) $asset->condition_status;
+
+                            return ! in_array($condition, AssetCondition::transferableValues(), true);
+                        });
+
+                    if ($ineligible->isNotEmpty()) {
+                        $field = count($assetIds) > 1 ? 'asset_ids' : 'asset_id';
+                        $names = $ineligible
+                            ->map(function (Asset $asset): string {
+                                $condition = $asset->condition_status instanceof AssetCondition
+                                    ? $asset->condition_status->label()
+                                    : (string) $asset->condition_status;
+
+                                return "{$asset->name} ({$condition})";
+                            })
+                            ->implode(', ');
+
+                        throw ValidationException::withMessages([
+                            $field => [
+                                "Aset berikut tidak dapat diajukan karena kondisinya tidak memenuhi: {$names}.",
+                            ],
+                        ]);
+                    }
+                }
+
                 $userId = $this->resolveUserId($data);
                 $assetLocationId = $this->resolveAssetLocationId($data);
                 $firstItem = $itemRows[0] ?? [
@@ -438,6 +519,11 @@ class PublicAssetRequestController extends Controller
                 'lifecycle_stage' => $assetRequest->lifecycleStageLabel(),
                 'next_step' => $assetRequest->nextStepLabel(),
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'errors' => $e->errors(),
+            ], 422);
         } catch (Throwable $e) {
             Log::error('Gagal memproses pengajuan aset publik: '.$e->getMessage(), [
                 'exception' => $e,

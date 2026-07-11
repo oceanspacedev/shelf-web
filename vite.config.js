@@ -8,6 +8,7 @@ export default defineConfig({
         laravel({
             input: [
                 'resources/css/app.css',
+                'resources/css/public.css',
                 'resources/js/app.js',
                 'resources/css/filament/admin/theme.css',
                 'vendor/apriansyahrs/mekaya-theme/resources/js/mekaya.js',

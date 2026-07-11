@@ -134,9 +134,10 @@ class ViewAssetRequest extends ViewRecord
                 ->icon('heroicon-o-plus-circle')
                 ->color('success')
                 ->visible(fn () => $this->canFulfill(AssetRequestType::Pengadaan))
-                ->url(fn (): string => AssetResource::getUrl('create', [
+                ->url(fn (): string => AssetResource::getUrl('create', array_filter([
                     'asset_request_id' => $this->getRecord()->id,
-                ])),
+                    'asset_request_item_id' => $this->getRecord()->nextUnfulfilledPengadaanItem()?->id,
+                ]))),
 
             Actions\Action::make('fulfillPerbaikan')
                 ->label('Lanjutkan: Tandai Perbaikan')

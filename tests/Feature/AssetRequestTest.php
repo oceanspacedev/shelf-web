@@ -794,6 +794,7 @@ class AssetRequestTest extends TestCase
             'type' => 'pengadaan',
             'item_name' => 'Laptop Dell',
             'qty' => 2,
+            'asset_location_id' => 42,
         ]);
 
         $prefill = CreateAsset::prefillDataFromAssetRequest($request);
@@ -802,7 +803,43 @@ class AssetRequestTest extends TestCase
         $this->assertSame(2, $prefill['qty']);
         $this->assertSame(7, $prefill['business_entity_id']);
         $this->assertSame($request->id, $prefill['asset_request_id']);
+        $this->assertSame(42, $prefill['asset_location_id']);
         $this->assertSame(AssetCondition::Available->value, $prefill['condition_status']);
+        $this->assertSame($request->nextUnfulfilledPengadaanItem()?->id, $prefill['asset_request_item_id']);
+    }
+
+    public function test_mark_fulfilled_by_asset_can_target_explicit_item_id(): void
+    {
+        $division = Division::create(['name' => 'ExplicitItemFulfill']);
+        $requester = User::create(['name' => 'Requester']);
+        $operator = User::create(['name' => 'Operator']);
+
+        $request = AssetRequest::create([
+            'user_id' => $requester->id,
+            'division_id' => $division->id,
+            'type' => 'pengadaan',
+            'item_name' => 'Item Pertama',
+            'qty' => 1,
+        ]);
+        $secondItem = $request->items()->create([
+            'item_name' => 'Item Kedua',
+            'qty' => 1,
+        ]);
+        $request->load('items');
+        $firstItem = $request->items->first();
+
+        $asset = Asset::create([
+            'name' => 'Item Kedua',
+            'condition_status' => AssetCondition::Available,
+            'asset_request_id' => $request->id,
+        ]);
+
+        $request->markFulfilledByAsset($asset, $operator, $secondItem->id);
+
+        $request->refresh()->load('items');
+        $this->assertNull($firstItem->fresh()->fulfilled_asset_id);
+        $this->assertSame($asset->id, $secondItem->fresh()->fulfilled_asset_id);
+        $this->assertFalse($request->isFulfilled());
     }
 
     public function test_asset_request_can_be_marked_fulfilled_by_created_asset(): void
@@ -1076,5 +1113,151 @@ class AssetRequestTest extends TestCase
         $asset = Asset::create(['name' => 'Aset Tanpa Tanggal Beli']);
 
         $this->assertSame('-', $asset->item_age);
+    }
+
+    public function test_reference_number_sequence_continues_after_999(): void
+    {
+        $division = Division::create(['name' => 'RefSeq']);
+        $user = User::create(['name' => 'Requester']);
+        $year = date('Y');
+
+        // Seed 999 and 1000. String DESC would wrongly treat 999 as latest
+        // (because "999" > "1000"), producing a duplicate 1000.
+        DB::table('asset_requests')->insert([
+            [
+                'reference_number' => "REQ-{$year}-999",
+                'public_token' => 'token-ref-999',
+                'type' => 'pengadaan',
+                'user_id' => $user->id,
+                'division_id' => $division->id,
+                'item_name' => 'Seed 999',
+                'qty' => 1,
+                'status' => 'approved',
+                'current_level' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'reference_number' => "REQ-{$year}-1000",
+                'public_token' => 'token-ref-1000',
+                'type' => 'pengadaan',
+                'user_id' => $user->id,
+                'division_id' => $division->id,
+                'item_name' => 'Seed 1000',
+                'qty' => 1,
+                'status' => 'approved',
+                'current_level' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $next = AssetRequest::generateReferenceNumber();
+
+        $this->assertSame("REQ-{$year}-1001", $next);
+    }
+
+    public function test_sync_items_from_array_keeps_all_items_including_first(): void
+    {
+        $division = Division::create(['name' => 'SyncItems']);
+        $user = User::create(['name' => 'Requester']);
+
+        $request = AssetRequest::create([
+            'user_id' => $user->id,
+            'division_id' => $division->id,
+            'type' => 'pengadaan',
+            'item_name' => 'Laptop Lama',
+            'qty' => 1,
+        ]);
+        $request->items()->create([
+            'item_name' => 'Monitor Lama',
+            'qty' => 1,
+        ]);
+
+        $request->syncItemsFromArray([
+            ['item_name' => 'Laptop Baru', 'qty' => 2],
+            ['item_name' => 'Monitor Baru', 'qty' => 3],
+            ['item_name' => 'Keyboard Baru', 'qty' => 1],
+        ]);
+
+        $request->refresh()->load('items');
+
+        $this->assertSame('Laptop Baru', $request->item_name);
+        $this->assertSame(2, $request->qty);
+        $this->assertCount(3, $request->items);
+        $this->assertSame(['Laptop Baru', 'Monitor Baru', 'Keyboard Baru'], $request->items->pluck('item_name')->all());
+        $this->assertSame([2, 3, 1], $request->items->pluck('qty')->all());
+    }
+
+    public function test_pending_material_scope_change_rebuilds_approval_chain(): void
+    {
+        $oldDivision = Division::create(['name' => 'Old Division']);
+        $newDivision = Division::create(['name' => 'New Division']);
+        $requester = User::create(['name' => 'Requester']);
+        $oldApprover = User::create(['name' => 'Old Approver', 'email' => 'old@example.com']);
+        $newApprover = User::create(['name' => 'New Approver', 'email' => 'new@example.com']);
+
+        DivisionApprover::create([
+            'division_id' => $oldDivision->id,
+            'user_id' => $oldApprover->id,
+            'level' => 1,
+        ]);
+        DivisionApprover::create([
+            'division_id' => $newDivision->id,
+            'user_id' => $newApprover->id,
+            'level' => 1,
+        ]);
+
+        $request = AssetRequest::create([
+            'user_id' => $requester->id,
+            'division_id' => $oldDivision->id,
+            'type' => 'pengadaan',
+            'item_name' => 'Laptop',
+            'qty' => 1,
+            'description' => 'Awal',
+        ]);
+
+        $this->assertEquals(RequestStatus::Pending, $request->status);
+        $this->assertDatabaseHas('asset_request_approvals', [
+            'asset_request_id' => $request->id,
+            'user_id' => $oldApprover->id,
+        ]);
+
+        $request->update([
+            'division_id' => $newDivision->id,
+            'description' => 'Diubah',
+        ]);
+        $request->resetAndRebuildApprovalsForMaterialChange();
+
+        $request->refresh();
+        $this->assertEquals(RequestStatus::Pending, $request->status);
+        $this->assertEquals(1, $request->current_level);
+        $this->assertDatabaseMissing('asset_request_approvals', [
+            'asset_request_id' => $request->id,
+            'user_id' => $oldApprover->id,
+        ]);
+        $this->assertDatabaseHas('asset_request_approvals', [
+            'asset_request_id' => $request->id,
+            'user_id' => $newApprover->id,
+            'level' => 1,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_material_scope_is_not_editable_after_approved(): void
+    {
+        $division = Division::create(['name' => 'LockedScope']);
+        $user = User::create(['name' => 'Requester']);
+
+        $request = AssetRequest::create([
+            'user_id' => $user->id,
+            'division_id' => $division->id,
+            'type' => 'pengadaan',
+            'item_name' => 'Laptop',
+            'qty' => 1,
+        ]);
+
+        $this->assertEquals(RequestStatus::Approved, $request->fresh()->status);
+        $this->assertFalse($request->fresh()->isMaterialScopeEditable());
     }
 }

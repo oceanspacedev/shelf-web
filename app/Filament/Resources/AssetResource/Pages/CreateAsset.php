@@ -9,6 +9,7 @@ use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetResource;
 use App\Models\Asset;
 use App\Models\AssetRequest;
+use App\Models\AssetRequestItem;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateAsset extends CreateRecord
@@ -17,6 +18,8 @@ class CreateAsset extends CreateRecord
 
     public ?int $sourceAssetRequestId = null;
 
+    public ?int $sourceAssetRequestItemId = null;
+
     protected ?AssetRequest $sourceAssetRequest = null;
 
     protected ?int $fulfilledSourceAssetRequestId = null;
@@ -24,6 +27,7 @@ class CreateAsset extends CreateRecord
     public function mount(): void
     {
         $this->sourceAssetRequestId = request()->integer('asset_request_id') ?: null;
+        $this->sourceAssetRequestItemId = request()->integer('asset_request_item_id') ?: null;
 
         parent::mount();
     }
@@ -31,15 +35,17 @@ class CreateAsset extends CreateRecord
     /**
      * @return array<string, mixed>
      */
-    public static function prefillDataFromAssetRequest(AssetRequest $assetRequest): array
+    public static function prefillDataFromAssetRequest(AssetRequest $assetRequest, ?int $assetRequestItemId = null): array
     {
-        $item = $assetRequest->nextUnfulfilledPengadaanItem();
+        $item = self::resolvePrefillItem($assetRequest, $assetRequestItemId);
 
         return [
             'asset_request_id' => $assetRequest->id,
+            'asset_request_item_id' => $item?->id,
             'name' => $item?->item_name ?? $assetRequest->item_name,
             'qty' => $item?->qty ?? $assetRequest->qty ?? 1,
             'business_entity_id' => $assetRequest->user?->business_entity_id,
+            'asset_location_id' => $assetRequest->asset_location_id,
             'purchase_date' => now()->toDateString(),
             'condition_status' => AssetCondition::Available->value,
         ];
@@ -62,7 +68,7 @@ class CreateAsset extends CreateRecord
 
         $this->form->fill(
             ($sourceAssetRequest = $this->getSourceAssetRequest())
-                ? self::prefillDataFromAssetRequest($sourceAssetRequest)
+                ? self::prefillDataFromAssetRequest($sourceAssetRequest, $this->sourceAssetRequestItemId)
                 : []
         );
 
@@ -79,6 +85,8 @@ class CreateAsset extends CreateRecord
             $data['asset_request_id'] = $sourceAssetRequest->id;
         }
 
+        unset($data['asset_request_item_id']);
+
         return $data;
     }
 
@@ -91,7 +99,11 @@ class CreateAsset extends CreateRecord
         }
 
         $this->fulfilledSourceAssetRequestId = $sourceAssetRequest->id;
-        $sourceAssetRequest->markFulfilledByAsset($this->record, auth()->user());
+        $sourceAssetRequest->markFulfilledByAsset(
+            $this->record,
+            auth()->user(),
+            $this->sourceAssetRequestItemId
+        );
     }
 
     protected function getRedirectUrl(): string
@@ -131,5 +143,21 @@ class CreateAsset extends CreateRecord
         return $assetRequest->type === AssetRequestType::Pengadaan
             && ! $assetRequest->is_fulfilled
             && $assetRequest->status === RequestStatus::Approved;
+    }
+
+    protected static function resolvePrefillItem(AssetRequest $assetRequest, ?int $assetRequestItemId): ?AssetRequestItem
+    {
+        if ($assetRequestItemId) {
+            $item = $assetRequest->items()
+                ->whereKey($assetRequestItemId)
+                ->whereNull('fulfilled_asset_id')
+                ->first();
+
+            if ($item) {
+                return $item;
+            }
+        }
+
+        return $assetRequest->nextUnfulfilledPengadaanItem();
     }
 }
