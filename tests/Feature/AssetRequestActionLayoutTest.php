@@ -48,7 +48,10 @@ class AssetRequestActionLayoutTest extends TestCase
 
     public function test_list_hides_supporting_columns_by_default_to_keep_the_workflow_readable(): void
     {
-        $columns = $this->makeTable()->getColumns();
+        $table = $this->makeTable();
+        $columns = $table->getColumns();
+
+        $this->assertSame('asset-request-workflow-table', $table->getExtraAttributes()['class'] ?? null);
 
         $this->assertFalse($columns['reference_number']->isToggledHiddenByDefault());
         $this->assertFalse($columns['lifecycle_stage']->isToggledHiddenByDefault());
