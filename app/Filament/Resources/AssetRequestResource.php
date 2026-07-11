@@ -85,10 +85,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
         $record->loadMissing(['asset', 'assetTransfer', 'createdAssets']);
 
         $rows = [
-            '<div><strong>Tahap:</strong> '.e($record->lifecycleStageLabel()).'</div>',
-            '<div><strong>Langkah berikutnya:</strong> '.e($record->nextStepLabel()).'</div>',
-            '<div><strong>Item pengajuan:</strong> '.e($record->itemSummaryLabel()).'</div>',
-            '<div><strong>Link publik:</strong> <a href="'.e($record->publicProgressUrl()).'" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">Buka progress pengajuan</a></div>',
+            '<div><strong>Tahap:</strong> ' . e($record->lifecycleStageLabel()) . '</div>',
+            '<div><strong>Langkah berikutnya:</strong> ' . e($record->nextStepLabel()) . '</div>',
+            '<div><strong>Item pengajuan:</strong> ' . e($record->itemSummaryLabel()) . '</div>',
+            '<div><strong>Link publik:</strong> <a href="' . e($record->publicProgressUrl()) . '" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">Buka progress pengajuan</a></div>',
         ];
 
         if ($record->asset) {
@@ -109,7 +109,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 ->implode(', ');
 
             $rows[] = "<div><strong>Aset dibuat:</strong> {$assetsLinks}</div>";
-            $rows[] = '<div><strong>Dokumen:</strong> <a href="'.e(route('pengadaan.download', $record)).'" style="color: #2563eb; text-decoration: underline;">Download BA Pengadaan</a></div>';
+            $rows[] = '<div><strong>Dokumen:</strong> <a href="' . e(route('pengadaan.download', $record)) . '" style="color: #2563eb; text-decoration: underline;">Download BA Pengadaan</a></div>';
         }
 
         if ($record->assetTransfer) {
@@ -118,7 +118,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
             $rows[] = "<div><strong>BA Pengembalian:</strong> <a href=\"{$transferUrl}\" style=\"color: #2563eb; text-decoration: underline;\">{$letterNumber}</a></div>";
         }
 
-        return new HtmlString('<div class="space-y-1 text-sm">'.implode('', $rows).'</div>');
+        return new HtmlString('<div class="space-y-1 text-sm">' . implode('', $rows) . '</div>');
     }
 
     public static function form(Schema $form): Schema
@@ -136,15 +136,15 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->readOnly()
                                     ->disabledOn('create'),
                                 Forms\Components\Select::make('user_id')
-                                    ->relationship('user', 'name', modifyQueryUsing: fn ($query) => $query->orderBy('name'))
+                                    ->relationship('user', 'name', modifyQueryUsing: fn($query) => $query->orderBy('name'))
                                     ->label('Nama Pemohon')
-                                    ->default(fn () => auth()->id())
+                                    ->default(fn() => auth()->id())
                                     ->required()
                                     ->searchable()
                                     ->preload()
                                     ->live()
-                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
+                                    ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                    ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
                                     ->createOptionForm([
                                         Forms\Components\TextInput::make('name')
                                             ->label('Nama')
@@ -152,11 +152,11 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->maxLength(255),
                                         Forms\Components\Select::make('business_entity_id')
                                             ->label('Perusahaan')
-                                            ->options(fn () => Cache::remember('business_entity_options', 300, fn () => BusinessEntity::orderBy('name')->pluck('name', 'id')->toArray()))
+                                            ->options(fn() => Cache::remember('business_entity_options', 300, fn() => BusinessEntity::orderBy('name')->pluck('name', 'id')->toArray()))
                                             ->searchable(),
                                         Forms\Components\Select::make('job_title_id')
                                             ->label('Jabatan')
-                                            ->options(fn () => Cache::remember('job_title_options', 300, fn () => JobTitle::orderBy('title')->pluck('title', 'id')->toArray()))
+                                            ->options(fn() => Cache::remember('job_title_options', 300, fn() => JobTitle::orderBy('title')->pluck('title', 'id')->toArray()))
                                             ->searchable()
                                             ->createOptionForm([
                                                 Forms\Components\TextInput::make('title')
@@ -189,21 +189,21 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         return $user->id;
                                     }),
                                 Forms\Components\Select::make('division_id')
-                                    ->relationship('division', 'name', modifyQueryUsing: fn ($query) => $query->orderBy('name'))
+                                    ->relationship('division', 'name', modifyQueryUsing: fn($query) => $query->orderBy('name'))
                                     ->label('Divisi')
                                     ->required()
                                     ->searchable()
                                     ->preload()
-                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
+                                    ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                    ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                 Forms\Components\Select::make('asset_location_id')
-                                    ->relationship('assetLocation', 'name', modifyQueryUsing: fn ($query) => $query->orderBy('name'))
+                                    ->relationship('assetLocation', 'name', modifyQueryUsing: fn($query) => $query->orderBy('name'))
                                     ->label('Lokasi')
                                     ->required()
                                     ->searchable()
                                     ->preload()
-                                    ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                    ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
+                                    ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                    ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable())
                                     ->createOptionForm([
                                         Forms\Components\TextInput::make('name')
                                             ->label('Nama Lokasi')
@@ -246,21 +246,21 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->required()
                                             ->live()
                                             ->columnSpanFull()
-                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
+                                            ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                            ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                         Forms\Components\Repeater::make('request_items')
                                             ->label('Daftar Item / Aset')
                                             ->schema([
                                                 Forms\Components\Select::make('asset_id')
-                                                    ->relationship('asset', 'name', modifyQueryUsing: fn ($query, Get $get) => $query->with('recipient')->eligibleForPenarikanOrPerbaikan()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
-                                                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->name}".($record->serial_number ? " (SN: {$record->serial_number})" : '').($record->recipient ? " - Pemegang: {$record->recipient->name}" : ' - (Di GA / Tidak Digunakan)'))
+                                                    ->relationship('asset', 'name', modifyQueryUsing: fn($query, Get $get) => $query->with('recipient')->eligibleForPenarikanOrPerbaikan()->orderBy('name')->where('recipient_id', $get('../../user_id') ?: -1))
+                                                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->name}" . ($record->serial_number ? " (SN: {$record->serial_number})" : '') . ($record->recipient ? " - Pemegang: {$record->recipient->name}" : ' - (Di GA / Tidak Digunakan)'))
                                                     ->label('Pilih Aset')
                                                     ->searchable()
                                                     ->preload()
                                                     ->required()
                                                     ->distinct()
                                                     ->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                                    ->visible(fn (Get $get) => in_array($get('../../type'), ['penarikan', 'perbaikan']))
+                                                    ->visible(fn(Get $get) => in_array($get('../../type'), ['penarikan', 'perbaikan']))
                                                     ->columnSpanFull()
                                                     ->live()
                                                     ->afterStateUpdated(function ($state, Set $set) {
@@ -275,14 +275,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                     ->label('Nama Aset Baru')
                                                     ->required()
                                                     ->maxLength(255)
-                                                    ->visible(fn (Get $get) => $get('../../type') === 'pengadaan'),
+                                                    ->visible(fn(Get $get) => $get('../../type') === 'pengadaan'),
                                                 Forms\Components\TextInput::make('qty')
                                                     ->label('Jumlah')
                                                     ->numeric()
                                                     ->default(1)
                                                     ->required()
                                                     ->minValue(1)
-                                                    ->visible(fn (Get $get) => $get('../../type') === 'pengadaan'),
+                                                    ->visible(fn(Get $get) => $get('../../type') === 'pengadaan'),
                                             ])
                                             ->minItems(1)
                                             ->columnSpanFull()
@@ -290,14 +290,14 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             // Item hanya bisa diubah saat status Pending. Setelah disetujui,
                                             // mengubah item akan merusak tracking fulfillment (fulfilled_asset_id
                                             // dst.) dan mengubah scope pengajuan tanpa re-approval.
-                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
+                                            ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                            ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                         Forms\Components\Textarea::make('description')
                                             ->label('Keterangan / Keperluan')
                                             ->maxLength(65535)
                                             ->columnSpanFull()
-                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
+                                            ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                            ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                     ])
                                     ->columns(2),
 
@@ -311,17 +311,17 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->required()
                                             ->minFiles(1)
                                             ->columnSpanFull()
-                                            ->disabled(fn (?AssetRequest $record): bool => $record !== null && ! $record->isMaterialScopeEditable())
-                                            ->dehydrated(fn (?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
+                                            ->disabled(fn(?AssetRequest $record): bool => $record !== null && !$record->isMaterialScopeEditable())
+                                            ->dehydrated(fn(?AssetRequest $record): bool => $record === null || $record->isMaterialScopeEditable()),
                                     ]),
                                 Section::make('Status & Catatan')
-                                    ->visible(fn ($record) => $record !== null)
+                                    ->visible(fn($record) => $record !== null)
                                     ->schema([
                                         Forms\Components\TextInput::make('status')
                                             ->label('Status')
                                             ->disabled()
                                             ->dehydrated(false)
-                                            ->formatStateUsing(fn ($record) => $record?->status?->label()),
+                                            ->formatStateUsing(fn($record) => $record?->status?->label()),
                                         Forms\Components\Textarea::make('notes')
                                             ->label('Catatan / Alasan Penolakan')
                                             ->disabled()
@@ -333,15 +333,15 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ]),
 
                 Section::make('Lifecycle Pengajuan')
-                    ->visible(fn ($record) => $record !== null)
+                    ->visible(fn($record) => $record !== null)
                     ->schema([
                         Forms\Components\Placeholder::make('lifecycle_summary')
                             ->label('Benang Merah')
-                            ->content(fn (AssetRequest $record) => self::lifecycleSummaryHtml($record)),
+                            ->content(fn(AssetRequest $record) => self::lifecycleSummaryHtml($record)),
                     ]),
 
                 Section::make('Alur Persetujuan (Approval Tracking)')
-                    ->visible(fn ($record) => $record !== null && $record->approvals()->exists())
+                    ->visible(fn($record) => $record !== null && $record->approvals()->exists())
                     ->schema([
                         Forms\Components\Repeater::make('approvals')
                             ->relationship('approvals')
@@ -352,11 +352,11 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->disabled(),
                                 Forms\Components\Placeholder::make('job_title')
                                     ->label('Jabatan')
-                                    ->content(fn (?AssetRequestApproval $record): string => $record?->user?->jobTitle?->title ?? '—'),
+                                    ->content(fn(?AssetRequestApproval $record): string => $record?->user?->jobTitle?->title ?? '—'),
                                 Forms\Components\TextInput::make('status')
                                     ->label('Status')
                                     ->disabled()
-                                    ->formatStateUsing(fn ($state) => is_object($state) && method_exists($state, 'label') ? $state->label() : (is_string($state) ? ucfirst($state) : $state)),
+                                    ->formatStateUsing(fn($state) => is_object($state) && method_exists($state, 'label') ? $state->label() : (is_string($state) ? ucfirst($state) : $state)),
                                 Forms\Components\Textarea::make('notes')
                                     ->label('Catatan / Alasan')
                                     ->disabled()
@@ -390,21 +390,21 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('type')
                                             ->label('Jenis Pengajuan')
                                             ->icon('heroicon-o-clipboard-document-list')
-                                            ->formatStateUsing(fn ($state): string => $state instanceof AssetRequestType ? $state->label() : ucfirst((string) $state))
+                                            ->formatStateUsing(fn($state): string => $state instanceof AssetRequestType ? $state->label() : ucfirst((string) $state))
                                             ->badge()
-                                            ->color(fn ($state): string => $state instanceof AssetRequestType ? $state->color() : 'gray'),
+                                            ->color(fn($state): string => $state instanceof AssetRequestType ? $state->color() : 'gray'),
                                         TextEntry::make('status')
                                             ->label('Status Approval')
                                             ->icon('heroicon-o-shield-check')
-                                            ->formatStateUsing(fn ($state): string => self::formatRequestStatus($state))
+                                            ->formatStateUsing(fn($state): string => self::formatRequestStatus($state))
                                             ->badge()
-                                            ->color(fn ($state): string => self::requestStatusColor($state)),
+                                            ->color(fn($state): string => self::requestStatusColor($state)),
                                         TextEntry::make('lifecycle_stage_label')
                                             ->label('Tahap Lifecycle')
                                             ->icon('heroicon-o-arrow-path-rounded-square')
-                                            ->state(fn (AssetRequest $record): string => $record->lifecycleStageLabel())
+                                            ->state(fn(AssetRequest $record): string => $record->lifecycleStageLabel())
                                             ->badge()
-                                            ->color(fn (AssetRequest $record): string => $record->lifecycleStageColor()),
+                                            ->color(fn(AssetRequest $record): string => $record->lifecycleStageColor()),
                                         TextEntry::make('created_at')
                                             ->label('Tanggal Pengajuan')
                                             ->icon('heroicon-o-calendar')
@@ -461,7 +461,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->schema([
                                                 TextEntry::make('display_name')
                                                     ->label('Item / Aset')
-                                                    ->state(fn (AssetRequestItem $record): string => $record->asset?->name ?? $record->item_name ?? '—')
+                                                    ->state(fn(AssetRequestItem $record): string => $record->asset?->name ?? $record->item_name ?? '—')
                                                     ->icon('heroicon-o-cube')
                                                     ->columnSpan([
                                                         'default' => 'full',
@@ -501,7 +501,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('attachment')
                                             ->label('Lampiran')
                                             ->icon('heroicon-o-paper-clip')
-                                            ->state(fn (AssetRequest $record): string => self::attachmentSummary($record))
+                                            ->state(fn(AssetRequest $record): string => self::attachmentSummary($record))
                                             ->placeholder('—'),
                                         TextEntry::make('notes')
                                             ->label('Catatan Status')
@@ -528,9 +528,9 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                 TextEntry::make('status')
                                                     ->label('Status')
                                                     ->icon('heroicon-o-check-circle')
-                                                    ->formatStateUsing(fn ($state): string => self::formatRequestStatus($state))
+                                                    ->formatStateUsing(fn($state): string => self::formatRequestStatus($state))
                                                     ->badge()
-                                                    ->color(fn ($state): string => self::requestStatusColor($state)),
+                                                    ->color(fn($state): string => self::requestStatusColor($state)),
                                                 TextEntry::make('user.name')
                                                     ->label('Approver')
                                                     ->icon('heroicon-o-user')
@@ -542,11 +542,11 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                 TextEntry::make('public_token')
                                                     ->label('Link Approval Publik')
                                                     ->icon('heroicon-o-arrow-top-right-on-square')
-                                                    ->formatStateUsing(fn (): string => 'Buka halaman approval')
+                                                    ->formatStateUsing(fn(): string => 'Buka halaman approval')
                                                     ->badge()
                                                     ->color('primary')
-                                                    ->url(fn ($state, ?AssetRequestApproval $record): ?string => $record?->status === RequestStatus::Pending ? $record->publicApprovalUrl() : null, true)
-                                                    ->visible(fn ($state, ?AssetRequestApproval $record): bool => $record?->status === RequestStatus::Pending)
+                                                    ->url(fn($state, ?AssetRequestApproval $record): ?string => $record?->status === RequestStatus::Pending ? $record->publicApprovalUrl() : null, true)
+                                                    ->visible(fn($state, ?AssetRequestApproval $record): bool => $record?->status === RequestStatus::Pending)
                                                     ->columnSpanFull(),
                                                 TextEntry::make('decidedBy.name')
                                                     ->label('Diputuskan Oleh')
@@ -575,13 +575,13 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('next_step_label')
                                             ->label('Langkah Berikutnya')
                                             ->icon('heroicon-o-forward')
-                                            ->state(fn (AssetRequest $record): string => $record->nextStepLabel()),
+                                            ->state(fn(AssetRequest $record): string => $record->nextStepLabel()),
                                         TextEntry::make('fulfilled_status')
                                             ->label('Status Tindak Lanjut')
                                             ->icon('heroicon-o-check-badge')
-                                            ->state(fn (AssetRequest $record): string => $record->isFulfilled() ? 'Selesai' : 'Belum selesai')
+                                            ->state(fn(AssetRequest $record): string => $record->isFulfilled() ? 'Selesai' : 'Belum selesai')
                                             ->badge()
-                                            ->color(fn (AssetRequest $record): string => $record->isFulfilled() ? 'success' : 'warning'),
+                                            ->color(fn(AssetRequest $record): string => $record->isFulfilled() ? 'success' : 'warning'),
                                         TextEntry::make('fulfilledBy.name')
                                             ->label('Ditindaklanjuti Oleh')
                                             ->icon('heroicon-o-user')
@@ -595,7 +595,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->label('BA Pengembalian')
                                             ->icon('heroicon-o-arrow-uturn-left')
                                             ->placeholder('—')
-                                            ->url(fn (AssetRequest $record): ?string => $record->assetTransfer ? AssetTransferResource::getUrl('view', ['record' => $record->assetTransfer]) : null),
+                                            ->url(fn(AssetRequest $record): ?string => $record->assetTransfer ? AssetTransferResource::getUrl('view', ['record' => $record->assetTransfer]) : null),
                                     ]),
                             ])
                             ->collapsible(),
@@ -607,21 +607,21 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('public_token')
                                             ->label('Progress Pengajuan')
                                             ->icon('heroicon-o-arrow-top-right-on-square')
-                                            ->state(fn (): string => 'Buka progress publik')
+                                            ->state(fn(): string => 'Buka progress publik')
                                             ->badge()
                                             ->color('primary')
-                                            ->url(fn (AssetRequest $record): string => $record->publicProgressUrl(), true)
+                                            ->url(fn(AssetRequest $record): string => $record->publicProgressUrl(), true)
                                             ->copyable()
-                                            ->copyableState(fn (AssetRequest $record): string => $record->publicProgressUrl()),
+                                            ->copyableState(fn(AssetRequest $record): string => $record->publicProgressUrl()),
                                         TextEntry::make('current_approval_link')
                                             ->label('Approval Pending')
                                             ->icon('heroicon-o-paper-airplane')
-                                            ->state(fn (AssetRequest $record): string => $record->currentPendingApproval() ? 'Buka approval pending' : 'Tidak ada approval pending')
+                                            ->state(fn(AssetRequest $record): string => $record->currentPendingApproval() ? 'Buka approval pending' : 'Tidak ada approval pending')
                                             ->badge()
-                                            ->color(fn (AssetRequest $record): string => $record->currentPendingApproval() ? 'warning' : 'gray')
-                                            ->url(fn (AssetRequest $record): ?string => $record->currentPendingApproval()?->publicApprovalUrl(), true)
-                                            ->copyable(fn (AssetRequest $record): bool => $record->currentPendingApproval() !== null)
-                                            ->copyableState(fn (AssetRequest $record): ?string => $record->currentPendingApproval()?->publicApprovalUrl()),
+                                            ->color(fn(AssetRequest $record): string => $record->currentPendingApproval() ? 'warning' : 'gray')
+                                            ->url(fn(AssetRequest $record): ?string => $record->currentPendingApproval()?->publicApprovalUrl(), true)
+                                            ->copyable(fn(AssetRequest $record): bool => $record->currentPendingApproval() !== null)
+                                            ->copyableState(fn(AssetRequest $record): ?string => $record->currentPendingApproval()?->publicApprovalUrl()),
                                     ]),
                             ])
                             ->compact()
@@ -671,7 +671,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
             return basename((string) $attachments->first());
         }
 
-        return $attachments->count().' lampiran';
+        return $attachments->count() . ' lampiran';
     }
 
     public static function table(Table $table): Table
@@ -681,19 +681,19 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
             ->columns([
                 Tables\Columns\TextColumn::make('reference_number')
                     ->label('Pengajuan')
-                    ->description(fn (AssetRequest $record): string => $record->type->label())
+                    ->description(fn(AssetRequest $record): string => $record->type->label())
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('type')
                     ->label('Jenis Pengajuan')
                     ->badge()
-                    ->color(fn (AssetRequestType $state): string => $state->color())
-                    ->formatStateUsing(fn (AssetRequestType $state): string => $state->label())
+                    ->color(fn(AssetRequestType $state): string => $state->color())
+                    ->formatStateUsing(fn(AssetRequestType $state): string => $state->label())
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Pemohon')
-                    ->description(fn (AssetRequest $record): string => collect([
+                    ->description(fn(AssetRequest $record): string => collect([
                         $record->division?->name,
                         $record->assetLocation?->name,
                     ])->filter()->implode(' · '))
@@ -711,38 +711,38 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('item_name')
                     ->label('Nama Aset')
-                    ->getStateUsing(fn (AssetRequest $record): string => $record->itemSummaryLabel())
+                    ->getStateUsing(fn(AssetRequest $record): string => $record->itemSummaryLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->where('item_name', 'like', "%{$search}%")
-                            ->orWhereHas('asset', fn ($q) => $q->where('name', 'like', "%{$search}%"))
-                            ->orWhereHas('items', fn ($q) => $q->where('item_name', 'like', "%{$search}%")
-                                ->orWhereHas('asset', fn ($assetQuery) => $assetQuery->where('name', 'like', "%{$search}%")));
+                            ->orWhereHas('asset', fn($q) => $q->where('name', 'like', "%{$search}%"))
+                            ->orWhereHas('items', fn($q) => $q->where('item_name', 'like', "%{$search}%")
+                                ->orWhereHas('asset', fn($assetQuery) => $assetQuery->where('name', 'like', "%{$search}%")));
                     })
                     ->limit(42)
-                    ->tooltip(fn (AssetRequest $record): string => $record->itemSummaryLabel())
+                    ->tooltip(fn(AssetRequest $record): string => $record->itemSummaryLabel())
                     ->sortable(),
                 Tables\Columns\TextColumn::make('qty')
                     ->label('Jumlah')
                     ->numeric()
-                    ->getStateUsing(fn (AssetRequest $record): int => $record->itemQuantityTotal())
+                    ->getStateUsing(fn(AssetRequest $record): int => $record->itemQuantityTotal())
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn (RequestStatus $state): string => $state->color())
-                    ->formatStateUsing(fn (RequestStatus $state): string => $state->label())
+                    ->color(fn(RequestStatus $state): string => $state->color())
+                    ->formatStateUsing(fn(RequestStatus $state): string => $state->label())
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('lifecycle_stage')
                     ->label('Status & Tahap')
                     ->badge()
-                    ->getStateUsing(fn (AssetRequest $record): string => $record->lifecycleStageLabel())
-                    ->color(fn (AssetRequest $record): string => $record->lifecycleStageColor())
-                    ->description(fn (AssetRequest $record): string => 'Approval: '.$record->status->label()),
+                    ->getStateUsing(fn(AssetRequest $record): string => $record->lifecycleStageLabel())
+                    ->color(fn(AssetRequest $record): string => $record->lifecycleStageColor())
+                    ->description(fn(AssetRequest $record): string => 'Approval: ' . $record->status->label()),
                 Tables\Columns\TextColumn::make('next_step')
                     ->label('Langkah Berikutnya')
-                    ->getStateUsing(fn (AssetRequest $record): string => $record->nextStepLabel())
+                    ->getStateUsing(fn(AssetRequest $record): string => $record->nextStepLabel())
                     ->wrap()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
@@ -777,55 +777,53 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ->label('Review')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('warning')
-                    ->size(Size::ExtraLarge)
                     ->button()
-                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                    ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Pending
                         && (auth()->user()?->can('approve', $record) ?? false))
-                    ->url(fn (AssetRequest $record): string => static::getUrl('view', ['record' => $record])),
+                    ->url(fn(AssetRequest $record): string => static::getUrl('view', ['record' => $record])),
 
                 Action::make('fulfillPengadaan')
                     ->label('Buat Aset')
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
-                    ->size(Size::ExtraLarge)
                     ->button()
-                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                    ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
-                        && ! $record->is_fulfilled
+                        && !$record->is_fulfilled
                         && $record->type === AssetRequestType::Pengadaan)
-                    ->url(fn (AssetRequest $record): string => AssetResource::getUrl('create', array_filter([
+                    ->url(fn(AssetRequest $record): string => AssetResource::getUrl('create', array_filter([
                         'asset_request_id' => $record->id,
                         'asset_request_item_id' => $record->nextUnfulfilledPengadaanItem()?->id,
                     ]))),
 
                 Action::make('fulfillPenarikan')
-                    ->label('Buat BA')
+                    ->label('')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
-                    ->size(Size::ExtraLarge)
                     ->button()
-                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                    ->tooltip('Buat BA')
+                    ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
-                        && ! $record->is_fulfilled
+                        && !$record->is_fulfilled
                         && $record->type === AssetRequestType::Penarikan)
-                    ->url(fn (AssetRequest $record): string => AssetTransferResource::getUrl('create', [
+                    ->url(fn(AssetRequest $record): string => AssetTransferResource::getUrl('create', [
                         'asset_request_id' => $record->id,
                     ])),
 
                 Action::make('fulfillPerbaikan')
-                    ->label('Proses Perbaikan')
+                    ->label('')
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('warning')
-                    ->size(Size::ExtraLarge)
                     ->button()
+                    ->tooltip('Proses Perbaikan')
                     ->requiresConfirmation()
                     ->modalHeading('Proses aset untuk perbaikan?')
                     ->modalDescription('Status aset akan menjadi Rusak dan NBH menjadi Pending. Pengajuan ditandai selesai setelah proses ini dijalankan.')
                     ->modalSubmitActionLabel('Ya, proses perbaikan')
-                    ->visible(fn (?AssetRequest $record): bool => $record !== null
+                    ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
-                        && ! $record->is_fulfilled
+                        && !$record->is_fulfilled
                         && $record->type === AssetRequestType::Perbaikan
                         && $record->requestedAssetIds() !== [])
                     ->action(function (AssetRequest $record): void {
@@ -839,9 +837,8 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     }),
 
                 ViewAction::make()
-                    ->label('Lihat detail')
-                    ->size(Size::ExtraLarge)
-                    ->iconButton()
+                    ->label('')
+                    ->button()
                     ->tooltip('Lihat detail'),
 
                 ActionGroup::make([
@@ -852,7 +849,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         ->label('Buka Progress Publik')
                         ->icon('heroicon-o-arrow-top-right-on-square')
                         ->color('gray')
-                        ->url(fn (AssetRequest $record): string => $record->publicProgressUrl())
+                        ->url(fn(AssetRequest $record): string => $record->publicProgressUrl())
                         ->openUrlInNewTab(),
 
                     Action::make('resendApprovalNotification')
@@ -863,7 +860,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         ->modalHeading('Kirim ulang notifikasi ke approver?')
                         ->modalDescription('Pengingat hanya dikirim ke approver yang sedang menunggu. Keputusan approval tidak berubah.')
                         ->modalSubmitActionLabel('Kirim notifikasi')
-                        ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        ->visible(fn(?AssetRequest $record): bool => $record !== null
                             && $record->status === RequestStatus::Pending
                             && $record->currentPendingApproval() !== null)
                         ->action(function (AssetRequest $record): void {
@@ -872,7 +869,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
 
                                 Notification::make()
                                     ->title('Notifikasi approver dikirim ulang')
-                                    ->body('Dikirim ke '.$result['recipient']->name.'.')
+                                    ->body('Dikirim ke ' . $result['recipient']->name . '.')
                                     ->success()
                                     ->send();
                             } catch (\Throwable $e) {
@@ -892,7 +889,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                         ->modalHeading('Kirim ulang progress ke pengaju?')
                         ->modalDescription('Pengaju akan menerima status terbaru dan link progress publik. Status pengajuan tidak berubah.')
                         ->modalSubmitActionLabel('Kirim notifikasi')
-                        ->visible(fn (?AssetRequest $record): bool => $record !== null
+                        ->visible(fn(?AssetRequest $record): bool => $record !== null
                             && $record->user()->exists())
                         ->action(function (AssetRequest $record): void {
                             try {
@@ -900,7 +897,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
 
                                 Notification::make()
                                     ->title('Notifikasi pengaju dikirim ulang')
-                                    ->body('Dikirim ke '.$result['recipient']->name.'.')
+                                    ->body('Dikirim ke ' . $result['recipient']->name . '.')
                                     ->success()
                                     ->send();
                             } catch (\Throwable $e) {
@@ -915,10 +912,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     DeleteAction::make()
                         ->label('Hapus pengajuan'),
                 ])
-                    ->label('Aksi lainnya')
+                    ->label('')
                     ->icon('heroicon-m-ellipsis-vertical')
                     ->color('gray')
-                    ->size(Size::ExtraLarge)
+                    ->button()
                     ->tooltip('Aksi lainnya'),
             ])
             ->recordActionsColumnLabel('Tindak Lanjut')
@@ -928,7 +925,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                     ExportBulkAction::make()
-                        ->visible(fn () => auth()->user()->can('export', static::getModel()))
+                        ->visible(fn() => auth()->user()->can('export', static::getModel()))
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()
@@ -936,24 +933,24 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     Column::make('reference_number')->heading('Nomor Referensi'),
                                     Column::make('type')
                                         ->heading('Jenis Pengajuan')
-                                        ->getStateUsing(fn ($record) => $record->type instanceof AssetRequestType ? $record->type->label() : ucfirst((string) $record->type)),
+                                        ->getStateUsing(fn($record) => $record->type instanceof AssetRequestType ? $record->type->label() : ucfirst((string) $record->type)),
                                     Column::make('user.name')->heading('Nama Pemohon'),
                                     Column::make('division.name')->heading('Divisi'),
                                     Column::make('item_name')
                                         ->heading('Nama Aset')
-                                        ->getStateUsing(fn (AssetRequest $record): string => $record->itemSummaryLabel()),
+                                        ->getStateUsing(fn(AssetRequest $record): string => $record->itemSummaryLabel()),
                                     Column::make('qty')
                                         ->heading('Jumlah')
-                                        ->getStateUsing(fn (AssetRequest $record): int => $record->itemQuantityTotal()),
+                                        ->getStateUsing(fn(AssetRequest $record): int => $record->itemQuantityTotal()),
                                     Column::make('status')
                                         ->heading('Status')
-                                        ->getStateUsing(fn ($record) => $record->status?->label()),
+                                        ->getStateUsing(fn($record) => $record->status?->label()),
                                     Column::make('lifecycle_stage_label')
                                         ->heading('Tahap Lifecycle')
-                                        ->getStateUsing(fn ($record) => $record->lifecycleStageLabel()),
+                                        ->getStateUsing(fn($record) => $record->lifecycleStageLabel()),
                                     Column::make('next_step_label')
                                         ->heading('Langkah Berikutnya')
-                                        ->getStateUsing(fn ($record) => $record->nextStepLabel()),
+                                        ->getStateUsing(fn($record) => $record->nextStepLabel()),
                                     Column::make('attachment')
                                         ->heading('Lampiran')
                                         ->getStateUsing(function ($record) {
@@ -963,7 +960,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             $attachments = is_array($record->attachment) ? $record->attachment : [$record->attachment];
 
                                             return collect($attachments)
-                                                ->map(fn ($file) => Storage::disk('public')->url($file))
+                                                ->map(fn($file) => Storage::disk('public')->url($file))
                                                 ->implode(', ');
                                         }),
                                     Column::make('description')->heading('Keterangan'),
@@ -971,7 +968,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     Column::make('created_at')->heading('Tanggal Dibuat'),
                                     Column::make('updated_at')->heading('Tanggal Diperbarui'),
                                 ])
-                                ->withFilename('export_asset_requests_'.date('Y-m-d')),
+                                ->withFilename('export_asset_requests_' . date('Y-m-d')),
                         ]),
                 ]),
             ])
@@ -1007,7 +1004,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 'items.asset',
                 'user',
                 'division',
-                'approvals' => fn ($query) => $query->orderBy('level')->with('user.jobTitle'),
+                'approvals' => fn($query) => $query->orderBy('level')->with('user.jobTitle'),
             ]);
     }
 }

@@ -8,7 +8,6 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
-use Filament\Schemas\Components\Section as Card;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -52,53 +51,55 @@ class UserResource extends Resource implements HasShieldPermissions
 
         return $form
             ->schema([
-                Card::make([
-                    TextInput::make('name')
-                        ->required()
-                        ->maxLength(255),
-                    Select::make('business_entity_id')
-                        ->options(BusinessEntity::all()->pluck('name', 'id'))
-                        ->label('Business Entity')
-                        ->searchable(),
-                    Select::make('job_title_id')
-                        ->options(JobTitle::all()->pluck('title', 'id'))
-                        ->label('Job Title')
-                        ->searchable(),
-                    TextInput::make('whatsapp_number')
-                        ->label('Nomor WhatsApp')
-                        ->tel()
-                        ->placeholder('081234567890')
-                        ->helperText('Dipakai untuk pengingat aset via WhatsApp/Fonnte.')
-                        ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
-                        ->maxLength(32),
-                ]),
-                Card::make([
-                    TextInput::make('username')
-                        ->maxLength(255)
-                        ->unique(User::class, 'username', ignoreRecord: true)
-                        ->visible($isSuperAdmin),
-                    TextInput::make('email')
-                        ->email()
-                        ->maxLength(255)
-                        ->unique(User::class, 'email', ignoreRecord: true)
-                        ->rules(['not_regex:/[\r\n]/'])
-                        ->visible($isSuperAdmin),
-                    TextInput::make('password')
-                        ->password()
-                        ->dehydrateStateUsing(fn ($state) => Hash::make($state))
-                        ->dehydrated(fn ($state) => filled($state))
-                        ->maxLength(255)
-                        ->visible($isSuperAdmin),
-                    DateTimePicker::make('email_verified_at')
-                        ->label('Email Verified At')
-                        ->visible($isSuperAdmin),
-                    Select::make('roles')
-                        ->label('Roles')
-                        ->relationship('roles', 'name')
-                        ->preload()
-                        ->searchable()
-                        ->visible($isSuperAdmin),
-                ])->visible($isSuperAdmin),
+                Section::make('Informasi Pengguna')
+                    ->schema([
+                        TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        Select::make('business_entity_id')
+                            ->options(BusinessEntity::all()->pluck('name', 'id'))
+                            ->label('Business Entity')
+                            ->searchable(),
+                        Select::make('job_title_id')
+                            ->options(JobTitle::all()->pluck('title', 'id'))
+                            ->label('Job Title')
+                            ->searchable(),
+                        TextInput::make('whatsapp_number')
+                            ->label('Nomor WhatsApp')
+                            ->tel()
+                            ->placeholder('081234567890')
+                            ->helperText('Dipakai untuk pengingat aset via WhatsApp/Fonnte.')
+                            ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
+                            ->maxLength(32),
+                    ]),
+                Section::make('Akses & Keamanan')
+                    ->schema([
+                        TextInput::make('username')
+                            ->maxLength(255)
+                            ->unique(User::class, 'username', ignoreRecord: true)
+                            ->visible($isSuperAdmin),
+                        TextInput::make('email')
+                            ->email()
+                            ->maxLength(255)
+                            ->unique(User::class, 'email', ignoreRecord: true)
+                            ->rules(['not_regex:/[\r\n]/'])
+                            ->visible($isSuperAdmin),
+                        TextInput::make('password')
+                            ->password()
+                            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->maxLength(255)
+                            ->visible($isSuperAdmin),
+                        DateTimePicker::make('email_verified_at')
+                            ->label('Email Verified At')
+                            ->visible($isSuperAdmin),
+                        Select::make('roles')
+                            ->label('Roles')
+                            ->relationship('roles', 'name')
+                            ->preload()
+                            ->searchable()
+                            ->visible($isSuperAdmin),
+                    ])->visible($isSuperAdmin),
             ]);
     }
 

@@ -16,7 +16,7 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Carbon\Carbon;
-use Filament\Schemas\Components\Section as Card;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -266,7 +266,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                 Grid::make(2)
                     ->schema([
                         // Kolom kiri
-                        Card::make()
+                        Section::make('Informasi Aset')
                             ->schema([
                                 // Dropdown untuk memilih kategori
                                 Select::make('category_id')
@@ -483,7 +483,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                 }
                             }),
 
-                        Card::make()
+                        Section::make('Kondisi & NBH')
                             ->schema([
                                 Placeholder::make('lifecycle_hint')
                                     ->label('Panduan')
@@ -619,7 +619,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                             ->columns(3)
                             ->visible(fn () => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false),
 
-                        Card::make()
+                        Section::make('Penerima Aset')
                             ->schema([
                                 Placeholder::make('recipient_hint')
                                     ->label('Pengaturan Penerima')
@@ -645,7 +645,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                     ->columnSpan(2),
 
                 // Kolom kanan
-                Card::make()
+                Section::make('Detail Pembelian')
                     ->schema([
                         DatePicker::make('purchase_date')
                             ->translateLabel()
@@ -898,10 +898,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                     ->schema([
                                         TextEntry::make('name')
                                             ->label(__('Nama Aset'))
-                                            ->columnSpan(2)
-                                            ->extraAttributes([
-                                                'style' => 'font-weight:bold; font-size:1.2em; color:#333;',
-                                            ]),
+                                            ->columnSpan(2),
                                         TextEntry::make('category.name')
                                             ->label(__('Kategori')),
                                         TextEntry::make('brand.name')
@@ -984,7 +981,7 @@ class AssetResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('nbh_status_label')
                                             ->label(__('Status NBH'))
                                             ->badge()
-                                            ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'secondary'),
+                                            ->color(fn ($state, Asset $record): string => $record->nbh_status_color ?? 'gray'),
                                         TextEntry::make('validasi_status')
                                             ->label(__('Status Validasi'))
                                             ->badge()

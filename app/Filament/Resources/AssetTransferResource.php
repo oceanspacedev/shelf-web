@@ -11,7 +11,7 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use Carbon\Carbon;
-use Filament\Schemas\Components\Section as Card;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Components\Grid;
@@ -61,7 +61,7 @@ class AssetTransferResource extends Resource
             ->schema([
                 Grid::make()
                     ->schema([
-                        Card::make()
+                        Section::make('Informasi Transfer')
                             ->schema([
                                 TextInput::make('letter_number')
                                     ->translateLabel()

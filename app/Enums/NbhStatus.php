@@ -20,7 +20,7 @@ enum NbhStatus: string
     public function color(): string
     {
         return match ($this) {
-            self::None => 'secondary',
+            self::None => 'gray',
             self::Pending => 'warning',
             self::Resolved => 'success',
         };
