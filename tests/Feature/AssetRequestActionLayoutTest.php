@@ -9,6 +9,7 @@ use App\Filament\Resources\AssetRequestResource\Pages\ViewAssetRequest;
 use App\Models\AssetRequest;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Support\Enums\Size;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Mockery;
@@ -30,12 +31,17 @@ class AssetRequestActionLayoutTest extends TestCase
             '@group',
         ], $this->topLevelActionNames($actions));
 
+        foreach (array_slice($actions, 0, 5) as $action) {
+            $this->assertSame(Size::ExtraLarge, $action->getSize());
+        }
+
         $this->assertTrue($actions[4]->isIconButton());
 
         $overflow = $actions[5];
 
         $this->assertInstanceOf(ActionGroup::class, $overflow);
         $this->assertTrue($overflow->isIconButton());
+        $this->assertSame(Size::ExtraLarge, $overflow->getSize());
         $this->assertSame('Aksi lainnya', $overflow->getLabel());
         $this->assertSame([
             'edit',
