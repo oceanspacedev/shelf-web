@@ -6,6 +6,7 @@ use App\Enums\AssetRequestType;
 use App\Enums\RequestStatus;
 use App\Filament\Resources\AssetRequestResource;
 use App\Models\AssetRequest;
+use App\Models\AssetRequestItem;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Mockery;
@@ -34,13 +35,13 @@ class AssetRequestResourceTableActionTest extends TestCase
     {
         $table = AssetRequestResource::table(Table::make(Mockery::mock(HasTable::class)));
 
-        $approvedPengadaan = new AssetRequest([
-            'item_name' => 'Laptop Operasional',
-            'type' => AssetRequestType::Pengadaan,
-            'status' => RequestStatus::Approved,
-            'qty' => 1,
-            'fulfilled_at' => null,
-        ]);
+        $approvedPengadaan = new class(['item_name' => 'Laptop Operasional', 'type' => AssetRequestType::Pengadaan, 'status' => RequestStatus::Approved, 'qty' => 1, 'fulfilled_at' => null]) extends AssetRequest
+        {
+            public function nextUnfulfilledPengadaanItem(): ?AssetRequestItem
+            {
+                return null;
+            }
+        };
         $approvedPengadaan->id = 123;
 
         $url = $table->getFlatActions()['fulfillPengadaan']
