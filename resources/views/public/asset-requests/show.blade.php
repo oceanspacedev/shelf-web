@@ -72,7 +72,7 @@
 
             <div class="field-card">
                 <span class="field-label">Tanggal Pengajuan</span>
-                <div class="gf-readonly">{{ $assetRequest->created_at?->translatedFormat('d M Y H:i') ?? '-' }}</div>
+                <div class="gf-readonly">{{ $assetRequest->created_at?->translatedFormat('d M Y') ?? '-' }}</div>
             </div>
 
             <div class="field-card">
@@ -111,7 +111,7 @@
                                         };
                                     @endphp
                                     <tr>
-                                        <td>{{ $approval->user?->name ?? '-' }}</td>
+                                        <td>{{ $approval->user?->nameWithJobTitle() ?? '-' }}</td>
                                         <td><span class="badge {{ $approvalClass }}">{{ $approvalStatus }}</span></td>
                                         <td>
                                             @if ($approval->decided_at)

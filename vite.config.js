@@ -11,7 +11,7 @@ export default defineConfig({
                 'resources/css/public.css',
                 'resources/js/app.js',
                 'resources/css/filament/admin/theme.css',
-                'vendor/apriansyahrs/mekaya-theme/resources/js/mekaya.js',
+                'vendor/kungfufafa/mekaya-theme/resources/js/mekaya.js',
             ],
             refresh: true,
         }),

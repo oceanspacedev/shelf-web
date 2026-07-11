@@ -249,14 +249,27 @@ class AssetRequestTest extends TestCase
         $approvalUrl = $request->currentPendingApproval()->publicApprovalUrl();
 
         $this->assertSame($manager->id, $result['recipient']->id);
-        $this->assertStringContainsString($approvalUrl, $result['message']);
-        $this->assertStringContainsString($request->publicProgressUrl(), $result['message']);
-        $this->assertStringContainsString('Level 1', $result['message']);
-        Mail::assertSent(AssetNotificationMail::class, function (AssetNotificationMail $mail) use ($manager, $request, $approvalUrl): bool {
+        $this->assertStringContainsString($approvalUrl, $result['message']['whatsapp']);
+        $this->assertStringContainsString('Pengajuan Aset: Pengingat', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Nama Aset: Server Rack', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Jumlah: 1', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Setujui atau tolak:', $result['message']['whatsapp']);
+        $this->assertStringContainsString('IT Support', $result['message']['whatsapp']);
+        $this->assertSame('Setujui atau Tolak', $result['message']['email']['cta_label']);
+        $this->assertSame($approvalUrl, $result['message']['email']['cta_url']);
+        $this->assertSame('approve', $result['message']['email']['cta_variant']);
+        $this->assertStringNotContainsString('Level', $result['message']['whatsapp']);
+        $this->assertStringNotContainsString('ke-1', $result['message']['whatsapp']);
+        $this->assertStringNotContainsString('Halo ', $result['message']['whatsapp']);
+        Mail::assertSent(AssetNotificationMail::class, function (AssetNotificationMail $mail) use ($manager, $approvalUrl): bool {
             return $mail->hasTo($manager->email)
                 && str_contains($mail->body, $approvalUrl)
-                && str_contains($mail->body, $request->publicProgressUrl())
-                && str_contains($mail->body, 'Level 1');
+                && str_contains($mail->body, 'Setujui atau tolak:')
+                && str_contains($mail->body, 'IT Support')
+                && ($mail->email['cta_label'] ?? null) === 'Setujui atau Tolak'
+                && ($mail->email['cta_url'] ?? null) === $approvalUrl
+                && ! str_contains($mail->body, 'Level')
+                && ! str_contains($mail->body, 'ke-1');
         });
 
         $request->approveCurrentLevel('ok', $manager);
@@ -267,13 +280,18 @@ class AssetRequestTest extends TestCase
         $nextApprovalUrl = $request->currentPendingApproval()->publicApprovalUrl();
 
         $this->assertSame($director->id, $nextResult['recipient']->id);
-        $this->assertStringContainsString($nextApprovalUrl, $nextResult['message']);
-        $this->assertStringContainsString('Level 2', $nextResult['message']);
-        Mail::assertSent(AssetNotificationMail::class, function (AssetNotificationMail $mail) use ($director, $request, $nextApprovalUrl): bool {
+        $this->assertStringContainsString($nextApprovalUrl, $nextResult['message']['whatsapp']);
+        $this->assertStringContainsString('Pengajuan Aset: Pengingat', $nextResult['message']['whatsapp']);
+        $this->assertStringNotContainsString('Level', $nextResult['message']['whatsapp']);
+        $this->assertStringNotContainsString('ke-2', $nextResult['message']['whatsapp']);
+        Mail::assertSent(AssetNotificationMail::class, function (AssetNotificationMail $mail) use ($director, $nextApprovalUrl): bool {
             return $mail->hasTo($director->email)
                 && str_contains($mail->body, $nextApprovalUrl)
-                && str_contains($mail->body, $request->publicProgressUrl())
-                && str_contains($mail->body, 'Level 2');
+                && str_contains($mail->body, 'Setujui atau tolak:')
+                && str_contains($mail->body, 'IT Support')
+                && ($mail->email['cta_url'] ?? null) === $nextApprovalUrl
+                && ! str_contains($mail->body, 'Level')
+                && ! str_contains($mail->body, 'ke-2');
         });
     }
 
@@ -297,12 +315,24 @@ class AssetRequestTest extends TestCase
         $result = $request->sendRequesterProgressReminder();
 
         $this->assertSame($requester->id, $result['recipient']->id);
-        $this->assertStringContainsString($request->publicProgressUrl(), $result['message']);
-        $this->assertStringContainsString($request->lifecycleStageLabel(), $result['message']);
+        $this->assertStringContainsString($request->publicProgressUrl(), $result['message']['whatsapp']);
+        $this->assertStringContainsString($request->lifecycleStageLabel(), $result['message']['whatsapp']);
+        $this->assertStringContainsString('Pengajuan Aset: Status', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Nama Aset: Laptop Operasional', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Jumlah: 1', $result['message']['whatsapp']);
+        $this->assertStringContainsString('Lihat progress:', $result['message']['whatsapp']);
+        $this->assertStringContainsString('IT Support', $result['message']['whatsapp']);
+        $this->assertSame('Lihat Progress', $result['message']['email']['cta_label']);
+        $this->assertSame('progress', $result['message']['email']['cta_variant']);
+        $this->assertSame('FORM PENGAJUAN ASET', $result['message']['email']['form_title']);
         Mail::assertSent(AssetNotificationMail::class, function (AssetNotificationMail $mail) use ($requester, $request): bool {
             return $mail->hasTo($requester->email)
                 && str_contains($mail->body, $request->publicProgressUrl())
-                && str_contains($mail->body, $request->reference_number);
+                && str_contains($mail->body, $request->reference_number)
+                && str_contains($mail->body, 'Lihat progress:')
+                && str_contains($mail->body, 'IT Support')
+                && ($mail->email['cta_label'] ?? null) === 'Lihat Progress'
+                && ($mail->email['form_title'] ?? null) === 'FORM PENGAJUAN ASET';
         });
     }
 
@@ -404,7 +434,7 @@ class AssetRequestTest extends TestCase
 
         $request->update([
             'status' => RequestStatus::Rejected,
-            'notes' => 'Ditolak oleh Ops Manager di Level 1. Alasan: Budget constraints',
+            'notes' => 'Ditolak oleh Ops Manager. Alasan: Budget constraints',
         ]);
 
         $this->assertEquals(RequestStatus::Rejected, $request->fresh()->status);

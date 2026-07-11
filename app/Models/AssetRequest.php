@@ -145,9 +145,6 @@ class AssetRequest extends Model
             ->filter(fn ($approver) => $approver->user_id !== $this->user_id)
             ->values();
 
-        $assetName = $this->itemSummaryLabel();
-        $qtyVal = $this->itemQuantityTotal();
-
         // Divisi tanpa approver valid -> auto-approve. Persetujuan hanya membuka jalan
         // tindak lanjut; pembuatan aset / BA pengembalian / BA perbaikan tetap
         // dilakukan operator secara terpisah (alur dinamis, tidak auto).
@@ -159,18 +156,11 @@ class AssetRequest extends Model
 
             if ($notify && $this->user) {
                 $assetRequest = $this;
-                DB::afterCommit(function () use ($assetRequest, $assetName, $qtyVal) {
+                DB::afterCommit(function () use ($assetRequest) {
                     AssetNotificationService::send(
                         $assetRequest->user,
-                        'Pengajuan Aset Disetujui - '.$assetRequest->reference_number,
-                        sprintf(
-                            "Halo %s,\n\nSelamat! Pengajuan aset Anda dengan nomor referensi %s telah DISETUJUI SEPENUHNYA (otomatis, divisi tanpa approver).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nStatus: Disetujui\n\nLink progress pengajuan:\n%s\n\nSilakan menunggu tindak lanjut dari operator.",
-                            $assetRequest->user->name,
-                            $assetRequest->reference_number,
-                            $assetName,
-                            $qtyVal,
-                            $assetRequest->publicProgressUrl()
-                        )
+                        'Pengajuan aset disetujui - '.$assetRequest->reference_number,
+                        $assetRequest->formatRequesterApprovedNotificationMessage()
                     );
                 });
             }
@@ -203,38 +193,18 @@ class AssetRequest extends Model
             $firstApproval = $this->approvals()
                 ->where('level', 1)
                 ->first();
-            $requesterName = $this->user?->name ?? 'Pemohon';
-            $approverSubject = 'Persetujuan Pengajuan Aset Baru - '.$this->reference_number;
-            $approverMessage = sprintf(
-                "Halo %s,\n\nAda pengajuan aset baru dengan nomor referensi %s dari %s (Divisi: %s) membutuhkan persetujuan Anda.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink approval:\n%s\n\nLink progress pengajuan:\n%s",
-                $firstApprover->user->name,
-                $this->reference_number,
-                $requesterName,
-                $this->division?->name,
-                $assetName,
-                $qtyVal,
-                $this->description ?: '-',
+            $approverSubject = 'Persetujuan pengajuan aset - '.$this->reference_number;
+            $approverMessage = $this->formatApproverActionNotificationMessage(
+                $firstApprover->user,
                 $firstApproval?->publicApprovalUrl() ?? $this->publicProgressUrl(),
-                $this->publicProgressUrl()
             );
             $approverUser = $firstApprover->user;
             DB::afterCommit(fn () => AssetNotificationService::send($approverUser, $approverSubject, $approverMessage));
         }
 
         if ($this->user) {
-            $firstApproverName = $firstApprover && $firstApprover->user ? $firstApprover->user->name : '-';
-            $requesterSubject = 'Pengajuan Aset Dibuat - '.$this->reference_number;
-            $requesterMessage = sprintf(
-                "Halo %s,\n\nPengajuan aset Anda dengan nomor referensi %s (Divisi: %s) berhasil dibuat dan saat ini sedang menunggu persetujuan dari %s (Level 1).\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink progress pengajuan:\n%s",
-                $this->user->name,
-                $this->reference_number,
-                $this->division?->name,
-                $firstApproverName,
-                $assetName,
-                $qtyVal,
-                $this->description ?: '-',
-                $this->publicProgressUrl()
-            );
+            $requesterSubject = 'Pengajuan aset diterima - '.$this->reference_number;
+            $requesterMessage = $this->formatRequesterCreatedNotificationMessage($firstApprover?->user);
             $requester = $this->user;
             DB::afterCommit(fn () => AssetNotificationService::send($requester, $requesterSubject, $requesterMessage));
         }
@@ -324,14 +294,14 @@ class AssetRequest extends Model
     public function currentPendingApproval(): ?AssetRequestApproval
     {
         return $this->approvals()
-            ->with('user')
+            ->with('user.jobTitle')
             ->where('level', $this->current_level)
             ->where('status', RequestStatus::Pending->value)
             ->first();
     }
 
     /**
-     * @return array{recipient: User, subject: string, message: string, approval: AssetRequestApproval}
+     * @return array{recipient: User, subject: string, message: array{whatsapp: string, email: array<string, mixed>}, approval: AssetRequestApproval}
      */
     public function buildCurrentApprovalReminderNotification(): array
     {
@@ -340,33 +310,24 @@ class AssetRequest extends Model
         $currentApproval = $this->currentPendingApproval();
 
         if (! $currentApproval || ! $currentApproval->user) {
-            throw new \RuntimeException('Tidak ada approval pending pada level saat ini.');
+            throw new \RuntimeException('Tidak ada approval yang sedang menunggu keputusan.');
         }
 
-        $message = sprintf(
-            "Halo %s,\n\nReminder: pengajuan aset nomor %s dari %s (Divisi: %s) masih menunggu persetujuan Anda di Level %d.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink approval:\n%s\n\nLink progress pengajuan:\n%s",
-            $currentApproval->user->name,
-            $this->reference_number,
-            $this->user?->name ?? 'Pemohon',
-            $this->division?->name ?? '-',
-            $currentApproval->level,
-            $this->itemSummaryLabel(),
-            $this->itemQuantityTotal(),
-            $this->description ?: '-',
+        $message = $this->formatApproverReminderNotificationMessage(
+            $currentApproval->user,
             $currentApproval->publicApprovalUrl(),
-            $this->publicProgressUrl()
         );
 
         return [
             'recipient' => $currentApproval->user,
-            'subject' => 'Reminder Persetujuan Pengajuan Aset - '.$this->reference_number,
+            'subject' => 'Pengingat persetujuan aset - '.$this->reference_number,
             'message' => $message,
             'approval' => $currentApproval,
         ];
     }
 
     /**
-     * @return array{recipient: User, subject: string, message: string}
+     * @return array{recipient: User, subject: string, message: array{whatsapp: string, email: array<string, mixed>}}
      */
     public function buildRequesterProgressNotification(): array
     {
@@ -376,28 +337,17 @@ class AssetRequest extends Model
             throw new \RuntimeException('Pengajuan ini tidak memiliki data pemohon.');
         }
 
-        $message = sprintf(
-            "Halo %s,\n\nBerikut update progress pengajuan aset Anda nomor %s.\n\nDetail:\nJenis Pengajuan: %s\nNama Aset: %s\nJumlah: %d\nStatus: %s\nTahap: %s\nLangkah Berikutnya: %s\n\nLink progress pengajuan:\n%s",
-            $this->user->name,
-            $this->reference_number,
-            $this->type?->label() ?? '-',
-            $this->itemSummaryLabel(),
-            $this->itemQuantityTotal(),
-            $this->status?->label() ?? '-',
-            $this->lifecycleStageLabel(),
-            $this->nextStepLabel(),
-            $this->publicProgressUrl()
-        );
+        $message = $this->formatRequesterProgressNotificationMessage();
 
         return [
             'recipient' => $this->user,
-            'subject' => 'Update Progress Pengajuan Aset - '.$this->reference_number,
+            'subject' => 'Status pengajuan aset - '.$this->reference_number,
             'message' => $message,
         ];
     }
 
     /**
-     * @return array{recipient: User, subject: string, message: string, approval: AssetRequestApproval}
+     * @return array{recipient: User, subject: string, message: array{whatsapp: string, email: array<string, mixed>}, approval: AssetRequestApproval}
      */
     public function sendCurrentApprovalReminder(): array
     {
@@ -413,7 +363,7 @@ class AssetRequest extends Model
     }
 
     /**
-     * @return array{recipient: User, subject: string, message: string}
+     * @return array{recipient: User, subject: string, message: array{whatsapp: string, email: array<string, mixed>}}
      */
     public function sendRequesterProgressReminder(): array
     {
@@ -671,7 +621,13 @@ class AssetRequest extends Model
         }
 
         if ($this->status === RequestStatus::Pending) {
-            return 'Menunggu approval level '.$this->current_level;
+            $pendingApprover = $this->currentPendingApproval()?->user;
+
+            if ($pendingApprover) {
+                return 'Menunggu persetujuan dari '.$pendingApprover->nameWithJobTitle();
+            }
+
+            return 'Menunggu persetujuan';
         }
 
         if (! $this->isFulfilled()) {
@@ -1019,14 +975,14 @@ class AssetRequest extends Model
 
             if (! $currentApproval) {
                 throw new AuthorizationException(
-                    'Tidak ada approval pending pada level saat ini.'
+                    'Tidak ada approval yang sedang menunggu keputusan.'
                 );
             }
             if ($actor === null) {
                 throw new AuthorizationException('Pemberi persetujuan tidak teridentifikasi.');
             }
             if ($currentApproval->user_id !== $actor->id) {
-                throw new AuthorizationException('Anda bukan approver pada level ini.');
+                throw new AuthorizationException('Anda bukan approver untuk persetujuan ini.');
             }
             if ($this->user_id === $actor->id) {
                 throw new AuthorizationException('Pemohon tidak boleh menyetujui pengajuan sendiri.');
@@ -1045,10 +1001,7 @@ class AssetRequest extends Model
                 ->orderBy('level', 'asc')
                 ->first();
 
-            $requesterName = $this->user?->name ?? 'Pemohon';
-            $assetName = $this->itemSummaryLabel();
-            $qtyVal = $this->itemQuantityTotal();
-            $approverName = $actor->name ?? 'Approver';
+            $approverLabel = $this->notificationPersonLabel($actor, 'Approver');
             $notifications = [];
 
             if ($nextApproval) {
@@ -1059,18 +1012,10 @@ class AssetRequest extends Model
                 if ($nextApproval->user) {
                     $notifications[] = [
                         $nextApproval->user,
-                        'Persetujuan Pengajuan Aset Baru - '.$this->reference_number,
-                        sprintf(
-                            "Halo %s,\n\nPengajuan aset dengan nomor referensi %s dari %s (Divisi: %s) telah disetujui di level sebelumnya dan sekarang membutuhkan persetujuan Anda.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nKeterangan: %s\n\nLink approval:\n%s\n\nLink progress pengajuan:\n%s",
-                            $nextApproval->user->name,
-                            $this->reference_number,
-                            $requesterName,
-                            $this->division?->name,
-                            $assetName,
-                            $qtyVal,
-                            $this->description ?: '-',
+                        'Persetujuan pengajuan aset - '.$this->reference_number,
+                        $this->formatApproverActionNotificationMessage(
+                            $nextApproval->user,
                             $nextApproval->publicApprovalUrl(),
-                            $this->publicProgressUrl()
                         ),
                     ];
                 }
@@ -1078,18 +1023,10 @@ class AssetRequest extends Model
                 if ($this->user) {
                     $notifications[] = [
                         $this->user,
-                        'Update Pengajuan Aset - '.$this->reference_number,
-                        sprintf(
-                            "Halo %s,\n\nPengajuan aset Anda dengan nomor referensi %s telah disetujui oleh %s di Level %d. Sekarang pengajuan ini berlanjut ke %s (Level %d) untuk persetujuan berikutnya.\n\nDetail:\nNama Aset: %s\nJumlah: %d\n\nLink progress pengajuan:\n%s",
-                            $this->user->name,
-                            $this->reference_number,
-                            $approverName,
-                            $currentApproval->level,
-                            $nextApproval->user?->name ?? '-',
-                            $nextApproval->level,
-                            $assetName,
-                            $qtyVal,
-                            $this->publicProgressUrl()
+                        'Pengajuan aset diperbarui - '.$this->reference_number,
+                        $this->formatRequesterAdvancedNotificationMessage(
+                            $approverLabel,
+                            $this->notificationPersonLabel($nextApproval->user),
                         ),
                     ];
                 }
@@ -1103,15 +1040,8 @@ class AssetRequest extends Model
                 if ($this->user) {
                     $notifications[] = [
                         $this->user,
-                        'Pengajuan Aset Disetujui - '.$this->reference_number,
-                        sprintf(
-                            "Halo %s,\n\nSelamat! Pengajuan aset Anda dengan nomor referensi %s telah DISETUJUI SEPENUHNYA.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nStatus: Disetujui\n\nLink progress pengajuan:\n%s\n\nSilakan menunggu tindak lanjut dari operator.",
-                            $this->user->name,
-                            $this->reference_number,
-                            $assetName,
-                            $qtyVal,
-                            $this->publicProgressUrl()
-                        ),
+                        'Pengajuan aset disetujui - '.$this->reference_number,
+                        $this->formatRequesterApprovedNotificationMessage(),
                     ];
                 }
             }
@@ -1148,14 +1078,14 @@ class AssetRequest extends Model
 
             if (! $currentApproval) {
                 throw new AuthorizationException(
-                    'Tidak ada approval pending pada level saat ini.'
+                    'Tidak ada approval yang sedang menunggu keputusan.'
                 );
             }
             if ($actor === null) {
                 throw new AuthorizationException('Pemberi penolakan tidak teridentifikasi.');
             }
             if ($currentApproval->user_id !== $actor->id) {
-                throw new AuthorizationException('Anda bukan approver pada level ini.');
+                throw new AuthorizationException('Anda bukan approver untuk persetujuan ini.');
             }
             if ($this->user_id === $actor->id) {
                 throw new AuthorizationException('Pemohon tidak boleh menolak pengajuan sendiri.');
@@ -1168,31 +1098,19 @@ class AssetRequest extends Model
                 'decided_at' => now(),
             ]);
 
+            $approverLabel = $this->notificationPersonLabel($actor, 'Approver');
+
             $this->update([
                 'status' => RequestStatus::Rejected,
-                'notes' => 'Ditolak oleh '.($actor->name ?? 'Approver').' di Level '.$this->current_level.'. Alasan: '.$notes,
+                'notes' => 'Ditolak oleh '.$approverLabel.'. Alasan: '.$notes,
             ]);
 
             $notifications = [];
             if ($this->user) {
-                $assetName = $this->itemSummaryLabel();
-                $qtyVal = $this->itemQuantityTotal();
-                $approverName = $actor->name ?? 'Approver';
-
                 $notifications[] = [
                     $this->user,
-                    'Pengajuan Aset Ditolak - '.$this->reference_number,
-                    sprintf(
-                        "Halo %s,\n\nPengajuan aset Anda dengan nomor referensi %s telah DITOLAK oleh %s di Level %d.\n\nDetail:\nNama Aset: %s\nJumlah: %d\nAlasan Penolakan: %s\nStatus: Ditolak\n\nLink progress pengajuan:\n%s",
-                        $this->user->name,
-                        $this->reference_number,
-                        $approverName,
-                        $this->current_level,
-                        $assetName,
-                        $qtyVal,
-                        $notes,
-                        $this->publicProgressUrl()
-                    ),
+                    'Pengajuan aset ditolak - '.$this->reference_number,
+                    $this->formatRequesterRejectedNotificationMessage($approverLabel, $notes),
                 ];
             }
 
@@ -1202,5 +1120,266 @@ class AssetRequest extends Model
         foreach ($notifications as [$notifiable, $subject, $message]) {
             AssetNotificationService::send($notifiable, $subject, $message);
         }
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatRequesterCreatedNotificationMessage(?User $approver = null): array
+    {
+        return $this->buildNotificationPayload(
+            title: null,
+            intro: 'Pengajuan aset Anda sudah masuk dan menunggu persetujuan.',
+            extraFields: [
+                'Status' => 'Pengajuan Baru',
+                'Menunggu Persetujuan Dari' => $this->notificationPersonLabel($approver),
+            ],
+            ctaLabel: 'Lihat Progress',
+            ctaUrl: $this->publicProgressUrl(),
+            ctaVariant: 'progress',
+            whatsappCtaLabel: 'Lihat progress:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatRequesterApprovedNotificationMessage(): array
+    {
+        return $this->buildNotificationPayload(
+            title: 'Disetujui',
+            intro: 'Pengajuan aset Anda disetujui.',
+            extraFields: [
+                'Status' => 'Disetujui',
+                'Langkah Berikutnya' => $this->nextStepLabel(),
+            ],
+            ctaLabel: 'Lihat Progress',
+            ctaUrl: $this->publicProgressUrl(),
+            ctaVariant: 'progress',
+            whatsappCtaLabel: 'Lihat progress:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatRequesterRejectedNotificationMessage(string $approverLabel, string $notes): array
+    {
+        return $this->buildNotificationPayload(
+            title: 'Ditolak',
+            intro: 'Pengajuan aset Anda ditolak.',
+            extraFields: [
+                'Status' => 'Ditolak',
+                'Ditolak Oleh' => $approverLabel,
+                'Alasan Penolakan' => $notes,
+            ],
+            ctaLabel: 'Lihat Progress',
+            ctaUrl: $this->publicProgressUrl(),
+            ctaVariant: 'progress',
+            whatsappCtaLabel: 'Lihat progress:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatRequesterAdvancedNotificationMessage(string $approverLabel, string $nextApproverLabel): array
+    {
+        return $this->buildNotificationPayload(
+            title: 'Tahap Berikutnya',
+            intro: 'Satu tahap disetujui. Menunggu penyetuju berikutnya.',
+            extraFields: [
+                'Status' => 'Menunggu Persetujuan Berikutnya',
+                'Disetujui Oleh' => $approverLabel,
+                'Menunggu Persetujuan Dari' => $nextApproverLabel,
+            ],
+            ctaLabel: 'Lihat Progress',
+            ctaUrl: $this->publicProgressUrl(),
+            ctaVariant: 'progress',
+            whatsappCtaLabel: 'Lihat progress:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatRequesterProgressNotificationMessage(): array
+    {
+        return $this->buildNotificationPayload(
+            title: 'Status',
+            intro: 'Status pengajuan aset Anda.',
+            extraFields: [
+                'Status' => $this->status?->label() ?? '-',
+                'Tahap' => $this->lifecycleStageLabel(),
+                'Langkah Berikutnya' => $this->nextStepLabel(),
+            ],
+            ctaLabel: 'Lihat Progress',
+            ctaUrl: $this->publicProgressUrl(),
+            ctaVariant: 'progress',
+            whatsappCtaLabel: 'Lihat progress:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatApproverActionNotificationMessage(User $approver, string $approvalUrl): array
+    {
+        $approver->loadMissing('jobTitle');
+        $title = $approver->jobTitle?->title;
+
+        $intro = $title
+            ? "Sebagai {$title}, setujui atau tolak pengajuan aset ini."
+            : 'Setujui atau tolak pengajuan aset ini.';
+
+        return $this->buildNotificationPayload(
+            title: null,
+            intro: $intro,
+            extraFields: [
+                'Status' => 'Pengajuan Baru',
+                'Penyetuju' => $this->notificationPersonLabel($approver),
+            ],
+            ctaLabel: 'Setujui atau Tolak',
+            ctaUrl: $approvalUrl,
+            ctaVariant: 'approve',
+            whatsappCtaLabel: 'Setujui atau tolak:',
+        );
+    }
+
+    /**
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    public function formatApproverReminderNotificationMessage(User $approver, string $approvalUrl): array
+    {
+        $approver->loadMissing('jobTitle');
+        $title = $approver->jobTitle?->title;
+
+        $intro = $title
+            ? "Sebagai {$title}, pengajuan aset ini masih menunggu keputusan Anda."
+            : 'Pengajuan aset ini masih menunggu keputusan Anda.';
+
+        return $this->buildNotificationPayload(
+            title: 'Pengingat',
+            intro: $intro,
+            extraFields: [
+                'Status' => 'Menunggu Persetujuan',
+                'Penyetuju' => $this->notificationPersonLabel($approver),
+            ],
+            ctaLabel: 'Setujui atau Tolak',
+            ctaUrl: $approvalUrl,
+            ctaVariant: 'approve',
+            whatsappCtaLabel: 'Setujui atau tolak:',
+        );
+    }
+
+    /**
+     * @param  array<string, string|int|null>  $extraFields
+     * @return array{whatsapp: string, email: array<string, mixed>}
+     */
+    protected function buildNotificationPayload(
+        ?string $title,
+        string $intro,
+        array $extraFields,
+        string $ctaLabel,
+        string $ctaUrl,
+        string $ctaVariant,
+        string $whatsappCtaLabel,
+    ): array {
+        $this->loadMissing([
+            'user.jobTitle',
+            'division',
+            'asset',
+            'items.asset',
+            'approvals.user.jobTitle',
+        ]);
+
+        $fields = [];
+        foreach (array_merge([
+            'Referensi' => $this->reference_number ?: '-',
+            'Waktu' => $this->created_at?->format('n/j/Y H:i:s') ?? '-',
+            'Email' => $this->user?->email ?: '-',
+            'Nama' => $this->user?->name ?: '-',
+            'Jabatan' => $this->user?->jobTitle?->title ?: '-',
+            'Divisi' => $this->division?->name ?: '-',
+            'Jenis Pengajuan' => $this->type?->label() ?? '-',
+            'Nama Aset' => $this->itemSummaryLabel(),
+            'Jumlah' => $this->itemQuantityTotal(),
+            'Keterangan' => $this->description ?: '-',
+        ], $extraFields) as $label => $value) {
+            $fields[$label] = $this->notificationFieldValue($value);
+        }
+
+        $header = $title
+            ? "Pengajuan Aset: {$title}"
+            : 'Pengajuan Aset';
+
+        $whatsappLines = [$header, ''];
+        foreach ($fields as $label => $value) {
+            $whatsappLines[] = $label.': '.$value;
+        }
+        $whatsappLines[] = '';
+        $whatsappLines[] = $whatsappCtaLabel;
+        $whatsappLines[] = $ctaUrl;
+        $whatsappLines[] = '';
+        $whatsappLines[] = 'IT Support';
+
+        return [
+            'whatsapp' => implode("\n", $whatsappLines),
+            'email' => [
+                'form_title' => 'FORM PENGAJUAN ASET',
+                'intro' => $intro,
+                'fields' => $fields,
+                'approvals' => $this->notificationApprovalRows(),
+                'cta_label' => $ctaLabel,
+                'cta_url' => $ctaUrl,
+                'cta_variant' => $ctaVariant,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array{approver: string, title: string, status: string, comments: string, timestamp: string}>
+     */
+    protected function notificationApprovalRows(): array
+    {
+        $this->loadMissing(['approvals.user.jobTitle']);
+
+        return $this->approvals
+            ->sortBy('level')
+            ->values()
+            ->map(function (AssetRequestApproval $approval): array {
+                $status = $approval->status instanceof RequestStatus
+                    ? match ($approval->status) {
+                        RequestStatus::Approved => 'Disetujui',
+                        RequestStatus::Rejected => 'Ditolak',
+                        RequestStatus::Pending => 'Menunggu',
+                    }
+                    : ucfirst((string) $approval->status);
+
+                return [
+                    'approver' => $approval->user?->name ?? '-',
+                    'title' => $approval->user?->jobTitle?->title ?? '-',
+                    'status' => $status,
+                    'comments' => $approval->notes ?: '',
+                    'timestamp' => $approval->decided_at?->format('n/j/Y, g:i:s A')
+                        ?? $approval->updated_at?->format('n/j/Y, g:i:s A')
+                        ?? '-',
+                ];
+            })
+            ->all();
+    }
+
+    protected function notificationPersonLabel(?User $user, string $fallback = '-'): string
+    {
+        return $user?->nameWithJobTitle() ?? $fallback;
+    }
+
+    protected function notificationFieldValue(string|int|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+
+        return (string) $value;
     }
 }

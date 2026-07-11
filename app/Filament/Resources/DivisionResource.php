@@ -34,7 +34,7 @@ class DivisionResource extends Resource
 
                 Forms\Components\Repeater::make('approvers')
                     ->label('Alur Persetujuan (Approval Flow)')
-                    ->helperText('Tentukan urutan user yang harus menyetujui pengajuan dari divisi ini.')
+                    ->helperText('Tambahkan approver sesuai jabatan yang harus menyetujui. Seret untuk mengatur alur.')
                     ->relationship('approvers')
                     ->schema([
                         Forms\Components\Select::make('user_id')
@@ -46,11 +46,13 @@ class DivisionResource extends Resource
                                     ->all();
 
                                 return $query
+                                    ->with('jobTitle')
                                     ->when($selectedUsers, function ($q) use ($selectedUsers, $state) {
                                         $q->whereNotIn('id', array_diff($selectedUsers, [$state]));
                                     })
                                     ->orderBy('name');
                             })
+                            ->getOptionLabelFromRecordUsing(fn (User $record): string => $record->nameWithJobTitle())
                             ->required()
                             ->searchable()
                             ->preload()
@@ -62,9 +64,15 @@ class DivisionResource extends Resource
                     ->defaultItems(1)
                     ->reorderable('level')
                     ->orderColumn('level')
-                    ->itemLabel(fn (array $state): ?string => isset($state['user_id'])
-                        ? (User::find($state['user_id'])?->name ?? 'User')
-                        : 'New Approver'),
+                    ->itemLabel(function (array $state): ?string {
+                        if (! isset($state['user_id'])) {
+                            return 'Approver baru';
+                        }
+
+                        $user = User::with('jobTitle')->find($state['user_id']);
+
+                        return $user?->nameWithJobTitle() ?? 'Approver';
+                    }),
             ]);
     }
 
@@ -79,7 +87,11 @@ class DivisionResource extends Resource
                 Tables\Columns\TextColumn::make('approvers')
                     ->label('Alur Persetujuan')
                     ->getStateUsing(function (Division $record) {
-                        return $record->approvers->map(fn ($approver) => "Lvl {$approver->level}: ".($approver->user?->name ?? 'Unknown'))->implode(' ➔ ');
+                        $record->loadMissing('approvers.user.jobTitle');
+
+                        return $record->approvers
+                            ->map(fn ($approver) => $approver->user?->nameWithJobTitle() ?? 'Unknown')
+                            ->implode(' ➔ ');
                     }),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Tanggal Dibuat')

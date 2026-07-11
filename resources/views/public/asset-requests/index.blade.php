@@ -285,9 +285,16 @@
             </label>
 
             <div id="item-name-input-wrap">
-                <input type="text" name="item_name" id="item_name" class="gf-input" placeholder="Masukkan nama aset" autocomplete="off">
+                <div class="procurement-extra-row procurement-primary-row" id="procurement-primary-row">
+                    <input type="text" name="item_name" id="item_name" class="gf-input" placeholder="Masukkan nama aset" autocomplete="off">
+                    <input type="number" name="qty" id="qty" class="gf-input procurement-item-qty" value="1" min="1" placeholder="Jumlah" aria-label="Jumlah">
+                </div>
                 <div class="procurement-extra-list" id="procurement-extra-items"></div>
                 <button type="button" class="add-procurement-item" onclick="addProcurementItem()">+ Tambah item pengadaan</button>
+                <p class="error-msg" id="err-qty">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    Jumlah wajib diisi dan minimal 1.
+                </p>
             </div>
 
             <div id="item-name-asset-wrap" class="hidden">
@@ -324,18 +331,6 @@
             <p class="error-msg" id="err-asset_ids">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                 Minimal satu aset wajib dipilih.
-            </p>
-        </div>
-
-        <!-- Jumlah (Pengadaan only) -->
-        <div class="field-card" id="qty-card">
-            <label class="field-label" for="qty">
-                Jumlah <span class="req">*</span>
-            </label>
-            <input type="number" name="qty" id="qty" class="gf-input" value="1" min="1" placeholder="Masukkan jumlah">
-            <p class="error-msg" id="err-qty">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                Jumlah wajib diisi dan minimal 1.
             </p>
         </div>
 
@@ -384,33 +379,6 @@
     </div>
 
 </div><!-- /.form-wrapper -->
-
-<!-- Success Modal -->
-<div class="modal-overlay" id="success-modal">
-    <div class="modal-card">
-        <div class="modal-check">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-        </div>
-        <h2 class="modal-title">Pengajuan Terkirim</h2>
-        <p class="modal-body" id="modal-success-body">
-            Pengajuan aset Anda berhasil disimpan. Notifikasi email &amp; WhatsApp telah dikirimkan ke pemohon dan penanggung jawab persetujuan.
-        </p>
-        <div class="modal-ref-box">
-            <p class="modal-ref-label" id="modal-ref-label">Nomor Referensi</p>
-            <p class="modal-ref-value" id="modal-ref-num">—</p>
-        </div>
-        <div class="modal-ref-box">
-            <p class="modal-ref-label">Status Awal</p>
-            <p class="modal-step-value" id="modal-status">—</p>
-            <p class="modal-ref-label">Langkah Berikutnya</p>
-            <p class="modal-step-value" id="modal-next-step">—</p>
-        </div>
-        <a href="#" class="modal-progress-link hidden" id="modal-progress-link" target="_blank" rel="noopener noreferrer">Lihat progress pengajuan</a>
-        <button class="modal-close-btn" onclick="closeModal()">Isi pengajuan baru</button>
-    </div>
-</div>
 
 <script>
     const assetsByRecipient = @json($assetsByRecipient);
@@ -783,16 +751,13 @@
     }
 
     function handleTypeChange(type) {
-        const qtyCard = document.getElementById('qty-card');
         const itemNameInputWrap = document.getElementById('item-name-input-wrap');
         const itemNameAssetWrap = document.getElementById('item-name-asset-wrap');
 
         if (type === 'pengadaan') {
-            qtyCard.classList.remove('hidden');
             itemNameInputWrap.classList.remove('hidden');
             itemNameAssetWrap.classList.add('hidden');
         } else {
-            qtyCard.classList.add('hidden');
             itemNameInputWrap.classList.add('hidden');
             itemNameAssetWrap.classList.remove('hidden');
             clearProcurementItems();
@@ -1378,6 +1343,8 @@
         appendProcurementItems(formData);
         selectedFiles.forEach(f => formData.append('attachments[]', f));
 
+        let redirectingAfterSuccess = false;
+
         fetch('{{ route("public.asset-requests.store") }}', {
             method: 'POST',
             headers: {
@@ -1414,32 +1381,13 @@
             }
 
             if (data.success) {
-                const referenceNumbers = Array.isArray(data.reference_numbers) && data.reference_numbers.length
-                    ? data.reference_numbers
-                    : [data.reference_number].filter(Boolean);
-                const createdCount = Number(data.created_count || referenceNumbers.length || 1);
-                const itemCount = Number(data.item_count || 1);
-
-                document.getElementById('modal-success-body').textContent = itemCount > 1
-                    ? `1 pengajuan dengan ${itemCount} item berhasil disimpan. Notifikasi email & WhatsApp telah dikirimkan ke pemohon dan penanggung jawab persetujuan.`
-                    : createdCount > 1
-                        ? `${createdCount} pengajuan aset berhasil disimpan. Notifikasi email & WhatsApp telah dikirimkan ke pemohon dan penanggung jawab persetujuan.`
-                    : 'Pengajuan aset Anda berhasil disimpan. Notifikasi email & WhatsApp telah dikirimkan ke pemohon dan penanggung jawab persetujuan.';
-                document.getElementById('modal-ref-label').textContent = createdCount > 1
-                    ? 'Nomor Referensi'
-                    : 'Nomor Referensi';
-                document.getElementById('modal-ref-num').textContent = referenceNumbers.join(', ');
-                document.getElementById('modal-status').textContent = data.lifecycle_stage || data.status || 'Menunggu';
-                document.getElementById('modal-next-step').textContent = data.next_step || 'Pengajuan akan diproses oleh tim terkait.';
-                const progressLink = document.getElementById('modal-progress-link');
                 if (data.progress_url) {
-                    progressLink.href = data.progress_url;
-                    progressLink.classList.remove('hidden');
-                } else {
-                    progressLink.href = '#';
-                    progressLink.classList.add('hidden');
+                    redirectingAfterSuccess = true;
+                    window.location.assign(data.progress_url);
+                    return;
                 }
-                document.getElementById('success-modal').classList.add('open');
+
+                showFormAlert(data.message || 'Pengajuan berhasil disimpan.');
                 return;
             }
 
@@ -1447,6 +1395,10 @@
         })
         .catch(() => showFormAlert('Gagal menghubungi server. Silakan coba lagi.'))
         .finally(() => {
+            if (redirectingAfterSuccess) {
+                return;
+            }
+
             btn.disabled = !hasDivisions;
             btn.classList.remove('loading');
         });
@@ -1458,12 +1410,6 @@
 
     selectDefaultApplicantIfAvailable();
     updateFieldDescriptions();
-
-    // -------- Close Modal --------
-    function closeModal() {
-        document.getElementById('success-modal').classList.remove('open');
-        clearForm();
-    }
 
     (function initFileDropzone() {
         const dropzone = document.getElementById('file-dropzone');

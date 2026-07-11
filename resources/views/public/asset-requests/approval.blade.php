@@ -52,7 +52,7 @@
                 <div class="field-card">
                     <span class="field-label">Keputusan</span>
                     <div class="form-alert warning">
-                        Link approval ini sudah tidak aktif atau bukan level approval yang sedang pending.
+                        Link approval ini sudah tidak aktif atau bukan giliran Anda untuk memutuskan.
                     </div>
                 </div>
             @else

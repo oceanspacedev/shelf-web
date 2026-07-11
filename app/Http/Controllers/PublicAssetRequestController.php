@@ -111,7 +111,7 @@ class PublicAssetRequestController extends Controller
                 'user.businessEntity',
                 'division',
                 'assetLocation',
-                'approvals.user',
+                'approvals.user.jobTitle',
                 'approvals.decidedBy',
                 'createdAssets',
                 'fulfilledBy',
@@ -593,7 +593,7 @@ class PublicAssetRequestController extends Controller
                 'assetRequest.user.businessEntity',
                 'assetRequest.division',
                 'assetRequest.assetLocation',
-                'assetRequest.approvals.user',
+                'assetRequest.approvals.user.jobTitle',
                 'assetRequest.approvals.decidedBy',
             ])
             ->firstOrFail();

@@ -350,9 +350,9 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->relationship('user', 'name')
                                     ->label('Approver')
                                     ->disabled(),
-                                Forms\Components\TextInput::make('level')
-                                    ->label('Level')
-                                    ->disabled(),
+                                Forms\Components\Placeholder::make('job_title')
+                                    ->label('Jabatan')
+                                    ->content(fn (?AssetRequestApproval $record): string => $record?->user?->jobTitle?->title ?? '—'),
                                 Forms\Components\TextInput::make('status')
                                     ->label('Status')
                                     ->disabled()
@@ -534,6 +534,9 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                                 TextEntry::make('user.name')
                                                     ->label('Approver')
                                                     ->icon('heroicon-o-user')
+                                                    ->formatStateUsing(function ($state, ?AssetRequestApproval $record): string {
+                                                        return $record?->user?->nameWithJobTitle() ?? ($state ?: '—');
+                                                    })
                                                     ->placeholder('—')
                                                     ->columnSpanFull(),
                                                 TextEntry::make('public_token')
@@ -1004,7 +1007,7 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                 'items.asset',
                 'user',
                 'division',
-                'approvals' => fn ($query) => $query->orderBy('level'),
+                'approvals' => fn ($query) => $query->orderBy('level')->with('user.jobTitle'),
             ]);
     }
 }

@@ -183,6 +183,39 @@ class PublicAssetRequestTest extends TestCase
         $response->assertSee('Tambah item pengadaan');
     }
 
+    public function test_public_pengadaan_form_keeps_qty_inline_with_each_item(): void
+    {
+        $response = $this->get(route('public.asset-requests.index'));
+        $html = $response->getContent();
+
+        $response->assertOk();
+        $response->assertDontSee('id="qty-card"', false);
+        $response->assertSee('id="procurement-primary-row"', false);
+        $response->assertSee('id="item_name"', false);
+        $response->assertSee('id="qty"', false);
+        $response->assertSee('class="gf-input procurement-item-qty"', false);
+
+        $primaryRowPos = strpos($html, 'id="procurement-primary-row"');
+        $itemNamePos = strpos($html, 'id="item_name"');
+        $qtyPos = strpos($html, 'id="qty"');
+        $extraListPos = strpos($html, 'id="procurement-extra-items"');
+
+        $this->assertNotFalse($primaryRowPos);
+        $this->assertNotFalse($itemNamePos);
+        $this->assertNotFalse($qtyPos);
+        $this->assertNotFalse($extraListPos);
+        $this->assertTrue($primaryRowPos < $itemNamePos && $itemNamePos < $qtyPos && $qtyPos < $extraListPos);
+    }
+
+    public function test_public_form_redirects_to_progress_url_on_success(): void
+    {
+        $response = $this->get(route('public.asset-requests.index'));
+
+        $response->assertOk();
+        $response->assertSee('window.location.assign(data.progress_url)', false);
+        $response->assertDontSee("document.getElementById('success-modal').classList.add('open')", false);
+    }
+
     public function test_public_asset_request_page_loads_tailwind_via_vite(): void
     {
         $response = $this->get(route('public.asset-requests.index'));
@@ -375,9 +408,89 @@ class PublicAssetRequestTest extends TestCase
         $response->assertSee($request->reference_number);
         $response->assertSee('Macbook Air M2');
         $response->assertSee($request->lifecycleStageLabel());
+        $response->assertSee($request->created_at->translatedFormat('d M Y'));
+        $response->assertDontSee($request->created_at->translatedFormat('d M Y H:i'));
         $response->assertSee($request->nextStepLabel());
 
         $this->get(route('public.asset-requests.show', 'token-tidak-valid'))->assertNotFound();
+    }
+
+    public function test_pending_next_step_uses_approver_name_and_job_title_without_level_wording(): void
+    {
+        $businessEntity = $this->createBusinessEntity();
+        $jobTitleId = DB::table('job_titles')->insertGetId([
+            'title' => 'Manager Operasional',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $requester = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'business_entity_id' => $businessEntity->id,
+        ]);
+        $manager = User::create([
+            'name' => 'Siti Approver',
+            'email' => 'siti@example.com',
+            'business_entity_id' => $businessEntity->id,
+            'job_title_id' => $jobTitleId,
+        ]);
+        $division = Division::create(['name' => 'IT Department']);
+        DivisionApprover::create([
+            'division_id' => $division->id,
+            'user_id' => $manager->id,
+            'level' => 1,
+        ]);
+
+        $request = AssetRequest::create([
+            'type' => 'pengadaan',
+            'user_id' => $requester->id,
+            'division_id' => $division->id,
+            'item_name' => 'Laptop',
+            'qty' => 1,
+        ])->fresh();
+
+        $this->assertSame(
+            'Menunggu persetujuan dari Siti Approver (Manager Operasional)',
+            $request->nextStepLabel()
+        );
+        $this->assertStringNotContainsString('level', strtolower($request->nextStepLabel()));
+        $this->assertStringNotContainsString('urutan', strtolower($request->nextStepLabel()));
+
+        $response = $this->get(route('public.asset-requests.show', $request->public_token));
+        $response->assertOk();
+        $response->assertSee('Siti Approver (Manager Operasional)');
+        $response->assertDontSee('Ke-1');
+        $response->assertDontSee('Level 1');
+    }
+
+    public function test_division_approval_flow_label_uses_name_and_job_title(): void
+    {
+        $jobTitleId = DB::table('job_titles')->insertGetId([
+            'title' => 'Kepala Divisi',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $approver = User::create([
+            'name' => 'Andi Manager',
+            'email' => 'andi@example.com',
+            'job_title_id' => $jobTitleId,
+        ]);
+        $division = Division::create(['name' => 'Finance']);
+        DivisionApprover::create([
+            'division_id' => $division->id,
+            'user_id' => $approver->id,
+            'level' => 1,
+        ]);
+
+        $division->load('approvers.user.jobTitle');
+        $label = $division->approvers
+            ->map(fn ($item) => $item->user?->nameWithJobTitle() ?? 'Unknown')
+            ->implode(' ➔ ');
+
+        $this->assertSame('Andi Manager (Kepala Divisi)', $label);
+        $this->assertStringNotContainsString('Ke-', $label);
+        $this->assertStringNotContainsString('Lvl', $label);
+        $this->assertStringNotContainsString('Level', $label);
     }
 
     public function test_public_approval_page_can_approve_current_pending_level_by_unique_token(): void

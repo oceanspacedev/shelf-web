@@ -87,6 +87,15 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsTo(JobTitle::class);
     }
 
+    public function nameWithJobTitle(): string
+    {
+        $this->loadMissing('jobTitle');
+
+        $title = $this->jobTitle?->title;
+
+        return filled($title) ? "{$this->name} ({$title})" : $this->name;
+    }
+
     public function assetTransfers()
     {
         return $this->hasMany(AssetTransfer::class);

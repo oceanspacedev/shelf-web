@@ -438,6 +438,10 @@ select.gf-input {
     align-items: center;
 }
 
+.procurement-primary-row {
+    grid-template-columns: minmax(0, 1fr) 92px;
+}
+
 .procurement-extra-row .remove-extra-item {
     width: 32px;
     height: 32px;

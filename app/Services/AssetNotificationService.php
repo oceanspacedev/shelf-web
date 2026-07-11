@@ -13,10 +13,14 @@ class AssetNotificationService
     /**
      * Send email and WhatsApp notifications to a user.
      *
+     * @param  string|array{whatsapp: string, email?: array<string, mixed>}  $message
      * @return array{whatsapp: bool|null, email: bool|null}
      */
-    public static function send(User $user, string $subject, string $message): array
+    public static function send(User $user, string $subject, string|array $message): array
     {
+        $whatsappMessage = is_array($message) ? (string) ($message['whatsapp'] ?? '') : $message;
+        $emailPayload = is_array($message) ? ($message['email'] ?? []) : [];
+
         $result = [
             'whatsapp' => null,
             'email' => null,
@@ -24,7 +28,7 @@ class AssetNotificationService
 
         // 1. Send WhatsApp if number exists
         if ($user->whatsapp_number) {
-            $result['whatsapp'] = WhatsappService::send($user->whatsapp_number, $message);
+            $result['whatsapp'] = WhatsappService::send($user->whatsapp_number, $whatsappMessage);
 
             if ($result['whatsapp'] === false) {
                 Log::error('Notifikasi WhatsApp pengajuan aset gagal terkirim.', [
@@ -41,7 +45,7 @@ class AssetNotificationService
         // 2. Send Email if email exists
         if ($user->email && self::isSafeEmail($user->email)) {
             try {
-                Mail::to($user->email)->send(new AssetNotificationMail($subject, $message));
+                Mail::to($user->email)->send(new AssetNotificationMail($subject, $whatsappMessage, $emailPayload));
                 $result['email'] = true;
             } catch (Throwable $e) {
                 $result['email'] = false;

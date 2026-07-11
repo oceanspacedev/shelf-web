@@ -104,104 +104,109 @@ class EditAssetRequest extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('approve')
-                ->label('Setujui')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn () => auth()->user()?->can('approve', $this->getRecord()) ?? false)
-                ->action(function (array $data) {
-                    $record = $this->getRecord();
-                    $record->approveCurrentLevel($data['notes'] ?? null);
-                    $this->refreshFormData(['status', 'current_level']);
+            Actions\ActionGroup::make([
+                Actions\Action::make('approve')
+                    ->label('Setujui')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->visible(fn () => $this->getRecord()->status === RequestStatus::Pending
+                        && (auth()->user()?->can('approve', $this->getRecord()) ?? false))
+                    ->action(function (array $data) {
+                        $record = $this->getRecord();
+                        $record->approveCurrentLevel($data['notes'] ?? null);
+                        $this->refreshFormData(['status', 'current_level']);
 
-                    Notification::make()
-                        ->title('Pengajuan disetujui')
-                        ->success()
-                        ->send();
-                })
-                ->form([
-                    Forms\Components\Textarea::make('notes')
-                        ->label('Catatan (Opsional)')
-                        ->maxLength(65535),
-                ]),
+                        Notification::make()
+                            ->title('Pengajuan disetujui')
+                            ->success()
+                            ->send();
+                    })
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Catatan (Opsional)')
+                            ->maxLength(65535),
+                    ]),
 
-            Actions\Action::make('reject')
-                ->label('Tolak')
-                ->icon('heroicon-o-x-circle')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->visible(fn () => auth()->user()?->can('approve', $this->getRecord()) ?? false)
-                ->action(function (array $data) {
-                    $record = $this->getRecord();
-                    $record->rejectCurrentLevel($data['notes']);
-                    $this->refreshFormData(['status']);
+                Actions\Action::make('reject')
+                    ->label('Tolak')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn () => $this->getRecord()->status === RequestStatus::Pending
+                        && (auth()->user()?->can('approve', $this->getRecord()) ?? false))
+                    ->action(function (array $data) {
+                        $record = $this->getRecord();
+                        $record->rejectCurrentLevel($data['notes']);
+                        $this->refreshFormData(['status']);
 
-                    Notification::make()
-                        ->title('Pengajuan ditolak')
-                        ->success()
-                        ->send();
-                })
-                ->form([
-                    Forms\Components\Textarea::make('notes')
-                        ->label('Alasan Penolakan (Wajib)')
-                        ->required()
-                        ->maxLength(65535),
-                ]),
+                        Notification::make()
+                            ->title('Pengajuan ditolak')
+                            ->success()
+                            ->send();
+                    })
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Alasan Penolakan (Wajib)')
+                            ->required()
+                            ->maxLength(65535),
+                    ]),
+
+                Actions\Action::make('fulfillPengadaan')
+                    ->label('Lanjutkan: Buat Aset')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('success')
+                    ->visible(fn () => $this->canFulfill(AssetRequestType::Pengadaan))
+                    ->url(fn (): string => AssetResource::getUrl('create', array_filter([
+                        'asset_request_id' => $this->getRecord()->id,
+                        'asset_request_item_id' => $this->getRecord()->nextUnfulfilledPengadaanItem()?->id,
+                    ]))),
+
+                Actions\Action::make('fulfillPerbaikan')
+                    ->label('Lanjutkan: Tandai Perbaikan')
+                    ->icon('heroicon-o-wrench-screwdriver')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalDescription('Aset terkait akan ditandai Rusak (Damaged) dan status NBH menjadi Pending untuk ditindaklanjuti. Lanjutkan?')
+                    ->visible(fn () => $this->canFulfill(AssetRequestType::Perbaikan))
+                    ->action(function () {
+                        $record = $this->getRecord();
+                        $asset = $record->fulfillPerbaikan(auth()->user());
+
+                        Notification::make()
+                            ->title('Aset ditandai untuk perbaikan')
+                            ->body("Aset \"{$asset->name}\" sekarang Rusak, NBH Pending.")
+                            ->warning()
+                            ->send();
+
+                        $this->refreshFormData(['status', 'fulfilled_at', 'fulfilled_by_user_id']);
+                    }),
+
+                Actions\Action::make('fulfillPenarikan')
+                    ->label('Lanjutkan: Buat BA')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('success')
+                    ->visible(fn () => $this->canFulfill(AssetRequestType::Penarikan))
+                    ->url(fn (): string => AssetTransferResource::getUrl('create', [
+                        'asset_request_id' => $this->getRecord()->id,
+                    ])),
+
+                Actions\Action::make('downloadPengadaan')
+                    ->label('Download BA Pengadaan')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('info')
+                    ->visible(fn () => $this->getRecord()->type === AssetRequestType::Pengadaan
+                        && $this->getRecord()->is_fulfilled)
+                    ->url(fn () => route('pengadaan.download', $this->getRecord())),
+            ])
+                ->label('Lainnya')
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray')
+                ->button(),
 
             Actions\DeleteAction::make(),
             Actions\ForceDeleteAction::make(),
             Actions\RestoreAction::make(),
-
-            // ---- Tindak lanjut operator (bridge): approval = persetujuan untuk
-            // tindak lanjut; operator menjalankan tindak lanjut secara manual. ----
-
-            Actions\Action::make('fulfillPengadaan')
-                ->label('Lanjutkan: Buat Aset')
-                ->icon('heroicon-o-plus-circle')
-                ->color('success')
-                ->visible(fn () => $this->canFulfill(AssetRequestType::Pengadaan))
-                ->url(fn (): string => AssetResource::getUrl('create', array_filter([
-                    'asset_request_id' => $this->getRecord()->id,
-                    'asset_request_item_id' => $this->getRecord()->nextUnfulfilledPengadaanItem()?->id,
-                ]))),
-
-            Actions\Action::make('fulfillPerbaikan')
-                ->label('Lanjutkan: Tandai Perbaikan')
-                ->icon('heroicon-o-wrench-screwdriver')
-                ->color('warning')
-                ->requiresConfirmation()
-                ->modalDescription('Aset terkait akan ditandai Rusak (Damaged) dan status NBH menjadi Pending untuk ditindaklanjuti. Lanjutkan?')
-                ->visible(fn () => $this->canFulfill(AssetRequestType::Perbaikan))
-                ->action(function () {
-                    $record = $this->getRecord();
-                    $asset = $record->fulfillPerbaikan(auth()->user());
-
-                    Notification::make()
-                        ->title('Aset ditandai untuk perbaikan')
-                        ->body("Aset \"{$asset->name}\" sekarang Rusak, NBH Pending.")
-                        ->warning()
-                        ->send();
-
-                    $this->refreshFormData(['status', 'fulfilled_at', 'fulfilled_by_user_id']);
-                }),
-
-            Actions\Action::make('fulfillPenarikan')
-                ->label('Lanjutkan: Buat BA')
-                ->icon('heroicon-o-arrow-uturn-left')
-                ->color('success')
-                ->visible(fn () => $this->canFulfill(AssetRequestType::Penarikan))
-                ->url(fn (): string => AssetTransferResource::getUrl('create', [
-                    'asset_request_id' => $this->getRecord()->id,
-                ])),
-
-            Actions\Action::make('downloadPengadaan')
-                ->label('Download BA Pengadaan')
-                ->icon('heroicon-o-document-arrow-down')
-                ->color('info')
-                ->visible(fn () => $this->getRecord()->type === AssetRequestType::Pengadaan
-                    && $this->getRecord()->is_fulfilled)
-                ->url(fn () => route('pengadaan.download', $this->getRecord())),
         ];
     }
 

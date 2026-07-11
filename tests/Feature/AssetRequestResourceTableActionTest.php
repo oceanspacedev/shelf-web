@@ -108,6 +108,7 @@ class AssetRequestResourceTableActionTest extends TestCase
     {
         $table = AssetRequestResource::table(Table::make(Mockery::mock(HasTable::class)));
 
+        $this->assertTrue($table->hasAction('openPublicProgress'));
         $this->assertTrue($table->hasAction('resendApprovalNotification'));
         $this->assertTrue($table->hasAction('resendRequesterNotification'));
     }
