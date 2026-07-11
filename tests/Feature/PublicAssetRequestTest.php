@@ -31,6 +31,29 @@ class PublicAssetRequestTest extends TestCase
 
         $this->createSchema();
         Storage::fake('public');
+
+        $this->defaultLocationId = DB::table('asset_locations')->insertGetId([
+            'name' => 'Default Location',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    protected function submitRequest(array $data, ?User $user = null)
+    {
+        if (!array_key_exists('asset_location_id', $data)) {
+            $data['asset_location_id'] = $this->defaultLocationId;
+        }
+
+        if (!array_key_exists('attachments', $data) && !isset($data['no_attachments'])) {
+            $data['attachments'] = [
+                UploadedFile::fake()->create('document.pdf', 100)
+            ];
+        }
+        unset($data['no_attachments']);
+
+        $url = route('public.asset-requests.store');
+        return $user ? $this->actingAs($user)->postJson($url, $data) : $this->postJson($url, $data);
     }
 
     protected function createSchema(): void
@@ -81,6 +104,14 @@ class PublicAssetRequestTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('asset_locations', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('address')->nullable();
+            $table->string('description')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('asset_requests', function (Blueprint $table) {
             $table->id();
             $table->string('reference_number')->unique()->nullable();
@@ -88,6 +119,7 @@ class PublicAssetRequestTest extends TestCase
             $table->string('type')->default('pengadaan');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('division_id')->nullable();
+            $table->unsignedBigInteger('asset_location_id')->nullable();
             $table->unsignedBigInteger('asset_id')->nullable();
             $table->string('item_name')->nullable();
             $table->integer('qty')->nullable();
@@ -239,6 +271,8 @@ class PublicAssetRequestTest extends TestCase
             'email',
             'business_entity_id',
             'division_id',
+            'asset_location_id',
+            'attachments',
         ]);
     }
 
@@ -256,7 +290,7 @@ class PublicAssetRequestTest extends TestCase
         $attachment1 = UploadedFile::fake()->create('document.pdf', 500);
         $attachment2 = UploadedFile::fake()->image('photo.jpg');
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -267,7 +301,7 @@ class PublicAssetRequestTest extends TestCase
             'qty' => 2,
             'description' => 'For new developers',
             'attachments' => [$attachment1, $attachment2],
-        ]);
+        ], $user);
 
         $response->assertStatus(200);
         $response->assertJson([
@@ -279,6 +313,7 @@ class PublicAssetRequestTest extends TestCase
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'division_id' => $division->id,
+            'asset_location_id' => $this->defaultLocationId,
             'item_name' => 'Macbook Air M2',
             'qty' => 2,
             'description' => 'For new developers',
@@ -467,7 +502,7 @@ class PublicAssetRequestTest extends TestCase
         ]);
         $division = Division::create(['name' => 'IT Department']);
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'business_entity_id' => $businessEntity->id,
@@ -477,7 +512,7 @@ class PublicAssetRequestTest extends TestCase
                 ['item_name' => 'Monitor 27 inch', 'qty' => 3],
             ],
             'description' => 'New team equipment',
-        ]);
+        ], $user);
 
         $response->assertStatus(200);
         $response->assertJson([
@@ -513,14 +548,14 @@ class PublicAssetRequestTest extends TestCase
         ]);
         $division = Division::create(['name' => 'IT Department']);
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'business_entity_id' => $businessEntity->id,
             'division_id' => $division->id,
             'item_name' => 'Macbook Air M2',
             'qty' => 1,
-        ]);
+        ], $user);
 
         $response->assertStatus(200);
         $response->assertJson(['success' => true]);
@@ -546,20 +581,20 @@ class PublicAssetRequestTest extends TestCase
         ]);
         $division = Division::create(['name' => 'IT Department']);
 
-        $missingWhatsapp = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $missingWhatsapp = $this->submitRequest([
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'business_entity_id' => $businessEntity->id,
             'division_id' => $division->id,
             'item_name' => 'Keyboard',
             'qty' => 1,
-        ]);
+        ], $user);
 
         $missingWhatsapp->assertStatus(422);
         $missingWhatsapp->assertJsonValidationErrors(['whatsapp_number']);
         $missingWhatsapp->assertJsonMissingValidationErrors(['email']);
 
-        $completed = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $completed = $this->submitRequest([
             'type' => 'pengadaan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -567,7 +602,7 @@ class PublicAssetRequestTest extends TestCase
             'division_id' => $division->id,
             'item_name' => 'Keyboard',
             'qty' => 1,
-        ]);
+        ], $user);
 
         $completed->assertStatus(200);
         $completed->assertJson(['success' => true]);
@@ -593,7 +628,7 @@ class PublicAssetRequestTest extends TestCase
 
         $attachment = UploadedFile::fake()->image('receipt.png');
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -603,7 +638,7 @@ class PublicAssetRequestTest extends TestCase
             'asset_id' => $asset->id,
             'description' => 'Unused asset',
             'attachments' => [$attachment],
-        ]);
+        ], $user);
 
         $response->assertStatus(200);
 
@@ -638,7 +673,7 @@ class PublicAssetRequestTest extends TestCase
             'recipient_id' => $user->id,
         ]);
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -647,7 +682,7 @@ class PublicAssetRequestTest extends TestCase
             'division_id' => $division->id,
             'asset_ids' => [$laptop->id, $phone->id],
             'description' => 'User resign, tarik semua aset',
-        ]);
+        ], $user);
 
         $response->assertStatus(200);
         $response->assertJson([
@@ -697,7 +732,7 @@ class PublicAssetRequestTest extends TestCase
             'recipient_id' => $user->id,
         ]);
 
-        $response = $this->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'business_entity_id' => $businessEntity->id,
@@ -744,7 +779,7 @@ class PublicAssetRequestTest extends TestCase
             'recipient_id' => $otherUser->id,
         ]);
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -752,7 +787,7 @@ class PublicAssetRequestTest extends TestCase
             'business_entity_id' => $businessEntity->id,
             'division_id' => $division->id,
             'asset_ids' => [$ownedAsset->id, $unownedAsset->id],
-        ]);
+        ], $user);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['asset_ids']);
@@ -786,7 +821,7 @@ class PublicAssetRequestTest extends TestCase
             'recipient_id' => $otherUser->id,
         ]);
 
-        $response = $this->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'whatsapp_number' => '081999999999',
@@ -812,7 +847,7 @@ class PublicAssetRequestTest extends TestCase
         $division = Division::create(['name' => 'HR Department']);
         $attachment = UploadedFile::fake()->create('document.pdf', 500);
 
-        $response = $this->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'pengadaan',
             'applicant_name' => 'Karyawan Baru',
             'whatsapp_number' => '08123456789',
@@ -862,7 +897,7 @@ class PublicAssetRequestTest extends TestCase
         ]);
         $attachment = UploadedFile::fake()->image('receipt.png');
 
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'penarikan',
             'user_id' => $user->id,
             'whatsapp_number' => '081234567890',
@@ -871,18 +906,18 @@ class PublicAssetRequestTest extends TestCase
             'division_id' => $division->id,
             'asset_id' => $asset->id,
             'attachments' => [$attachment],
-        ]);
+        ], $user);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['asset_id']);
     }
 
-    public function test_public_asset_request_creates_pengadaan_without_attachments(): void
+    public function test_public_asset_request_fails_without_attachments(): void
     {
         $businessEntity = $this->createBusinessEntity();
         $division = Division::create(['name' => 'Finance Department']);
 
-        $response = $this->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'pengadaan',
             'applicant_name' => 'Tanpa Lampiran',
             'whatsapp_number' => '08111111111',
@@ -892,12 +927,11 @@ class PublicAssetRequestTest extends TestCase
             'division_id' => $division->id,
             'item_name' => 'Mouse Wireless',
             'qty' => 1,
+            'no_attachments' => true,
         ]);
 
-        $response->assertStatus(200);
-
-        $request = AssetRequest::first();
-        $this->assertSame([], $request->attachment);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['attachments']);
     }
 
     public function test_public_asset_request_cannot_request_locked_asset(): void
@@ -927,7 +961,7 @@ class PublicAssetRequestTest extends TestCase
         ]);
 
         // Try requesting it again via public route
-        $response = $this->actingAs($user)->postJson(route('public.asset-requests.store'), [
+        $response = $this->submitRequest([
             'type' => 'perbaikan',
             'user_id' => $user->id,
             'whatsapp_number' => '08123456789',
@@ -935,7 +969,7 @@ class PublicAssetRequestTest extends TestCase
             'business_entity_id' => $businessEntity->id,
             'division_id' => $division->id,
             'asset_id' => $asset->id,
-        ]);
+        ], $user);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['asset_id']);
@@ -952,6 +986,17 @@ class PublicAssetRequestTest extends TestCase
     {
         $id = DB::table('business_entities')->insertGetId([
             'name' => 'PT Complete Solusi Nusantara',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return (object) ['id' => $id];
+    }
+
+    private function createAssetLocation(): object
+    {
+        $id = DB::table('asset_locations')->insertGetId([
+            'name' => 'Main Office',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

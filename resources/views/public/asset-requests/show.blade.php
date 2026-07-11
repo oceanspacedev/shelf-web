@@ -64,6 +64,11 @@
             </div>
 
             <div class="field-card">
+                <span class="field-label">Lokasi</span>
+                <div class="gf-readonly">{{ $assetRequest->assetLocation?->name ?? '-' }}</div>
+            </div>
+
+            <div class="field-card">
                 <span class="field-label">Jenis Pengajuan</span>
                 <div class="gf-readonly">{{ $assetRequest->type?->label() ?? '-' }}</div>
             </div>

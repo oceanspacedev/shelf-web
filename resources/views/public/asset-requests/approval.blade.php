@@ -38,6 +38,11 @@
             </div>
 
             <div class="field-card">
+                <span class="field-label">Lokasi</span>
+                <div class="gf-readonly">{{ $assetRequest->assetLocation?->name ?? '-' }}</div>
+            </div>
+
+            <div class="field-card">
                 <span class="field-label">Approver Saat Ini</span>
                 <div class="gf-readonly">{{ $approval->user?->name ?? '-' }}</div>
             </div>

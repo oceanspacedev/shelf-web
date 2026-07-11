@@ -1055,6 +1055,61 @@
             </p>
         </div>
 
+        <!-- Lokasi -->
+        <div class="field-card">
+            <label class="field-label" for="asset_location_id">
+                Lokasi <span class="req">*</span>
+            </label>
+            <p class="field-desc">Pilih lokasi aset. Jika belum terdaftar, pilih <strong>Lainnya</strong> lalu lengkapi secara manual.</p>
+            <input type="hidden" name="asset_location_id" id="asset_location_id">
+            <div class="custom-select-container">
+                <button type="button"
+                    class="custom-select-trigger"
+                    id="asset_location-trigger"
+                    onclick="toggleDropdown('asset_location')"
+                    aria-haspopup="listbox">
+                    <span id="asset_location-display" class="select-value placeholder">Pilih lokasi...</span>
+                </button>
+                <div class="custom-dropdown" id="asset_location-dropdown" role="listbox">
+                    <div class="search-box">
+                        <input type="text" placeholder="Cari lokasi..." id="asset_location-search-input" oninput="filterDropdown('asset_location', this.value)" autocomplete="off">
+                    </div>
+                    <div class="option-list" id="asset_location-option-list">
+                        @forelse($locations as $loc)
+                            <div class="option-item"
+                                data-value="{{ $loc->id }}"
+                                data-label="{{ $loc->name }}"
+                                onclick='selectAssetLocation(@json((string) $loc->id), @json($loc->name))'>
+                                {{ $loc->name }}
+                            </div>
+                        @empty
+                            <div class="dropdown-empty-state">Belum ada lokasi terdaftar. Pilih <strong>Lainnya</strong> lalu isi manual.</div>
+                        @endforelse
+                        <div class="option-item option-special"
+                            data-value="other"
+                            data-label="Lainnya"
+                            onclick="selectAssetLocationOther()">
+                            Lainnya
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="inline-field-wrap hidden" id="asset_location-manual-wrap">
+                <label class="field-label" for="custom_asset_location">Lokasi (Manual) <span class="req">*</span></label>
+                <input type="text" name="custom_asset_location" id="custom_asset_location" class="gf-input" placeholder="Masukkan lokasi secara manual" autocomplete="off">
+            </div>
+
+            <p class="error-msg" id="err-asset_location_id">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                Lokasi wajib dipilih.
+            </p>
+            <p class="error-msg" id="err-custom_asset_location">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                Lokasi manual wajib diisi.
+            </p>
+        </div>
+
         <!-- Nama Aset yang Diajukan -->
         <div class="field-card" id="item-name-card">
             <label class="field-label">
@@ -1125,9 +1180,9 @@
         <!-- Lampiran -->
         <div class="field-card">
             <label class="field-label">
-                Lampiran / Dokumen Pendukung
+                Lampiran / Dokumen Pendukung <span class="req">*</span>
             </label>
-            <p class="field-desc">Opsional. Unggah maksimum 10MB per file. Format: gambar, PDF, Word, Excel.</p>
+            <p class="field-desc">Wajib diunggah minimal 1. Unggah maksimum 10MB per file. Format: gambar, PDF, Word, Excel.</p>
 
             <input type="file" id="attachments-input" multiple class="hidden" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" onchange="handleFileSelect(event)">
 
@@ -1139,7 +1194,7 @@
 
             <p class="error-msg" id="err-attachments">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                Format atau ukuran file lampiran tidak valid.
+                Format atau ukuran file lampiran tidak valid atau lampiran belum diunggah.
             </p>
         </div>
 
@@ -1196,6 +1251,7 @@
     const hasJobTitles = @json($jobTitles->isNotEmpty());
     const hasBusinessEntities = @json($businessEntities->isNotEmpty());
     const hasDivisions = @json($divisions->isNotEmpty());
+    const hasLocations = @json($locations->isNotEmpty());
 
     let selectedFiles = [];
     let applicantMode = 'none';
@@ -1464,6 +1520,32 @@
         document.getElementById('division_id').value = '';
         setSelectDisplay('division-display', 'Pilih divisi...', true);
         document.getElementById('division-trigger').classList.remove('has-error');
+    }
+
+    function selectAssetLocation(locationId, locationName) {
+        document.getElementById('custom_asset_location').value = '';
+        document.getElementById('asset_location-manual-wrap').classList.add('hidden');
+        document.getElementById('asset_location_id').value = String(locationId);
+        setSelectDisplay('asset_location-display', locationName);
+        document.getElementById('asset_location-trigger').classList.remove('has-error');
+        closeAllDropdowns();
+    }
+
+    function selectAssetLocationOther() {
+        document.getElementById('asset_location_id').value = 'other';
+        setSelectDisplay('asset_location-display', 'Lainnya');
+        document.getElementById('asset_location-trigger').classList.remove('has-error');
+        document.getElementById('asset_location-manual-wrap').classList.remove('hidden');
+        document.getElementById('custom_asset_location').focus();
+        closeAllDropdowns();
+    }
+
+    function resetAssetLocationSelection() {
+        document.getElementById('asset_location_id').value = '';
+        document.getElementById('custom_asset_location').value = '';
+        document.getElementById('asset_location-manual-wrap').classList.add('hidden');
+        setSelectDisplay('asset_location-display', 'Pilih lokasi...', true);
+        document.getElementById('asset_location-trigger').classList.remove('has-error');
     }
 
     function applyPosisiFromUser(user) {
@@ -1882,6 +1964,7 @@
         handleTypeChange('pengadaan');
         clearProcurementItems();
         resetDivisionSelection();
+        resetAssetLocationSelection();
         closeAllDropdowns();
         clearFormErrors();
 
@@ -1915,6 +1998,9 @@
             custom_job_title: 'custom_job_title',
             business_entity_id: 'business_entity_id',
             division_id: 'division-trigger',
+            asset_location_id: 'asset_location-trigger',
+            custom_asset_location: 'custom_asset_location',
+            attachments: 'file-dropzone',
         };
 
         if (triggerMap[normalizedField]) {
@@ -2011,6 +2097,17 @@
             valid = false;
         }
 
+        if (!document.getElementById('asset_location_id').value) {
+            showFieldError('asset_location_id');
+            valid = false;
+        }
+
+        if (document.getElementById('asset_location_id').value === 'other'
+            && !document.getElementById('custom_asset_location').value.trim()) {
+            showFieldError('custom_asset_location');
+            valid = false;
+        }
+
         if (isAssetSelectionType()) {
             if (!document.getElementById('user_id').value) {
                 showFieldError('user_id');
@@ -2044,6 +2141,11 @@
                     valid = false;
                 }
             });
+        }
+
+        if (selectedFiles.length === 0) {
+            showFieldError('attachments');
+            valid = false;
         }
 
         if (!valid) {

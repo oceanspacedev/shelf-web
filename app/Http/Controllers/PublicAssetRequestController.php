@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\AssetRequestType;
 use App\Enums\RequestStatus;
 use App\Models\Asset;
+use App\Models\AssetLocation;
 use App\Models\AssetRequest;
 use App\Models\AssetRequestApproval;
 use App\Models\BusinessEntity;
@@ -54,6 +55,7 @@ class PublicAssetRequestController extends Controller
 
         $divisions = Division::orderBy('name')->get(['id', 'name']);
         $businessEntities = BusinessEntity::orderBy('name')->get(['id', 'name']);
+        $locations = AssetLocation::orderBy('name')->get(['id', 'name']);
 
         $visibleUserIds = $users->pluck('id');
         $assetsByRecipient = $visibleUserIds->isEmpty()
@@ -90,6 +92,7 @@ class PublicAssetRequestController extends Controller
             'jobTitles',
             'businessEntities',
             'divisions',
+            'locations',
             'assetsByRecipient',
             'defaultApplicantId',
         ));
@@ -105,6 +108,7 @@ class PublicAssetRequestController extends Controller
                 'user.jobTitle',
                 'user.businessEntity',
                 'division',
+                'assetLocation',
                 'approvals.user',
                 'approvals.decidedBy',
                 'createdAssets',
@@ -190,6 +194,11 @@ class PublicAssetRequestController extends Controller
             'custom_job_title' => 'required_if:job_title_id,other|nullable|string|max:255',
             'business_entity_id' => 'required|exists:business_entities,id',
             'division_id' => 'required|exists:divisions,id',
+            'asset_location_id' => [
+                'required',
+                Rule::in(array_merge(['other'], AssetLocation::pluck('id')->map(fn ($id) => (string) $id)->all())),
+            ],
+            'custom_asset_location' => 'required_if:asset_location_id,other|nullable|string|max:255',
             'asset_id' => 'nullable|exists:assets,id',
             'asset_ids' => 'nullable|array',
             'asset_ids.*' => 'integer|distinct|exists:assets,id',
@@ -199,8 +208,8 @@ class PublicAssetRequestController extends Controller
             'items.*.item_name' => 'nullable|string|max:255',
             'items.*.qty' => 'nullable|integer|min:1',
             'description' => 'nullable|string|max:65535',
-            'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpeg,jpg,png,pdf,doc,docx,xls,xlsx|max:10240',
+            'attachments' => 'required|array|min:1',
+            'attachments.*' => 'required|file|mimes:jpeg,jpg,png,pdf,doc,docx,xls,xlsx|max:10240',
         ], [
             'type.required' => 'Jenis pengajuan wajib dipilih.',
             'type.in' => 'Jenis pengajuan tidak valid.',
@@ -217,6 +226,9 @@ class PublicAssetRequestController extends Controller
             'business_entity_id.exists' => 'Badan usaha tidak terdaftar.',
             'division_id.required' => 'Divisi wajib diisi.',
             'division_id.exists' => 'Divisi tidak terdaftar.',
+            'asset_location_id.required' => 'Lokasi wajib diisi.',
+            'asset_location_id.in' => 'Lokasi tidak valid.',
+            'custom_asset_location.required_if' => 'Lokasi manual wajib diisi.',
             'asset_id.required_if' => 'Aset wajib dipilih melalui kolom Nama Pemohon.',
             'asset_id.exists' => 'Aset tidak ditemukan.',
             'asset_ids.array' => 'Format pilihan aset tidak valid.',
@@ -227,6 +239,8 @@ class PublicAssetRequestController extends Controller
             'qty.required_if' => 'Jumlah wajib diisi.',
             'qty.integer' => 'Jumlah harus berupa angka.',
             'qty.min' => 'Jumlah minimal adalah 1.',
+            'attachments.required' => 'Lampiran / dokumen pendukung wajib diunggah minimal 1.',
+            'attachments.min' => 'Lampiran / dokumen pendukung wajib diunggah minimal 1.',
             'attachments.array' => 'Format lampiran tidak valid.',
             'attachments.*.file' => 'File lampiran tidak valid.',
             'attachments.*.mimes' => 'Format file harus berupa: jpeg, jpg, png, pdf, doc, docx, xls, atau xlsx.',
@@ -383,6 +397,7 @@ class PublicAssetRequestController extends Controller
 
             $assetRequest = DB::transaction(function () use ($data, $attachments, $itemRows) {
                 $userId = $this->resolveUserId($data);
+                $assetLocationId = $this->resolveAssetLocationId($data);
                 $firstItem = $itemRows[0] ?? [
                     'asset_id' => null,
                     'item_name' => $data['item_name'] ?? null,
@@ -393,6 +408,7 @@ class PublicAssetRequestController extends Controller
                     'type' => $data['type'],
                     'user_id' => $userId,
                     'division_id' => $data['division_id'],
+                    'asset_location_id' => $assetLocationId,
                     'asset_id' => $firstItem['asset_id'] ?? null,
                     'item_name' => $firstItem['item_name'] ?? null,
                     'qty' => $firstItem['qty'] ?? 1,
@@ -490,6 +506,7 @@ class PublicAssetRequestController extends Controller
                 'assetRequest.user.jobTitle',
                 'assetRequest.user.businessEntity',
                 'assetRequest.division',
+                'assetRequest.assetLocation',
                 'assetRequest.approvals.user',
                 'assetRequest.approvals.decidedBy',
             ])
@@ -610,6 +627,26 @@ class PublicAssetRequestController extends Controller
         }
 
         return (int) $jobTitleId;
+    }
+
+    private function resolveAssetLocationId(array $data): ?int
+    {
+        $locationId = $data['asset_location_id'] ?? null;
+
+        if (empty($locationId)) {
+            return null;
+        }
+
+        if ($locationId === 'other') {
+            $name = trim((string) ($data['custom_asset_location'] ?? ''));
+
+            $location = AssetLocation::firstOrCreate(['name' => $name]);
+            Cache::forget('asset_location_options');
+
+            return $location->id;
+        }
+
+        return (int) $locationId;
     }
 
     private function formatAssetLabel(Asset $asset): string

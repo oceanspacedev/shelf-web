@@ -27,6 +27,7 @@ class AssetRequest extends Model
         'type',
         'user_id',
         'division_id',
+        'asset_location_id',
         'asset_id',
         'item_name',
         'qty',
@@ -248,6 +249,11 @@ class AssetRequest extends Model
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class);
+    }
+
+    public function assetLocation(): BelongsTo
+    {
+        return $this->belongsTo(AssetLocation::class);
     }
 
     public function items(): HasMany

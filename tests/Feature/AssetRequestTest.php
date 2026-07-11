@@ -108,6 +108,7 @@ class AssetRequestTest extends TestCase
             $table->string('type')->default('pengadaan');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('division_id')->nullable();
+            $table->unsignedBigInteger('asset_location_id')->nullable();
             $table->unsignedBigInteger('asset_id')->nullable();
             $table->string('item_name')->nullable();
             $table->integer('qty')->nullable();

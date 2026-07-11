@@ -6,6 +6,7 @@ use App\Enums\AssetRequestType;
 use App\Enums\RequestStatus;
 use App\Filament\Resources\AssetRequestResource\Pages;
 use App\Models\Asset;
+use App\Models\AssetLocation;
 use App\Models\AssetRequest;
 use App\Models\AssetRequestApproval;
 use App\Models\AssetRequestItem;
@@ -181,6 +182,34 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                     ->required()
                                     ->searchable()
                                     ->preload(),
+                                Forms\Components\Select::make('asset_location_id')
+                                    ->relationship('assetLocation', 'name', modifyQueryUsing: fn ($query) => $query->orderBy('name'))
+                                    ->label('Lokasi')
+                                    ->required()
+                                    ->searchable()
+                                    ->preload()
+                                    ->createOptionForm([
+                                        Forms\Components\TextInput::make('name')
+                                            ->label('Nama Lokasi')
+                                            ->required()
+                                            ->maxLength(255),
+                                        Forms\Components\Textarea::make('address')
+                                            ->label('Alamat')
+                                            ->maxLength(255),
+                                        Forms\Components\Textarea::make('description')
+                                            ->label('Deskripsi')
+                                            ->maxLength(255),
+                                    ])
+                                    ->createOptionUsing(function (array $data) {
+                                        $location = AssetLocation::create([
+                                            'name' => $data['name'],
+                                            'address' => $data['address'] ?? null,
+                                            'description' => $data['description'] ?? null,
+                                        ]);
+                                        Cache::forget('asset_location_options');
+
+                                        return $location->id;
+                                    }),
                             ])
                             ->columns(1)
                             ->columnSpan(1),
@@ -259,9 +288,8 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                             ->directory('asset-requests')
                                             ->visibility('public')
                                             ->multiple()
-                                            // Wajib hanya saat membuat; agar record tanpa lampiran (mis. asal
-                                            // form publik) masih bisa di-Edit untuk field lain.
-                                            ->required(fn (?AssetRequest $record): bool => $record === null)
+                                            ->required()
+                                            ->minFiles(1)
                                             ->columnSpanFull(),
                                     ]),
                                 Section::make('Status & Catatan')
@@ -388,6 +416,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                                         TextEntry::make('division.name')
                                             ->label('Divisi')
                                             ->icon('heroicon-o-building-office-2')
+                                            ->placeholder('—'),
+                                        TextEntry::make('assetLocation.name')
+                                            ->label('Lokasi')
+                                            ->icon('heroicon-o-map-pin')
                                             ->placeholder('—'),
                                         TextEntry::make('description')
                                             ->label('Keterangan / Keperluan')
@@ -637,6 +669,10 @@ class AssetRequestResource extends Resource implements HasShieldPermissions
                     ->sortable(),
                 Tables\Columns\TextColumn::make('division.name')
                     ->label('Divisi')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('assetLocation.name')
+                    ->label('Lokasi')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('item_name')
