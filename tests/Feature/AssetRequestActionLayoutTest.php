@@ -51,9 +51,10 @@ class AssetRequestActionLayoutTest extends TestCase
         $columns = $this->makeTable()->getColumns();
 
         $this->assertFalse($columns['reference_number']->isToggledHiddenByDefault());
-        $this->assertFalse($columns['status']->isToggledHiddenByDefault());
         $this->assertFalse($columns['lifecycle_stage']->isToggledHiddenByDefault());
 
+        $this->assertTrue($columns['type']->isToggledHiddenByDefault());
+        $this->assertTrue($columns['status']->isToggledHiddenByDefault());
         $this->assertTrue($columns['division.name']->isToggledHiddenByDefault());
         $this->assertTrue($columns['assetLocation.name']->isToggledHiddenByDefault());
         $this->assertTrue($columns['qty']->isToggledHiddenByDefault());
@@ -94,11 +95,8 @@ class AssetRequestActionLayoutTest extends TestCase
 
     public function test_detail_hides_repair_follow_up_when_no_requested_asset_exists(): void
     {
-        $record = new class([
-            'type' => AssetRequestType::Perbaikan,
-            'status' => RequestStatus::Approved,
-            'fulfilled_at' => null,
-        ]) extends AssetRequest {
+        $record = new class(['type' => AssetRequestType::Perbaikan, 'status' => RequestStatus::Approved, 'fulfilled_at' => null]) extends AssetRequest
+        {
             public function requestedAssetIds(): array
             {
                 return [];
@@ -135,7 +133,8 @@ class AssetRequestActionLayoutTest extends TestCase
      */
     private function detailActionsFor(AssetRequest $record): array
     {
-        $page = new class extends ViewAssetRequest {
+        $page = new class extends ViewAssetRequest
+        {
             /**
              * @return array<int, Action|ActionGroup>
              */
