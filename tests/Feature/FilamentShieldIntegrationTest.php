@@ -9,6 +9,7 @@ use App\Filament\Resources\DivisionResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VehicleChecksheetResource;
 use App\Models\User;
+use BezhanSalleh\FilamentShield\Commands\GenerateCommand;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\FilamentShield\Resources\Roles\RoleResource;
@@ -47,6 +48,20 @@ class FilamentShieldIntegrationTest extends TestCase
 
     public function test_v4_config_manages_each_resource_specific_permission(): void
     {
+        $singleParameterMethods = config('filament-shield.policies.single_parameter_methods');
+
+        $this->assertContains('export', $singleParameterMethods);
+        $this->assertContains('import', $singleParameterMethods);
+
+        $generator = new ReflectionMethod(GenerateCommand::class, 'generatePolicyStubVariables');
+        $assetStubVariables = $generator->invoke(
+            app(GenerateCommand::class),
+            FilamentShield::getResources()[AssetResource::class],
+        );
+
+        $this->assertSame('SingleParamMethod', $assetStubVariables['export']['stub']);
+        $this->assertSame('SingleParamMethod', $assetStubVariables['import']['stub']);
+
         $this->assertResourcePermissions(AssetResource::class, [
             'export' => 'export_asset',
             'import' => 'import_asset',

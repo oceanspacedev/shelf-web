@@ -60,6 +60,8 @@ return [
             'deleteAny',
             'forceDeleteAny',
             'restoreAny',
+            'export',
+            'import',
         ],
     ],
 
