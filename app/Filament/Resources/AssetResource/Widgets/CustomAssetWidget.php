@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AssetResource\Widgets;
 use App\Enums\AssetCondition;
 use App\Models\Asset;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Filament\Facades\Filament;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,16 @@ use Illuminate\Support\Facades\DB;
 class CustomAssetWidget extends BaseWidget
 {
     use HasWidgetShield;
+
+    public static function canView(): bool
+    {
+        $permission = static::getWidgetPermission();
+        $user = Filament::auth()?->user();
+
+        return $permission && $user
+            ? $user->can($permission)
+            : parent::canView();
+    }
 
     protected function getColumns(): int
     {

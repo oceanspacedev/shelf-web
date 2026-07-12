@@ -63,7 +63,7 @@ class CustomAssetAttributePolicy
      */
     public function forceDelete(User $user, CustomAssetAttribute $customAssetAttribute): bool
     {
-        return $user->can('{{ ForceDelete }}');
+        return $user->can('force_delete_custom::asset::attribute');
     }
 
     /**
@@ -71,7 +71,7 @@ class CustomAssetAttributePolicy
      */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('{{ ForceDeleteAny }}');
+        return $user->can('force_delete_any_custom::asset::attribute');
     }
 
     /**
@@ -79,7 +79,7 @@ class CustomAssetAttributePolicy
      */
     public function restore(User $user, CustomAssetAttribute $customAssetAttribute): bool
     {
-        return $user->can('{{ Restore }}');
+        return $user->can('restore_custom::asset::attribute');
     }
 
     /**
@@ -87,7 +87,7 @@ class CustomAssetAttributePolicy
      */
     public function restoreAny(User $user): bool
     {
-        return $user->can('{{ RestoreAny }}');
+        return $user->can('restore_any_custom::asset::attribute');
     }
 
     /**
@@ -95,7 +95,7 @@ class CustomAssetAttributePolicy
      */
     public function replicate(User $user, CustomAssetAttribute $customAssetAttribute): bool
     {
-        return $user->can('{{ Replicate }}');
+        return $user->can('replicate_custom::asset::attribute');
     }
 
     /**
@@ -103,6 +103,6 @@ class CustomAssetAttributePolicy
      */
     public function reorder(User $user): bool
     {
-        return $user->can('{{ Reorder }}');
+        return $user->can('reorder_custom::asset::attribute');
     }
 }

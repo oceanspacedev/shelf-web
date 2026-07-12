@@ -63,7 +63,7 @@ class AssetTransferPolicy
      */
     public function forceDelete(User $user, AssetTransfer $assetTransfer): bool
     {
-        return $user->can('{{ ForceDelete }}');
+        return $user->can('force_delete_asset::transfer');
     }
 
     /**
@@ -71,7 +71,7 @@ class AssetTransferPolicy
      */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('{{ ForceDeleteAny }}');
+        return $user->can('force_delete_any_asset::transfer');
     }
 
     /**
@@ -79,7 +79,7 @@ class AssetTransferPolicy
      */
     public function restore(User $user, AssetTransfer $assetTransfer): bool
     {
-        return $user->can('{{ Restore }}');
+        return $user->can('restore_asset::transfer');
     }
 
     /**
@@ -87,7 +87,7 @@ class AssetTransferPolicy
      */
     public function restoreAny(User $user): bool
     {
-        return $user->can('{{ RestoreAny }}');
+        return $user->can('restore_any_asset::transfer');
     }
 
     /**
@@ -95,7 +95,7 @@ class AssetTransferPolicy
      */
     public function replicate(User $user, AssetTransfer $assetTransfer): bool
     {
-        return $user->can('{{ Replicate }}');
+        return $user->can('replicate_asset::transfer');
     }
 
     /**
@@ -103,6 +103,6 @@ class AssetTransferPolicy
      */
     public function reorder(User $user): bool
     {
-        return $user->can('{{ Reorder }}');
+        return $user->can('reorder_asset::transfer');
     }
 }

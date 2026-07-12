@@ -13,7 +13,6 @@ use App\Models\AssetRequestItem;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
-use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -47,26 +46,9 @@ use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
-class AssetRequestResource extends Resource implements HasShieldPermissions
+class AssetRequestResource extends Resource
 {
     protected static ?string $model = AssetRequest::class;
-
-    public static function getPermissionPrefixes(): array
-    {
-        return [
-            'view',
-            'view_any',
-            'create',
-            'update',
-            'delete',
-            'delete_any',
-            'export',
-            'restore',
-            'restore_any',
-            'force_delete',
-            'force_delete_any',
-        ];
-    }
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-clipboard-document-list';
 

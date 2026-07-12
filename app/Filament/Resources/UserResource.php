@@ -7,7 +7,6 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
-use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -24,22 +23,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
-class UserResource extends Resource implements HasShieldPermissions
+class UserResource extends Resource
 {
     protected static ?string $model = User::class;
-
-    public static function getPermissionPrefixes(): array
-    {
-        return [
-            'view',
-            'view_any',
-            'create',
-            'update',
-            'delete',
-            'delete_any',
-            'import',
-        ];
-    }
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-users';
 

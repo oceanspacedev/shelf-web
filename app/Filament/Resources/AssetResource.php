@@ -14,7 +14,6 @@ use App\Models\BusinessEntity;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
-use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Carbon\Carbon;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Component;
@@ -46,23 +45,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
-class AssetResource extends Resource implements HasShieldPermissions
+class AssetResource extends Resource
 {
     protected static ?string $model = Asset::class;
-
-    public static function getPermissionPrefixes(): array
-    {
-        return [
-            'view',
-            'view_any',
-            'create',
-            'update',
-            'delete',
-            'delete_any',
-            'export',
-            'import',
-        ];
-    }
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-archive-box';
 

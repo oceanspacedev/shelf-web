@@ -5,7 +5,6 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\VehicleChecksheetResource\Pages;
 use App\Models\AssetAttribute;
 use App\Models\VehicleChecksheet;
-use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
@@ -23,7 +22,7 @@ use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
-class VehicleChecksheetResource extends Resource implements HasShieldPermissions
+class VehicleChecksheetResource extends Resource
 {
     protected static ?string $model = VehicleChecksheet::class;
 
@@ -35,20 +34,6 @@ class VehicleChecksheetResource extends Resource implements HasShieldPermissions
     public static function getPluralModelLabel(): string
     {
         return __('Vehicle Checksheets');
-    }
-
-    public static function getPermissionPrefixes(): array
-    {
-        return [
-            'view',
-            'view_any',
-            'create',
-            'update',
-            'delete',
-            'delete_any',
-            'export',
-            'import',
-        ];
     }
 
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-truck';

@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Filament\Resources\AssetRequestResource;
+use App\Filament\Resources\AssetResource;
+use App\Filament\Resources\DivisionResource;
+use App\Filament\Resources\UserResource;
+use App\Filament\Resources\VehicleChecksheetResource;
 use BezhanSalleh\FilamentShield\Resources\Roles\RoleResource;
 use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
@@ -47,8 +52,7 @@ return [
         'merge' => true,
         'generate' => true,
         'methods' => [
-            'viewAny', 'view', 'create', 'update', 'delete', 'deleteAny', 'restore',
-            'forceDelete', 'forceDeleteAny', 'restoreAny', 'replicate', 'reorder',
+            'viewAny', 'view', 'create', 'update', 'delete', 'deleteAny',
         ],
         'single_parameter_methods' => [
             'viewAny',
@@ -56,7 +60,6 @@ return [
             'deleteAny',
             'forceDeleteAny',
             'restoreAny',
-            'reorder',
         ],
     ],
 
@@ -68,6 +71,30 @@ return [
     'resources' => [
         'subject' => 'model',
         'manage' => [
+            AssetResource::class => [
+                'export',
+                'import',
+            ],
+            AssetRequestResource::class => [
+                'export',
+                'restore',
+                'restoreAny',
+                'forceDelete',
+                'forceDeleteAny',
+            ],
+            DivisionResource::class => [
+                'restore',
+                'restoreAny',
+                'forceDelete',
+                'forceDeleteAny',
+            ],
+            UserResource::class => [
+                'import',
+            ],
+            VehicleChecksheetResource::class => [
+                'export',
+                'import',
+            ],
             RoleResource::class => [
                 'viewAny',
                 'view',

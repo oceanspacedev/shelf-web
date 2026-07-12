@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
@@ -27,10 +28,20 @@ class DatabaseSeeder extends Seeder
         $superAdmin = $this->seedSuperAdmin();
 
         if ($superAdmin) {
-            Artisan::call('shield:super-admin', ['--user' => $superAdmin->id]);
+            $this->runShieldCommand('shield:super-admin', [
+                '--user' => $superAdmin->id,
+                '--panel' => 'admin',
+                '--no-interaction' => true,
+            ]);
         }
 
-        Artisan::call('shield:generate', ['--all' => true, '--ignore-existing-policies' => true]);
+        $this->runShieldCommand('shield:generate', [
+            '--all' => true,
+            '--option' => 'policies_and_permissions',
+            '--ignore-existing-policies' => true,
+            '--panel' => 'admin',
+            '--no-interaction' => true,
+        ]);
 
         // Panggil seeder lainnya
         $this->call([
@@ -41,6 +52,16 @@ class DatabaseSeeder extends Seeder
             // AssetLocationSeeder::class,
             // AssetSeeder::class,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function runShieldCommand(string $command, array $arguments): void
+    {
+        if (Artisan::call($command, $arguments) !== 0) {
+            throw new RuntimeException("Shield command [{$command}] failed.");
+        }
     }
 
     private function seedSuperAdmin(): ?User

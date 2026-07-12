@@ -3,16 +3,20 @@
 namespace App\Providers;
 
 use App\Enums\BadgeColor;
+use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Facades\FilamentColor;
+use Filament\Widgets\Widget;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureFilamentShield();
         $this->configureRateLimiting();
         $this->registerFilamentBadgeColors();
 
@@ -45,6 +50,46 @@ class AppServiceProvider extends ServiceProvider
                 ->circular()
                 ->renderHook('panels::user-menu.before');
         });
+    }
+
+    /**
+     * Keep permissions attached to roles created before the Shield v4 upgrade.
+     *
+     * Settings Hub pages already authorize Shield v4's `View:*` keys, while
+     * application resources and widgets still have persisted Shield v3 keys.
+     */
+    protected function configureFilamentShield(): void
+    {
+        FilamentShield::buildPermissionKeyUsing(
+            function (string $entity, string $affix, string $subject, string $case, string $separator): string {
+                if (is_subclass_of($entity, Resource::class)) {
+                    return Str::of($affix)
+                        ->snake()
+                        ->append('_')
+                        ->append(
+                            Str::of($entity)
+                                ->afterLast('\\')
+                                ->beforeLast('Resource')
+                                ->snake()
+                                ->replace('_', '::')
+                        )
+                        ->toString();
+                }
+
+                if (is_subclass_of($entity, Widget::class)) {
+                    return Str::of('widget_')
+                        ->append(class_basename($entity))
+                        ->toString();
+                }
+
+                return FilamentShield::defaultPermissionKeyBuilder(
+                    affix: $affix,
+                    separator: $separator,
+                    subject: $subject,
+                    case: $case,
+                );
+            }
+        );
     }
 
     protected function configureRateLimiting(): void
