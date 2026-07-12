@@ -14,7 +14,7 @@ class Login extends MekayaLogin
         return $form
             ->schema([
                 TextInput::make('login')
-                    ->label('Username or Email')
+                    ->label(__('Username or Email'))
                     ->required()
                     ->autocomplete(),
                 $this->getPasswordFormComponent(),
@@ -33,7 +33,7 @@ class Login extends MekayaLogin
     protected function throwFailureValidationException(): never
     {
         throw ValidationException::withMessages([
-            'data.login' => __('filament-panels::pages/auth/login.messages.failed'),
+            'data.login' => __('filament-panels::auth/pages/login.messages.failed'),
         ]);
     }
 }
