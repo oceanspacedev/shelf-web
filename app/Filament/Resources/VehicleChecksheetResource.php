@@ -17,7 +17,6 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -96,74 +95,46 @@ class VehicleChecksheetResource extends Resource
                             ->label('Waktu Keberangkatan')
                             ->default(now()),
                         Forms\Components\FileUpload::make('departure_photo')
-                            ->image()
                             ->required()
                             ->label('Foto Keberangkatan')
+                            ->disk('public')
                             ->directory('vehiclechecksheet')
-                            ->visibility('public')
-                            ->getUploadedFileNameForStorageUsing(
-                                fn (TemporaryUploadedFile $file, $record) => sprintf(
-                                    'scale_%s_departure_photo_%s.%s',
-                                    $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
-                                    now()->format('Ymd_His'),
-                                    $file->getClientOriginalExtension()
-                                )
-                            ),
+                            ->previewable()
+                            ->imagePreviewHeight('250')
+                            ->visibility('public'),
                         Forms\Components\FileUpload::make('departure_damage_report')
-                            ->image()
                             ->required()
                             ->label('Laporan Kerusakan Saat Keberangkatan')
+                            ->disk('public')
                             ->directory('vehiclechecksheet')
-                            ->visibility('public')
-                            ->getUploadedFileNameForStorageUsing(
-                                fn (TemporaryUploadedFile $file, $record) => sprintf(
-                                    'scale_%s_departure_damage_report_%s.%s',
-                                    $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
-                                    now()->format('Ymd_His'),
-                                    $file->getClientOriginalExtension()
-                                )
-                            ),
+                            ->previewable()
+                            ->imagePreviewHeight('250')
+                            ->visibility('public'),
                     ]),
 
                 // Informasi Pengembalian
                 Section::make('Informasi Pengembalian')
                     ->schema([
                         Forms\Components\TextInput::make('end_km')
-                            ->required()
                             ->numeric()
                             ->label('Kilometer Akhir')
                             ->placeholder('Masukkan KM akhir'),
                         Forms\Components\DateTimePicker::make('return_time')
-                            ->required()
                             ->label('Waktu Pengembalian'),
                         Forms\Components\FileUpload::make('return_photo')
-                            ->required()
-                            ->image()
                             ->label('Foto Pengembalian')
+                            ->disk('public')
                             ->directory('vehiclechecksheet')
-                            ->visibility('public')
-                            ->getUploadedFileNameForStorageUsing(
-                                fn (TemporaryUploadedFile $file, $record) => sprintf(
-                                    'scale_%s_return_photo_%s.%s',
-                                    $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
-                                    now()->format('Ymd_His'),
-                                    $file->getClientOriginalExtension()
-                                )
-                            ),
+                            ->previewable()
+                            ->imagePreviewHeight('250')
+                            ->visibility('public'),
                         Forms\Components\FileUpload::make('return_damage_report')
-                            ->required()
-                            ->image()
                             ->label('Laporan Kerusakan Saat Pengembalian')
+                            ->disk('public')
                             ->directory('vehiclechecksheet')
-                            ->visibility('public')
-                            ->getUploadedFileNameForStorageUsing(
-                                fn (TemporaryUploadedFile $file, $record) => sprintf(
-                                    'scale_%s_return_damage_report_%s.%s',
-                                    $record?->reference_number ?? VehicleChecksheetResource::generateReferenceNumber(),
-                                    now()->format('Ymd_His'),
-                                    $file->getClientOriginalExtension()
-                                )
-                            ),
+                            ->previewable()
+                            ->imagePreviewHeight('250')
+                            ->visibility('public'),
                     ])
                     ->hidden(fn ($livewire) => $livewire instanceof CreateRecord),
                 // Informasi Tambahan
