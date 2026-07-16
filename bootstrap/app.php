@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'signed' => \App\Http\Middleware\ValidateSignature::class,
         ]);
 
+        // Trust reverse proxy TLS termination so request()->secure() and URL generation match HTTPS.
+        $middleware->trustProxies(at: '*');
+
         $middleware->redirectGuestsTo(fn (Request $request) => route('filament.admin.auth.login'));
         $middleware->redirectUsersTo('/admin');
     })

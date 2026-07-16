@@ -40,7 +40,8 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         $serahTerima = $this->makeTransfer($entity, $generalAffair, $holder, 'BA-001');
         $pengalihan = $this->makeTransfer($entity, $holder, $nextHolder, 'BAPAB-001');
         $pengembalian = $this->makeTransfer($entity, $nextHolder, $generalAffair, 'BAPEB-001');
-        $invalid = $this->makeTransfer($entity, $generalAffair, $secondGeneralAffair, 'INVALID-001');
+        $gaToGaStaff = $this->makeTransfer($entity, $generalAffair, $secondGeneralAffair, 'BA-GA-STAFF-001');
+        $gaStaffToGa = $this->makeTransfer($entity, $secondGeneralAffair, $generalAffair, 'BAPEB-STAFF-GA-001');
 
         $this->assertSame(AssetTransferDocumentType::SerahTerima, $serahTerima->documentType());
         $this->assertSame('BERITA ACARA SERAH TERIMA', $serahTerima->status);
@@ -54,9 +55,8 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         $this->assertSame('BERITA ACARA PENGEMBALIAN BARANG', $pengembalian->status);
         $this->assertSame('BAPEB', $pengembalian->documentCode());
 
-        $this->assertNull($invalid->documentType());
-        $this->assertSame('Status Transfer Tidak Valid', $invalid->status);
-        $this->assertSame('UNKNOWN', $invalid->documentCode());
+        $this->assertSame(AssetTransferDocumentType::SerahTerima, $gaToGaStaff->documentType());
+        $this->assertSame(AssetTransferDocumentType::PengembalianBarang, $gaStaffToGa->documentType());
     }
 
     public function test_document_type_scope_matches_computed_lifecycle(): void
@@ -66,10 +66,11 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         $serahTerima = $this->makeTransfer($entity, $generalAffair, $holder, 'BA-002');
         $pengalihan = $this->makeTransfer($entity, $holder, $nextHolder, 'BAPAB-002');
         $pengembalian = $this->makeTransfer($entity, $nextHolder, $generalAffair, 'BAPEB-002');
-        $this->makeTransfer($entity, $generalAffair, $secondGeneralAffair, 'INVALID-002');
+        $gaToGaStaff = $this->makeTransfer($entity, $generalAffair, $secondGeneralAffair, 'BA-GA-STAFF-002');
+        $gaStaffToGa = $this->makeTransfer($entity, $secondGeneralAffair, $generalAffair, 'BAPEB-STAFF-GA-002');
 
         $this->assertSame(
-            [$serahTerima->id],
+            [$serahTerima->id, $gaToGaStaff->id],
             AssetTransfer::query()
                 ->forDocumentType(AssetTransferDocumentType::SerahTerima)
                 ->pluck('id')
@@ -85,7 +86,7 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         );
 
         $this->assertSame(
-            [$pengembalian->id],
+            [$pengembalian->id, $gaStaffToGa->id],
             AssetTransfer::query()
                 ->forDocumentType(AssetTransferDocumentType::PengembalianBarang)
                 ->pluck('id')

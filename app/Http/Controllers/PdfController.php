@@ -16,14 +16,7 @@ class PdfController extends Controller
 
         $assetTransfer->load('fromUser.jobTitle', 'toUser.jobTitle', 'businessEntity', 'details.asset.category', 'details.asset.brand', 'details.asset.attributes');
 
-        // dd($assetTransfer);
-
         $status = $assetTransfer->documentCode();
-
-        // Menggunakan nilai dari kolom letterhead, atau default image jika tidak ada
-        // $headerImage = $assetTransfer->businessEntity->letterhead
-        //     ? asset('storage/' . $assetTransfer->businessEntity->letterhead)
-        //     : asset('images/cvcs_kop.png');
 
         $headerImage = $assetTransfer->businessEntity->letterhead
             ? storage_path('app/public/'.$assetTransfer->businessEntity->letterhead)
@@ -33,15 +26,11 @@ class PdfController extends Controller
         $toUserName = strtolower(str_replace(' ', '_', $assetTransfer->toUser->name));
         $toUserJobTitle = $assetTransfer->toUser->jobTitle ? strtolower(str_replace(' ', '_', $assetTransfer->toUser->jobTitle->title)) : 'no_title';
 
-        $fileName = "{$status}_{$letterNumber}_{$toUserName}_{$toUserJobTitle}.pdf";
+        $fileName = $this->safeDownloadFilename("{$status}_{$letterNumber}_{$toUserName}_{$toUserJobTitle}.pdf");
 
         $pdf = Pdf::loadView('pdf.asset-transfer', compact('assetTransfer', 'headerImage'));
 
         return $pdf->download($fileName);
-
-        //  return $pdf->stream($fileName);
-
-        // return view('pdf.asset-transfer', compact('assetTransfer', 'headerImage'));
     }
 
     public function downloadTaskCompletion($id)
@@ -51,33 +40,15 @@ class PdfController extends Controller
 
         $task->load('businessEntity');
 
-        // Menggunakan nilai dari kolom letterhead di entitas bisnis terkait, atau default image jika tidak ada
         $headerImage = $task->businessEntity->letterhead
             ? storage_path('app/public/'.$task->businessEntity->letterhead)
             : public_path('images/cvcs_kop.png');
 
-        // Ganti spasi dengan underscore dan ubah jadi huruf kecil semua untuk penamaan file
         $fileName = strtolower(str_replace(' ', '_', $task->name));
-
-        // Siapkan lampiran
-        // $attachments = collect(json_decode($task->attachment))->map(function ($image) {
-        //     $baseUrl = asset('storage'); // Path dasar menuju file di storage Laravel
-        //     // $baseUrl = storage_path('app/public/' . $image);
-        //     return "<img src='{$baseUrl}/{$image}' alt='Lampiran'>";
-        // })->implode('');
-
         $attachments = $this->taskAttachmentsHtml($task);
-
-        // Buat PDF dengan kop surat (headerImage), task, dan lampiran
         $pdf = Pdf::loadView('pdf.task-completion', compact('task', 'headerImage', 'attachments'));
 
-        // Download file PDF
-        return $pdf->download('berita_acara_pengerjaan_'.$fileName.'.pdf');
-
-        // Stream PDF untuk preview di browser
-        // return $pdf->stream('berita_acara_pengerjaan_' . $fileName . '.pdf');
-
-        // return view('pdf.task-completion', compact('task', 'headerImage', 'attachments'));
+        return $pdf->download($this->safeDownloadFilename('berita_acara_pengerjaan_'.$fileName.'.pdf'));
     }
 
     public function previewTaskCompletion($id)
@@ -95,7 +66,7 @@ class PdfController extends Controller
         $attachments = $this->taskAttachmentsHtml($task);
         $pdf = Pdf::loadView('pdf.task-completion', compact('task', 'headerImage', 'attachments'));
 
-        return $pdf->stream('berita_acara_pengerjaan_'.$fileName.'.pdf');
+        return $pdf->stream($this->safeDownloadFilename('berita_acara_pengerjaan_'.$fileName.'.pdf'));
     }
 
     /**
@@ -129,11 +100,23 @@ class PdfController extends Controller
 
         $referenceNumber = $assetRequest->reference_number ?? 'PENGADAAN';
         $userName = strtolower(str_replace(' ', '_', $assetRequest->user->name));
-        $fileName = "BAP_{$referenceNumber}_{$userName}.pdf";
+        $fileName = $this->safeDownloadFilename("BAP_{$referenceNumber}_{$userName}.pdf");
 
         $pdf = Pdf::loadView('pdf.pengadaan', compact('assetRequest', 'headerImage'));
 
         return $pdf->download($fileName);
+    }
+
+    /**
+     * Content-Disposition filenames cannot contain "/" or "\".
+     * Letter numbers like "221218.CS/000297" must be sanitized.
+     */
+    private function safeDownloadFilename(string $fileName): string
+    {
+        $fileName = str_replace(['/', '\\'], '-', $fileName);
+        $fileName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $fileName) ?: 'document.pdf';
+
+        return $fileName;
     }
 
     private function taskAttachmentsHtml(Task $task): string

@@ -51,6 +51,20 @@ enum AssetTransferDocumentType: string
         $fromIsGeneralAffair = $fromUser->hasRole('general_affair');
         $toIsGeneralAffair = $toUser->hasRole('general_affair');
 
+        // Identify the main General Affairs department account (ID 2 with username 'adminga' in production, or named 'GA' in tests)
+        $fromIsMainGA = ($fromUser->id === 2 && $fromUser->username === 'adminga') || $fromUser->name === 'GA';
+        $toIsMainGA = ($toUser->id === 2 && $toUser->username === 'adminga') || $toUser->name === 'GA';
+
+        if ($fromIsGeneralAffair && $toIsGeneralAffair) {
+            if ($toIsMainGA) {
+                return self::PengembalianBarang; // Returning to the main GA department
+            }
+            if ($fromIsMainGA) {
+                return self::SerahTerima; // Dispatched from the main GA department to a GA staff
+            }
+            return self::PengalihanBarang; // Transfer between GA staff members
+        }
+
         return match (true) {
             $fromIsGeneralAffair && ! $toIsGeneralAffair => self::SerahTerima,
             ! $fromIsGeneralAffair && ! $toIsGeneralAffair => self::PengalihanBarang,

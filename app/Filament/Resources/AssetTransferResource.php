@@ -19,6 +19,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Grid as ComponentsGrid;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Schemas\Components\Section as ComponentSection;
@@ -122,33 +123,44 @@ class AssetTransferResource extends Resource
                                 Select::make('to_user_id')
                                     ->translateLabel()
                                     ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
+                                    ->searchable()
+                                    ->preload()
+                                    ->required()
+                                    ->getSearchResultsUsing(function (string $search, callable $get): array {
+                                        $fromUserId = $get('from_user_id');
+
+                                        return User::query()
+                                            ->where('name', 'like', "%{$search}%")
+                                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'super_admin'))
+                                            ->when($fromUserId, fn ($q) => $q->where('id', '!=', $fromUserId))
+                                            ->with('jobTitle')
+                                            ->orderBy('name')
+                                            ->limit(50)
+                                            ->get()
+                                            ->mapWithKeys(function ($user) {
+                                                $jobTitle = $user->jobTitle?->title ?? 'N/A';
+                                                return [$user->id => "{$user->name} - {$jobTitle}"];
+                                            })
+                                            ->toArray();
+                                    })
+                                    ->getOptionLabelUsing(function ($value): ?string {
+                                        $user = User::with('jobTitle')->find($value);
+                                        if (! $user) return null;
+                                        $jobTitle = $user->jobTitle?->title ?? 'N/A';
+                                        return "{$user->name} - {$jobTitle}";
+                                    })
                                     ->options(function (callable $get) {
                                         $fromUserId = $get('from_user_id');
                                         $query = User::query()
-                                            ->whereDoesntHave('roles', function ($query) {
-                                                $query->where('name', 'super_admin');
-                                            });
-
-                                        if ($fromUserId) {
-                                            $query->where('id', '!=', $fromUserId);
-
-                                            $fromUser = User::with('roles')->find($fromUserId);
-
-                                            if ($fromUser?->hasRole('general_affair')) {
-                                                $query->whereDoesntHave('roles', function ($roleQuery) {
-                                                    $roleQuery->where('name', 'general_affair');
-                                                });
-                                            }
-                                        }
+                                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'super_admin'))
+                                            ->when($fromUserId, fn ($q) => $q->where('id', '!=', $fromUserId));
 
                                         return $query
-                                            ->with('jobTitle') // Load the related job title
+                                            ->with('jobTitle')
                                             ->orderBy('name')
                                             ->get()
                                             ->mapWithKeys(function ($user) {
-                                                // Concatenate name and job title in the format "name - jobTitle"
-                                                $jobTitle = $user->jobTitle ? $user->jobTitle->title : 'N/A'; // Default if job title is missing
-
+                                                $jobTitle = $user->jobTitle?->title ?? 'N/A';
                                                 return [$user->id => "{$user->name} - {$jobTitle}"];
                                             });
                                     })
@@ -177,6 +189,7 @@ class AssetTransferResource extends Resource
                                         return $user->id;
                                     })
                                     ->searchable()
+                                    ->preload()
                                     ->required(),
                                 DatePicker::make('transfer_date')
                                     ->native(false)

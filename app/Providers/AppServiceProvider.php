@@ -14,6 +14,7 @@ use Filament\Widgets\Widget;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -33,6 +34,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureHttps();
+        $this->configureLivewireUploads();
         $this->configureFilamentShield();
         $this->configureRateLimiting();
         $this->registerFilamentBadgeColors();
@@ -50,6 +53,28 @@ class AppServiceProvider extends ServiceProvider
                 ->circular()
                 ->renderHook('panels::user-menu.before');
         });
+    }
+
+    /**
+     * Force HTTPS URLs when the app is served over HTTPS (e.g. Filament FileUpload previews).
+     */
+    protected function configureHttps(): void
+    {
+        if (str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
+    }
+
+    /**
+     * Keep Livewire temp uploads on the private local disk (not public/),
+     * so they are not web-accessible and do not depend on public/ subdirectory perms.
+     */
+    protected function configureLivewireUploads(): void
+    {
+        config([
+            'livewire.temporary_file_upload.disk' => 'local',
+            'livewire.temporary_file_upload.directory' => 'livewire-tmp',
+        ]);
     }
 
     /**

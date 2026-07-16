@@ -8,6 +8,7 @@ use App\Models\VehicleChecksheet;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -17,6 +18,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -65,21 +67,29 @@ class VehicleChecksheetResource extends Resource
                             })
                             ->searchable()
                             ->required()
-                            ->placeholder('Pilih Plat Nomor'),
+                            ->placeholder('Pilih Plat Nomor')
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                         Forms\Components\TextInput::make('pic')
                             ->maxLength(255)
                             ->label('PIC (Penanggung Jawab)')
-                            ->required(),
+                            ->required()
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                         Forms\Components\TextInput::make('location')
                             ->maxLength(255)
                             ->label('Lokasi Kendaraan')
                             ->placeholder('Contoh: Depo 1, Workshop, dll.')
-                            ->required(),
+                            ->required()
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                         Forms\Components\TextInput::make('destination')
                             ->maxLength(255)
                             ->label('Tujuan')
                             ->placeholder('Contoh: Depo 1, Workshop, dll.')
-                            ->required(),
+                            ->required()
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                     ]),
 
                 // Informasi Keberangkatan
@@ -89,11 +99,15 @@ class VehicleChecksheetResource extends Resource
                             ->required()
                             ->numeric()
                             ->label('Kilometer Awal')
-                            ->placeholder('Masukkan KM awal'),
+                            ->placeholder('Masukkan KM awal')
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                         Forms\Components\DateTimePicker::make('departure_time')
                             ->required()
                             ->label('Waktu Keberangkatan')
-                            ->default(now()),
+                            ->default(now())
+                            ->disabledOn('edit')
+                            ->dehydrated(),
                         Forms\Components\FileUpload::make('departure_photo')
                             ->required()
                             ->label('Foto Keberangkatan')
@@ -101,7 +115,17 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public'),
+                            ->visibility('public')
+                            ->disabledOn('edit')
+                            ->dehydrated()
+                            ->deletable(fn (string $operation): bool => $operation !== 'edit')
+                            ->getUploadedFileNameForStorageUsing(
+                                fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
+                                    $file,
+                                    'departure_photo',
+                                    $record?->reference_number ?? $get('reference_number')
+                                )
+                            ),
                         Forms\Components\FileUpload::make('departure_damage_report')
                             ->required()
                             ->label('Laporan Kerusakan Saat Keberangkatan')
@@ -109,32 +133,60 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public'),
+                            ->visibility('public')
+                            ->disabledOn('edit')
+                            ->dehydrated()
+                            ->deletable(fn (string $operation): bool => $operation !== 'edit')
+                            ->getUploadedFileNameForStorageUsing(
+                                fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
+                                    $file,
+                                    'departure_damage_report',
+                                    $record?->reference_number ?? $get('reference_number')
+                                )
+                            ),
                     ]),
 
                 // Informasi Pengembalian
                 Section::make('Informasi Pengembalian')
                     ->schema([
                         Forms\Components\TextInput::make('end_km')
+                            ->required()
                             ->numeric()
                             ->label('Kilometer Akhir')
                             ->placeholder('Masukkan KM akhir'),
                         Forms\Components\DateTimePicker::make('return_time')
+                            ->required()
                             ->label('Waktu Pengembalian'),
                         Forms\Components\FileUpload::make('return_photo')
+                            ->required()
                             ->label('Foto Pengembalian')
                             ->disk('public')
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public'),
+                            ->visibility('public')
+                            ->getUploadedFileNameForStorageUsing(
+                                fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
+                                    $file,
+                                    'return_photo',
+                                    $record?->reference_number ?? $get('reference_number')
+                                )
+                            ),
                         Forms\Components\FileUpload::make('return_damage_report')
+                            ->required()
                             ->label('Laporan Kerusakan Saat Pengembalian')
                             ->disk('public')
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public'),
+                            ->visibility('public')
+                            ->getUploadedFileNameForStorageUsing(
+                                fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
+                                    $file,
+                                    'return_damage_report',
+                                    $record?->reference_number ?? $get('reference_number')
+                                )
+                            ),
                     ])
                     ->hidden(fn ($livewire) => $livewire instanceof CreateRecord),
                 // Informasi Tambahan
@@ -318,7 +370,7 @@ class VehicleChecksheetResource extends Resource
         return $data;
     }
 
-    protected static function generateReferenceNumber(): string
+    public static function generateReferenceNumber(): string
     {
         $year = date('Y');
 
@@ -338,6 +390,23 @@ class VehicleChecksheetResource extends Resource
 
         // Format akhir menjadi GA-{tahun}-{nomor urut tiga digit}
         return "GA-{$year}-{$newNumber}";
+    }
+
+    protected static function vehicleChecksheetUploadFilename(
+        TemporaryUploadedFile $file,
+        string $field,
+        ?string $referenceNumber = null,
+    ): string {
+        $extension = $file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg';
+        $reference = $referenceNumber ?: self::generateReferenceNumber();
+
+        return sprintf(
+            'scale_%s_%s_%s.%s',
+            $reference,
+            $field,
+            now()->format('Ymd_His'),
+            $extension
+        );
     }
 
     public static function getRelations(): array
