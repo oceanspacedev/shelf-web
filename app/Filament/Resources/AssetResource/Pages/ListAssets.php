@@ -28,8 +28,17 @@ class ListAssets extends ListRecords
                 ->visible(fn () => auth()->user()->can('export', static::$resource::getModel()))
                 ->exports([
                     ExcelExport::make()
-                        ->fromTable()
-                        ->modifyQueryUsing(fn ($query) => $query->with('attributes.customAttribute'))
+                        ->queue('exports')
+                        ->modifyQueryUsing(fn ($query) => $query->with([
+                            'attributes.customAttribute',
+                            'businessEntity',
+                            'category',
+                            'brand',
+                            'assetLocation',
+                            'recipient',
+                            'recipientBusinessEntity',
+                            'nbhResponsible',
+                        ]))
                         ->withColumns([
                             Column::make('purchase_date')->heading('Tanggal Pembelian'),
                             Column::make('businessEntity.name')->heading('Badan Usaha'),

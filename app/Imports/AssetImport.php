@@ -17,7 +17,12 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class AssetImport implements ToCollection, WithChunkReading, WithHeadingRow
+use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
+use Maatwebsite\Excel\DefaultValueBinder;
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+
+class AssetImport extends DefaultValueBinder implements ToCollection, WithChunkReading, WithHeadingRow, WithCustomValueBinder
 {
     private array $businessEntityCache = [];
 
@@ -32,6 +37,19 @@ class AssetImport implements ToCollection, WithChunkReading, WithHeadingRow
     public function __construct()
     {
         $this->preloadCaches();
+    }
+
+    public function bindValue(Cell $cell, $value)
+    {
+        // If the value is a large numeric string or contains E, bind it as a string to prevent scientific notation conversion
+        if (is_numeric($value) && (strlen((string) $value) >= 12 || str_contains((string) $value, 'E'))) {
+            $cell->setValueExplicit((string) $value, DataType::TYPE_STRING);
+
+            return true;
+        }
+
+        // Else, use default value binder behavior
+        return parent::bindValue($cell, $value);
     }
 
     private function preloadCaches(): void

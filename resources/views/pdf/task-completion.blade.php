@@ -135,6 +135,14 @@
 </head>
 
 <body>
+    @php
+        $isGa = function ($user) {
+            if (!$user) return false;
+            return $user->id === 2 
+                || in_array(strtolower($user->name), ['ga', 'general affair', 'general_affair']) 
+                || strtolower($user->username ?? '') === 'adminga';
+        };
+    @endphp
     <!-- Kop Surat -->
     <div class="header">
         <img src="{{ $headerImage }}" alt="Kop Surat">
@@ -196,7 +204,7 @@
                 <td>
                     <p>Pelaksana</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $task->user->name ?? 'GA' }}</strong></p>
+                    <p><strong>{{ $task->user && $isGa($task->user) ? '' : ($task->user->name ?? '') }}</strong></p>
                 </td>
             </tr>
         </table>

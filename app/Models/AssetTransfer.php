@@ -64,14 +64,42 @@ class AssetTransfer extends Model
         }
 
         $format = $businessEntity->format;
+        if (empty($format) || $format === '0' || $format === '-') {
+            $name = preg_replace('/^(pt\.|pt|cv\.|cv)\s+/i', '', trim($businessEntity->name));
+            $words = preg_split('/[\s\-\.]+/', $name);
+            if (count($words) === 1) {
+                $prefix = strtoupper(substr($words[0], 0, 6));
+            } else {
+                $initials = '';
+                foreach ($words as $word) {
+                    $cleanedWord = preg_replace('/[^a-zA-Z0-9]/', '', $word);
+                    if ($cleanedWord !== '') {
+                        $initials .= substr($cleanedWord, 0, 1);
+                    }
+                }
+                $prefix = strtoupper($initials);
+            }
+            $format = $prefix . '/';
+        }
 
         if ($newNumber === null) {
             $lastTransfer = self::where('business_entity_id', $businessEntity->id)
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            $lastNumber = $lastTransfer ? (int) preg_replace('/\D/', '', substr($lastTransfer->letter_number, -6)) : 0;
-            $newNumber = str_pad($lastNumber + 1, 6, '0', STR_PAD_LEFT);
+            $lastNumber = 0;
+            if ($lastTransfer && str_starts_with($lastTransfer->letter_number, $format)) {
+                $lastNumber = (int) preg_replace('/\D/', '', substr($lastTransfer->letter_number, -6));
+            }
+            
+            do {
+                $lastNumber++;
+                $newNumberStr = str_pad($lastNumber, 6, '0', STR_PAD_LEFT);
+                $candidate = "{$format}{$newNumberStr}";
+                $exists = self::where('letter_number', $candidate)->exists();
+            } while ($exists);
+
+            return $candidate;
         }
 
         return "{$format}{$newNumber}";

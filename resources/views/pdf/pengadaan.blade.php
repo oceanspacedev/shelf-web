@@ -111,6 +111,14 @@
 </head>
 
 <body>
+    @php
+        $isGa = function ($user) {
+            if (!$user) return false;
+            return $user->id === 2 
+                || in_array(strtolower($user->name), ['ga', 'general affair', 'general_affair']) 
+                || strtolower($user->username ?? '') === 'adminga';
+        };
+    @endphp
     <div class="header">
         <img src="{{ $headerImage }}" alt="Kop Surat">
     </div>
@@ -126,12 +134,12 @@
                 <tr>
                     <td style="width: 18%;">Nama Pemohon</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 71%;"><strong>{{ $assetRequest->user->name }}</strong></td>
+                    <td style="width: 71%;"><strong>{{ $isGa($assetRequest->user) ? '' : $assetRequest->user->name }}</strong></td>
                 </tr>
                 <tr>
                     <td style="width: 18%;">Jabatan</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 71%;">{{ optional($assetRequest->user->jobTitle)->title }}</td>
+                    <td style="width: 71%;">{{ $isGa($assetRequest->user) ? '' : optional($assetRequest->user->jobTitle)->title }}</td>
                 </tr>
                 <tr>
                     <td style="width: 18%;">Divisi</td>
@@ -145,12 +153,12 @@
                 <tr>
                     <td style="width: 18%;">Nama Operator</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 71%;"><strong>{{ optional($assetRequest->fulfilledBy)->name }}</strong></td>
+                    <td style="width: 71%;"><strong>{{ $isGa($assetRequest->fulfilledBy) ? '' : optional($assetRequest->fulfilledBy)->name }}</strong></td>
                 </tr>
                 <tr>
                     <td style="width: 18%;">Jabatan</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 71%;">{{ optional($assetRequest->fulfilledBy?->jobTitle)->title }}</td>
+                    <td style="width: 71%;">{{ $isGa($assetRequest->fulfilledBy) ? '' : optional($assetRequest->fulfilledBy?->jobTitle)->title }}</td>
                 </tr>
             </table>
         </div>
@@ -181,7 +189,17 @@
                             <td>{{ $asset->name }}</td>
                             <td>{{ optional($asset->category)->name }}</td>
                             <td>{{ optional($asset->brand)->name }} {{ $asset->type ?? '' }}</td>
-                            <td>{{ trim(($asset->serial_number ?? '') . ' ' . ($asset->imei1 ?? '') . ' ' . ($asset->imei2 ?? '')) }}</td>
+                            <td>
+                                @php
+                                    $dbIdentifiers = trim(($asset->serial_number ?? '') . ' ' . ($asset->imei1 ?? '') . ' ' . ($asset->imei2 ?? ''));
+                                    $relIdentifiers = $asset->attributes
+                                        ->filter(fn ($attr) => in_array($attr->custom_attribute_id, [1, 2, 3]))
+                                        ->map(fn ($attr) => $attr->attribute_value)
+                                        ->filter()
+                                        ->implode(' / ');
+                                @endphp
+                                {{ $dbIdentifiers ?: ($relIdentifiers ?: '-') }}
+                            </td>
                             <td>{{ optional($asset->assetLocation)->name }}</td>
                             <td>{{ $asset->qty }}</td>
                         </tr>
@@ -200,12 +218,12 @@
                 <td>
                     <p>Pemohon</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $assetRequest->user->name }}</strong></p>
+                    <p><strong>{{ $isGa($assetRequest->user) ? '' : $assetRequest->user->name }}</strong></p>
                 </td>
                 <td>
                     <p>Operator</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ optional($assetRequest->fulfilledBy)->name }}</strong></p>
+                    <p><strong>{{ $isGa($assetRequest->fulfilledBy) ? '' : optional($assetRequest->fulfilledBy)->name }}</strong></p>
                 </td>
                 <td>
                     <p>Mengetahui</p>

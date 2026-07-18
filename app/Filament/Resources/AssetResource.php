@@ -149,12 +149,22 @@ class AssetResource extends Resource
                 'document_path' => $documentPath,
                 'notes' => $data['document_notes'] ?? null,
             ]);
-        } elseif (is_array($data['attribute_value'] ?? null)) {
-            $data['attribute_value'] = null;
+        } else {
+            $data['attribute_value'] = match ($customAttribute?->type) {
+                CustomAssetAttribute::TYPE_TEXT => $data['value_text'] ?? null,
+                CustomAssetAttribute::TYPE_NUMBER => $data['value_number'] ?? null,
+                CustomAssetAttribute::TYPE_TEXTAREA => $data['value_textarea'] ?? null,
+                CustomAssetAttribute::TYPE_DATE => $data['value_date'] ?? null,
+                default => null,
+            };
         }
 
         unset(
             $data['custom_attribute_label'],
+            $data['value_text'],
+            $data['value_number'],
+            $data['value_textarea'],
+            $data['value_date'],
             $data['document_expires_at'],
             $data['document_number'],
             $data['document_file_path'],
@@ -169,11 +179,15 @@ class AssetResource extends Resource
         $customAttribute = $attribute->customAttribute ?? CustomAssetAttribute::find($attribute->custom_attribute_id);
         $attribute->setRelation('customAttribute', $customAttribute);
         $payload = $attribute->documentPayload();
+        $type = $customAttribute?->type;
 
         return [
             'custom_attribute_id' => $attribute->custom_attribute_id,
             'custom_attribute_label' => $customAttribute?->name,
-            'attribute_value' => $attribute->isDocumentExpiryAttribute() ? null : $attribute->attribute_value,
+            'value_text' => $type === CustomAssetAttribute::TYPE_TEXT ? $attribute->attribute_value : null,
+            'value_number' => $type === CustomAssetAttribute::TYPE_NUMBER ? $attribute->attribute_value : null,
+            'value_textarea' => $type === CustomAssetAttribute::TYPE_TEXTAREA ? $attribute->attribute_value : null,
+            'value_date' => $type === CustomAssetAttribute::TYPE_DATE ? $attribute->attribute_value : null,
             'document_expires_at' => $payload['expires_at'] ?? null,
             'document_number' => $payload['document_number'] ?? null,
             'document_file_path' => $payload['document_path'] ?? null,
@@ -275,7 +289,10 @@ class AssetResource extends Resource
                                                 ->map(function ($attribute) {
                                                     return [
                                                         'custom_attribute_id' => $attribute->id,
-                                                        'attribute_value' => '',
+                                                        'value_text' => '',
+                                                        'value_number' => '',
+                                                        'value_textarea' => '',
+                                                        'value_date' => null,
                                                         'document_expires_at' => null,
                                                         'document_number' => null,
                                                         'document_file_path' => null,
@@ -357,7 +374,10 @@ class AssetResource extends Resource
                                     ->searchable()
                                     ->required()
                                     ->afterStateUpdated(function (callable $set) {
-                                        $set('attribute_value', null);
+                                        $set('value_text', null);
+                                        $set('value_number', null);
+                                        $set('value_textarea', null);
+                                        $set('value_date', null);
                                         $set('document_expires_at', null);
                                         $set('document_number', null);
                                         $set('document_file_path', null);
@@ -377,44 +397,44 @@ class AssetResource extends Resource
                                     }),
 
                                 // Input untuk nilai atribut
-                                TextInput::make('attribute_value')
+                                TextInput::make('value_text')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXT))
                                     ->afterStateHydrated(function ($state, callable $set) {
-                                        $set('attribute_value', $state ?? '');
+                                        $set('value_text', $state ?? '');
                                     }),
 
                                 // Input numerik
-                                TextInput::make('attribute_value')
+                                TextInput::make('value_number')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
-                                    ->numeric()
+                                    ->rules(['numeric'])
                                     ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_NUMBER))
                                     ->afterStateHydrated(function ($state, callable $set) {
-                                        $set('attribute_value', $state ?? '');
+                                        $set('value_number', $state ?? '');
                                     }),
 
                                 // Input untuk textarea
-                                Textarea::make('attribute_value')
+                                Textarea::make('value_textarea')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_TEXTAREA))
                                     ->afterStateHydrated(function ($state, callable $set) {
-                                        $set('attribute_value', $state ?? '');
+                                        $set('value_textarea', $state ?? '');
                                     }),
 
                                 // Input untuk date picker
-                                DatePicker::make('attribute_value')
+                                DatePicker::make('value_date')
                                     ->label(__('Nilai Atribut'))
                                     ->required(fn (callable $get) => self::customAttributeIsRequired($get('custom_attribute_id')))
                                     ->live()
                                     ->visible(fn (callable $get) => self::attributeUsesType($get('custom_attribute_id'), CustomAssetAttribute::TYPE_DATE))
                                     ->afterStateHydrated(function ($state, callable $set) {
-                                        $set('attribute_value', $state ?? '');
+                                        $set('value_date', $state ?? '');
                                     }),
 
                                 TextInput::make('document_number')

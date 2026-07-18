@@ -116,6 +116,12 @@
 <body>
     @php
         $documentType = $assetTransfer->documentType();
+        $isGa = function ($user) {
+            if (!$user) return false;
+            return $user->id === 2 
+                || in_array(strtolower($user->name), ['ga', 'general affair', 'general_affair']) 
+                || strtolower($user->username ?? '') === 'adminga';
+        };
     @endphp
 
     <div class="header">
@@ -132,12 +138,12 @@
                 <tr>
                     <td style="width: 10%;">Nama</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 79%;"><strong>{{ $assetTransfer->toUser->name }}</strong></td>
+                    <td style="width: 79%;"><strong>{{ $isGa($assetTransfer->toUser) ? '' : $assetTransfer->toUser->name }}</strong></td>
                 </tr>
                 <tr>
                     <td style="width: 10%;">Jabatan</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 79%;">{{ optional($assetTransfer->toUser->jobTitle)->title }}</td>
+                    <td style="width: 79%;">{{ $isGa($assetTransfer->toUser) ? '' : optional($assetTransfer->toUser->jobTitle)->title }}</td>
                 </tr>
             </table>
 
@@ -147,12 +153,12 @@
                     <tr>
                         <td style="width: 10%;">Nama</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;"><strong>{{ $assetTransfer->fromUser->name === 'GA' ? '' : $assetTransfer->fromUser->name }}</strong></td>
+                        <td style="width: 79%;"><strong>{{ $isGa($assetTransfer->fromUser) ? '' : $assetTransfer->fromUser->name }}</strong></td>
                     </tr>
                     <tr>
                         <td style="width: 10%;">Jabatan</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;">{{ $assetTransfer->fromUser->name === 'GA' ? '' : optional($assetTransfer->fromUser->jobTitle)->title }}</td>
+                        <td style="width: 79%;">{{ $isGa($assetTransfer->fromUser) ? '' : optional($assetTransfer->fromUser->jobTitle)->title }}</td>
                     </tr>
                 </table>
             @endif
@@ -177,7 +183,16 @@
                             <td>{{ $index + 1 }}</td>
                             <td>{{ $detail->asset->category->name }}</td>
                             <td>{{ $detail->asset->brand->name ?? '' }} {{ $detail->asset->type ?? '' }}</td>
-                            <td>{{ $detail->asset->attributes[0]->attribute_value ?? '' }}</td>
+                            <td>
+                                @php
+                                    $identifiers = $detail->asset->attributes
+                                        ->filter(fn ($attr) => in_array($attr->custom_attribute_id, [1, 2, 3]))
+                                        ->map(fn ($attr) => $attr->attribute_value)
+                                        ->filter()
+                                        ->implode(' / ');
+                                @endphp
+                                {{ $identifiers ?: ($detail->asset->attributes->first()?->attribute_value ?? '') }}
+                            </td>
                             <td>{{ $detail->equipment }}</td>
                         </tr>
                     @endforeach
@@ -203,12 +218,12 @@
                 <td>
                     <p>Penerima</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $assetTransfer->toUser->name }}</strong></p>
+                    <p><strong>{{ $isGa($assetTransfer->toUser) ? '' : $assetTransfer->toUser->name }}</strong></p>
                 </td>
                 <td>
                     <p>Pemberi</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $assetTransfer->fromUser->name === 'GA' ? '' : $assetTransfer->fromUser->name }}</strong></p>
+                    <p><strong>{{ $isGa($assetTransfer->fromUser) ? '' : $assetTransfer->fromUser->name }}</strong></p>
                 </td>
                 @if ($documentType === \App\Enums\AssetTransferDocumentType::PengembalianBarang)
                     <td>
