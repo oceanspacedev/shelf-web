@@ -331,6 +331,25 @@ class AssetTransferResource extends Resource
                     ->url(fn (AssetTransfer $record): string => route('asset-transfer.download', $record))
                     ->visible(fn (AssetTransfer $record): bool => $record->document === null)
                     ->color('success'),
+                Action::make('clear_document')
+                    ->label('Kosongkan Dokumen')
+                    ->icon('heroicon-o-trash')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Kosongkan Dokumen')
+                    ->modalDescription('Apakah Anda yakin ingin mengosongkan dokumen ini?')
+                    ->modalSubmitActionLabel('Ya, kosongkan')
+                    ->visible(fn (AssetTransfer $record): bool => $record->document !== null)
+                    ->action(function (AssetTransfer $record) {
+                        if ($record->document) {
+                            Storage::disk('public')->delete($record->document);
+                            $record->update(['document' => null]);
+                            \Filament\Notifications\Notification::make()
+                                ->title('Dokumen berhasil dikosongkan')
+                                ->success()
+                                ->send();
+                        }
+                    }),
                 \Filament\Actions\ViewAction::make(),
                 \Filament\Actions\EditAction::make(),
                 \Filament\Actions\DeleteAction::make(),

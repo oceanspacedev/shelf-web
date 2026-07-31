@@ -39,6 +39,25 @@ class EditAssetTransfer extends EditRecord
     {
         return [
             Actions\DeleteAction::make(),
+            Action::make('clear_document')
+                ->label('Kosongkan Dokumen')
+                ->color('warning')
+                ->icon('heroicon-o-trash')
+                ->requiresConfirmation()
+                ->modalHeading('Kosongkan Dokumen')
+                ->modalDescription('Apakah Anda yakin ingin mengosongkan dokumen ini?')
+                ->modalSubmitActionLabel('Ya, kosongkan')
+                ->visible(fn (AssetTransfer $record): bool => $record->document !== null)
+                ->action(function (AssetTransfer $record) {
+                    if ($record->document) {
+                        \Illuminate\Support\Facades\Storage::disk('public')->delete($record->document);
+                        $record->update(['document' => null]);
+                        Notification::make()
+                            ->title('Dokumen berhasil dikosongkan')
+                            ->success()
+                            ->send();
+                    }
+                }),
             Action::make('download')
                 ->label('Download PDF')
                 ->url(fn (AssetTransfer $record): string => route('asset-transfer.download', $record))

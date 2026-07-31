@@ -32,6 +32,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('model:prune')->daily();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontReport([
+            \Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class,
+        ]);
+
         $exceptions->reportable(function (\Throwable $e): void {
             FilamentExceptions::report($e);
         });
