@@ -22,6 +22,7 @@ class Asset extends Model
         'purchase_date',
         'business_entity_id',
         'name',
+        'asset_catalog_item_id',
         'image',
         'category_id',
         'brand_id',
@@ -44,6 +45,10 @@ class Asset extends Model
         'sale_document_path',
         'sale_notes',
         'qty',
+        'inventory_active',
+        'reconciliation_source',
+        'last_reconciled_at',
+        'last_reconciliation_id',
         'is_available',
         'recipient_id',
         'recipient_business_entity_id',
@@ -57,6 +62,8 @@ class Asset extends Model
         'nbh_reported_at' => 'date',
         'sold_at' => 'date',
         'sold_price' => 'integer',
+        'inventory_active' => 'boolean',
+        'last_reconciled_at' => 'datetime',
     ];
 
     public function attributes(): HasMany
@@ -74,6 +81,16 @@ class Asset extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function catalogItem(): BelongsTo
+    {
+        return $this->belongsTo(AssetCatalogItem::class, 'asset_catalog_item_id');
+    }
+
+    public function lastReconciliation(): BelongsTo
+    {
+        return $this->belongsTo(AssetReconciliation::class, 'last_reconciliation_id');
     }
 
     // Relasi ke tabel brands

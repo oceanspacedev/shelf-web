@@ -4,10 +4,13 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AssetLocationResource\Pages;
 use App\Models\AssetLocation;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -27,6 +30,11 @@ class AssetLocationResource extends Resource
                 TextInput::make('name')
                     ->required()
                     ->maxLength(255),
+                TextInput::make('external_code')
+                    ->label('Kode Gudang CSA')
+                    ->helperText('Dipakai untuk memetakan kolom Gudang pada workbook audit ke Lokasi Shelf.')
+                    ->unique(ignoreRecord: true)
+                    ->maxLength(255),
                 TextInput::make('address')
                     ->maxLength(255),
                 TextInput::make('description')
@@ -39,6 +47,7 @@ class AssetLocationResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->translateLabel(),
+                TextColumn::make('external_code')->label('Kode Gudang CSA')->searchable()->badge(),
                 TextColumn::make('address')->translateLabel(),
                 TextColumn::make('description')->translateLabel(),
             ])
@@ -46,14 +55,14 @@ class AssetLocationResource extends Resource
                 //
             ])
             ->actions([
-                \Filament\Actions\EditAction::make()
+                EditAction::make()
                     ->slideOver()
                     ->modalWidth('md'),
-                \Filament\Actions\DeleteAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

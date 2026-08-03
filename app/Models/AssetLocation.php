@@ -9,5 +9,5 @@ class AssetLocation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'address', 'description'];
+    protected $fillable = ['name', 'external_code', 'address', 'description'];
 }

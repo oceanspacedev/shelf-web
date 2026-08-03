@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Filament\Resources\AssetReconciliationResource;
 use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetResource;
 use App\Filament\Resources\DivisionResource;
@@ -105,7 +106,11 @@ return [
                 'delete',
             ],
         ],
-        'exclude' => [],
+        'exclude' => [
+            // Rekonsiliasi mewarisi izin import Asset agar tidak membuat
+            // permission paralel yang dapat melewati kontrol import utama.
+            AssetReconciliationResource::class,
+        ],
     ],
 
     'pages' => [

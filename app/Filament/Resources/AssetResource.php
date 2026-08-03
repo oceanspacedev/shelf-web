@@ -15,26 +15,30 @@ use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\Carbon;
-use Filament\Schemas\Components\Section;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Grid as ComponentsGrid;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Schemas\Components\Section as ComponentsSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Actions\Action;
-use Filament\Actions\BulkAction;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Grid as ComponentsGrid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Section as ComponentsSection;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
@@ -717,6 +721,10 @@ class AssetResource extends Resource
                     ->getStateUsing(fn ($record) => $record->businessEntity->name)
                     ->toggleable(),
                 TextColumn::make('name')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('catalogItem.external_code')
+                    ->label('Kode Item CSA')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('category.name')->translateLabel()->sortable()->toggleable(),
                 TextColumn::make('brand.name')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('type')->label('Model / Tipe')->sortable()->searchable()->toggleable(isToggledHiddenByDefault: true),
@@ -731,6 +739,12 @@ class AssetResource extends Resource
                 TextColumn::make('qty') // Mengambil nama dari relasi businessEntity
                     ->translateLabel()
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('inventory_active')
+                    ->label('Status Inventori')
+                    ->badge()
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Aktif' : 'Saldo 0')
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('assetLocation.name')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('condition_status_label')
@@ -783,6 +797,12 @@ class AssetResource extends Resource
                     ->multiple()
                     ->searchable()
                     ->preload(),
+                SelectFilter::make('inventory_active')
+                    ->label('Status Inventori')
+                    ->options([
+                        1 => 'Aktif',
+                        0 => 'Saldo 0 / Nonaktif',
+                    ]),
                 Filter::make('table_data_filter')
                     ->label('Filter Data Tabel')
                     ->form([
@@ -847,13 +867,13 @@ class AssetResource extends Resource
                             ->success()
                             ->send();
                     }),
-                \Filament\Actions\ViewAction::make(),
-                \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
                 BulkAction::make('pindahkanKeAtribut')
                     ->label('Pindahkan ke Atribut')

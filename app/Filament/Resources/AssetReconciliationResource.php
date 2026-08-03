@@ -1,0 +1,230 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\AssetReconciliationResource\Pages;
+use App\Filament\Resources\AssetReconciliationResource\RelationManagers\ItemsRelationManager;
+use App\Models\Asset;
+use App\Models\AssetReconciliation;
+use Filament\Actions\CreateAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+
+class AssetReconciliationResource extends Resource
+{
+    protected static ?string $model = AssetReconciliation::class;
+
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-arrows-right-left';
+
+    protected static ?string $navigationLabel = 'Import & Laporan Audit';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Asset';
+
+    protected static ?int $navigationSort = 2;
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->can('import', Asset::class) ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canView($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema->schema([
+            Section::make('1. Import Workbook Audit CSA')
+                ->description('Alur wajib: Export Format CSA → isi Fisik/Selisih → Import → Laporan gap → Apply. File di-stage dan dibandingkan dulu; data Shelf baru berubah setelah Terapkan Koreksi dikonfirmasi.')
+                ->schema([
+                    Select::make('business_entity_id')
+                        ->label('Badan Usaha Default')
+                        ->relationship('businessEntity', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->placeholder('Pilih badan usaha resmi')
+                        ->helperText('Dipakai untuk baris tanpa marker badan usaha dari CSA. Marker resmi seperti CSN dan override Gudang memiliki prioritas lebih tinggi.')
+                        ->columnSpanFull(),
+                    FileUpload::make('stored_path')
+                        ->label('File Excel Audit')
+                        ->disk('local')
+                        ->directory('asset-reconciliations')
+                        ->storeFileNamesIn('original_filename')
+                        ->acceptedFileTypes([
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'application/vnd.ms-excel',
+                        ])
+                        ->maxSize(20480)
+                        ->required()
+                        ->columnSpanFull(),
+                    TextInput::make('source_sheet')
+                        ->label('Nama Sheet Aset')
+                        ->default('ASET')
+                        ->required()
+                        ->maxLength(100),
+                    Toggle::make('auto_create_locations')
+                        ->label('Buat lokasi baru untuk kode gudang yang belum dikenal')
+                        ->helperText('Lokasi baru hanya dibuat ketika koreksi diterapkan, tidak saat preview compare.')
+                        ->default(true),
+                ])
+                ->columns(2),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->defaultSort('created_at', 'desc')
+            ->columns([
+                TextColumn::make('created_at')->label('Dibuat')->dateTime('d M Y H:i')->sortable(),
+                TextColumn::make('original_filename')->label('Workbook')->searchable()->limit(36),
+                TextColumn::make('businessEntity.name')->label('Badan Usaha Default')->searchable()->sortable()->toggleable(),
+                TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => self::statusLabel($state))
+                    ->color(fn (string $state): string => self::statusColor($state)),
+                TextColumn::make('total_rows')->label('Baris')->numeric(),
+                TextColumn::make('inline_rows')->label('Inline')->numeric()->color('success'),
+                TextColumn::make('gap_rows')->label('Gap')->numeric()->color('warning'),
+                TextColumn::make('blocked_rows')->label('Blokir')->numeric()->color('danger'),
+                TextColumn::make('importer.name')->label('Pengguna')->toggleable(),
+                TextColumn::make('applied_at')->label('Diterapkan')->dateTime('d M Y H:i')->placeholder('-'),
+            ])
+            ->filters([
+                SelectFilter::make('status')->options([
+                    AssetReconciliation::STATUS_PROCESSING => self::statusLabel(AssetReconciliation::STATUS_PROCESSING),
+                    AssetReconciliation::STATUS_COMPARED => self::statusLabel(AssetReconciliation::STATUS_COMPARED),
+                    AssetReconciliation::STATUS_ALIGNED => self::statusLabel(AssetReconciliation::STATUS_ALIGNED),
+                    AssetReconciliation::STATUS_APPLIED => self::statusLabel(AssetReconciliation::STATUS_APPLIED),
+                    AssetReconciliation::STATUS_FAILED => self::statusLabel(AssetReconciliation::STATUS_FAILED),
+                ]),
+            ])
+            ->actions([
+                ViewAction::make()->label('Buka Laporan'),
+            ])
+            ->emptyStateHeading('Belum ada batch audit CSA')
+            ->emptyStateDescription('Mulai dari 0. Export Format CSA, isi Fisik/Selisih, lalu 1. Import Audit CSA.')
+            ->emptyStateActions([
+                CreateAction::make()
+                    ->label('1. Import Audit CSA')
+                    ->icon('heroicon-o-document-magnifying-glass'),
+            ]);
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema->schema([
+            Section::make('2. Laporan Hasil Banding')
+                ->description('Tinjau Inline, Gap, dan Blocked sebelum Apply. Tidak ada mutasi Shelf pada tahap ini.')
+                ->schema([
+                    Grid::make(4)->schema([
+                        TextEntry::make('status')
+                            ->badge()
+                            ->formatStateUsing(fn (string $state): string => self::statusLabel($state))
+                            ->color(fn (string $state): string => self::statusColor($state)),
+                        TextEntry::make('source_system')->label('Sumber'),
+                        TextEntry::make('source_sheet')->label('Sheet'),
+                        TextEntry::make('original_filename')->label('Workbook'),
+                    ]),
+                    TextEntry::make('businessEntity.name')
+                        ->label('Badan Usaha Default')
+                        ->placeholder('Batch lama: belum ditentukan')
+                        ->color(fn (?string $state): string => filled($state) ? 'primary' : 'danger'),
+                    Grid::make(4)->schema([
+                        TextEntry::make('total_rows')->label('Total Baris')->numeric(),
+                        TextEntry::make('inline_rows')->label('Sudah Inline')->numeric()->color('success'),
+                        TextEntry::make('gap_rows')->label('Perlu Koreksi')->numeric()->color('warning'),
+                        TextEntry::make('blocked_rows')->label('Terblokir')->numeric()->color('danger'),
+                    ]),
+                    Grid::make(3)->schema([
+                        TextEntry::make('created_rows')->label('Aset Dibuat')->numeric(),
+                        TextEntry::make('updated_rows')->label('Aset Disesuaikan')->numeric(),
+                        TextEntry::make('retired_rows')->label('Saldo Jadi 0')->numeric(),
+                    ]),
+                    TextEntry::make('parent.uuid')
+                        ->label('Batch Induk')
+                        ->placeholder('-')
+                        ->visible(fn (?AssetReconciliation $record): bool => filled($record?->parent_id)),
+                    TextEntry::make('compared_at')
+                        ->label('Waktu Laporan')
+                        ->dateTime('d M Y H:i')
+                        ->placeholder('-'),
+                    TextEntry::make('applied_at')
+                        ->label('Waktu Apply')
+                        ->dateTime('d M Y H:i')
+                        ->placeholder('-'),
+                    TextEntry::make('failure_message')
+                        ->label('Penyebab Gagal')
+                        ->color('danger')
+                        ->columnSpanFull()
+                        ->visible(fn (?AssetReconciliation $record): bool => filled($record?->failure_message)),
+                ]),
+        ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [ItemsRelationManager::class];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListAssetReconciliations::route('/'),
+            'create' => Pages\CreateAssetReconciliation::route('/create'),
+            'view' => Pages\ViewAssetReconciliation::route('/{record}'),
+        ];
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Import & Laporan Audit Aset';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Import & Laporan Audit Aset';
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return match ($status) {
+            AssetReconciliation::STATUS_PROCESSING => 'Memproses',
+            AssetReconciliation::STATUS_COMPARED => 'Preview tersedia',
+            AssetReconciliation::STATUS_ALIGNED => 'Sudah inline',
+            AssetReconciliation::STATUS_APPLIED => 'Koreksi diterapkan',
+            AssetReconciliation::STATUS_FAILED => 'Gagal',
+            default => $status,
+        };
+    }
+
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            AssetReconciliation::STATUS_ALIGNED => 'success',
+            AssetReconciliation::STATUS_APPLIED => 'primary',
+            AssetReconciliation::STATUS_COMPARED => 'warning',
+            AssetReconciliation::STATUS_FAILED => 'danger',
+            default => 'gray',
+        };
+    }
+}

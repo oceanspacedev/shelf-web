@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\AssetResource\Pages;
 
+use App\Filament\Actions\ExportCsaAuditFormatAction;
+use App\Filament\Resources\AssetReconciliationResource;
 use App\Filament\Resources\AssetResource;
 use App\Imports\AssetImport;
 use Asmit\ResizedColumn\HasResizableColumn;
@@ -21,6 +23,14 @@ class ListAssets extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            ExportCsaAuditFormatAction::make(),
+            Actions\Action::make('auditReconciliation')
+                ->label('Import & Laporan Audit CSA')
+                ->icon('heroicon-o-arrows-right-left')
+                ->color('primary')
+                ->tooltip('Sinkronisasi CSA: Export format → isi audit → Import → Laporan → Apply.')
+                ->url(AssetReconciliationResource::getUrl('index'))
+                ->visible(fn () => auth()->user()->can('import', static::$resource::getModel())),
             ExportAction::make()
                 ->label('Export')
                 ->icon('heroicon-o-document-arrow-up')
