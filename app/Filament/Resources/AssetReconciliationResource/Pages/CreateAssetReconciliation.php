@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\AssetReconciliationResource\Pages;
 
 use App\Filament\Actions\ExportCsaAuditFormatAction;
+use App\Filament\Actions\ExportVehicleAuditFormatAction;
 use App\Filament\Resources\AssetReconciliationResource;
 use App\Models\AssetReconciliation;
 use App\Services\AssetReconciliationService;
+use App\Services\VehicleAssetAuditWorkbookParser;
+use App\Services\VehicleAssetReconciliationService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Storage;
@@ -17,18 +20,19 @@ class CreateAssetReconciliation extends CreateRecord
 
     public function getTitle(): string
     {
-        return '1. Import Audit CSA';
+        return '1. Import Audit';
     }
 
     public function getSubheading(): ?string
     {
-        return 'Unggah workbook hasil Export Format CSA yang sudah diisi Fisik/Selisih. Setelah simpan, sistem langsung membuat Laporan.';
+        return 'Pilih CSA atau Kendaraan, unggah workbook audit. Setelah simpan, sistem langsung membuat Laporan (tanpa mengubah Shelf).';
     }
 
     protected function getHeaderActions(): array
     {
         return [
             ExportCsaAuditFormatAction::make(),
+            ExportVehicleAuditFormatAction::make(),
         ];
     }
 
@@ -38,11 +42,22 @@ class CreateAssetReconciliation extends CreateRecord
         $originalFilename = $data['original_filename'] ?? basename($storedPath);
         $originalFilename = is_array($originalFilename) ? reset($originalFilename) : $originalFilename;
         $absolutePath = Storage::disk('local')->path($storedPath);
+        $sourceSystem = $data['source_system'] ?? 'CSA';
+        $sourceSheet = $data['source_sheet'] ?? null;
+
+        if ($sourceSystem === 'VEHICLE_AUDIT' && (blank($sourceSheet) || $sourceSheet === 'ASET')) {
+            $sourceSheet = VehicleAssetAuditWorkbookParser::DEFAULT_SHEET;
+        }
+
+        if ($sourceSystem !== 'VEHICLE_AUDIT' && blank($sourceSheet)) {
+            $sourceSheet = 'ASET';
+        }
 
         return [
             ...$data,
             'stored_path' => $storedPath,
-            'source_system' => 'CSA',
+            'source_system' => $sourceSystem,
+            'source_sheet' => $sourceSheet,
             'original_filename' => $originalFilename,
             'file_sha256' => hash_file('sha256', $absolutePath),
             'status' => AssetReconciliation::STATUS_PROCESSING,
@@ -53,7 +68,11 @@ class CreateAssetReconciliation extends CreateRecord
     protected function afterCreate(): void
     {
         try {
-            app(AssetReconciliationService::class)->compare($this->record);
+            if ($this->record->source_system === 'VEHICLE_AUDIT') {
+                app(VehicleAssetReconciliationService::class)->compare($this->record);
+            } else {
+                app(AssetReconciliationService::class)->compare($this->record);
+            }
 
             Notification::make()
                 ->title('Import selesai — laporan siap')

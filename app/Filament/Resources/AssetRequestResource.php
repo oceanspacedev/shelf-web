@@ -760,6 +760,7 @@ class AssetRequestResource extends Resource
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('warning')
                     ->button()
+                    ->size(Size::ExtraLarge)
                     ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Pending
                         && (auth()->user()?->can('approve', $record) ?? false))
@@ -770,6 +771,7 @@ class AssetRequestResource extends Resource
                     ->icon('heroicon-o-plus-circle')
                     ->color('success')
                     ->button()
+                    ->size(Size::ExtraLarge)
                     ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
                         && !$record->is_fulfilled
@@ -784,6 +786,7 @@ class AssetRequestResource extends Resource
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
                     ->button()
+                    ->size(Size::ExtraLarge)
                     ->tooltip('Buat BA')
                     ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
@@ -798,6 +801,7 @@ class AssetRequestResource extends Resource
                     ->icon('heroicon-o-wrench-screwdriver')
                     ->color('warning')
                     ->button()
+                    ->size(Size::ExtraLarge)
                     ->tooltip('Proses Perbaikan')
                     ->requiresConfirmation()
                     ->modalHeading('Proses aset untuk perbaikan?')
@@ -819,8 +823,8 @@ class AssetRequestResource extends Resource
                     }),
 
                 ViewAction::make()
-                    ->label('')
-                    ->button()
+                    ->iconButton()
+                    ->size(Size::ExtraLarge)
                     ->tooltip('Lihat detail'),
 
                 ActionGroup::make([
@@ -894,10 +898,11 @@ class AssetRequestResource extends Resource
                     DeleteAction::make()
                         ->label('Hapus pengajuan'),
                 ])
-                    ->label('')
+                    ->label('Aksi lainnya')
                     ->icon('heroicon-m-ellipsis-vertical')
                     ->color('gray')
-                    ->button()
+                    ->iconButton()
+                    ->size(Size::ExtraLarge)
                     ->tooltip('Aksi lainnya'),
             ])
             ->recordActionsColumnLabel('Tindak Lanjut')

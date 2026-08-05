@@ -51,9 +51,25 @@ class AssetReconciliationResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->schema([
-            Section::make('1. Import Workbook Audit CSA')
-                ->description('Alur wajib: Export Format CSA → isi Fisik/Selisih → Import → Laporan gap → Apply. File di-stage dan dibandingkan dulu; data Shelf baru berubah setelah Terapkan Koreksi dikonfirmasi.')
+            Section::make('1. Import Workbook Audit')
+                ->description('Alur wajib: Export format → isi audit → Import → Laporan gap → Apply. File di-stage dan dibandingkan dulu; data Shelf baru berubah setelah Terapkan Koreksi dikonfirmasi.')
                 ->schema([
+                    Select::make('source_system')
+                        ->label('Jenis Audit')
+                        ->options([
+                            'CSA' => 'CSA (stok ritel / inventori)',
+                            'VEHICLE_AUDIT' => 'Kendaraan (Monitoring Asset / LHP)',
+                        ])
+                        ->default('CSA')
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function (callable $set, ?string $state): void {
+                            $set('source_sheet', $state === 'VEHICLE_AUDIT' ? 'Monitoring Asset' : 'ASET');
+                            // Vehicle create is opt-in; CSA keeps create-location on by default.
+                            $set('auto_create_locations', $state !== 'VEHICLE_AUDIT');
+                        })
+                        ->helperText('CSA memakai sheet ASET (qty). Kendaraan memakai sheet Monitoring Asset (plat).')
+                        ->columnSpanFull(),
                     Select::make('business_entity_id')
                         ->label('Badan Usaha Default')
                         ->relationship('businessEntity', 'name')
@@ -61,7 +77,9 @@ class AssetReconciliationResource extends Resource
                         ->preload()
                         ->required()
                         ->placeholder('Pilih badan usaha resmi')
-                        ->helperText('Dipakai untuk baris tanpa marker badan usaha dari CSA. Marker resmi seperti CSN dan override Gudang memiliki prioritas lebih tinggi.')
+                        ->helperText(fn (callable $get): string => $get('source_system') === 'VEHICLE_AUDIT'
+                            ? 'Dipakai bila ACC/STNK tidak punya alias resmi. Alias MSI/CS/TOP/MKLI dipetakan exact ke master.'
+                            : 'Dipakai untuk baris tanpa marker badan usaha dari CSA. Marker resmi seperti CSN dan override Gudang memiliki prioritas lebih tinggi.')
                         ->columnSpanFull(),
                     FileUpload::make('stored_path')
                         ->label('File Excel Audit')
@@ -76,13 +94,19 @@ class AssetReconciliationResource extends Resource
                         ->required()
                         ->columnSpanFull(),
                     TextInput::make('source_sheet')
-                        ->label('Nama Sheet Aset')
+                        ->label(fn (callable $get): string => $get('source_system') === 'VEHICLE_AUDIT'
+                            ? 'Nama Sheet Monitoring'
+                            : 'Nama Sheet Aset')
                         ->default('ASET')
                         ->required()
                         ->maxLength(100),
                     Toggle::make('auto_create_locations')
-                        ->label('Buat lokasi baru untuk kode gudang yang belum dikenal')
-                        ->helperText('Lokasi baru hanya dibuat ketika koreksi diterapkan, tidak saat preview compare.')
+                        ->label(fn (callable $get): string => $get('source_system') === 'VEHICLE_AUDIT'
+                            ? 'Buat aset/lokasi baru dari audit (opt-in)'
+                            : 'Buat lokasi baru untuk kode gudang yang belum dikenal')
+                        ->helperText(fn (callable $get): string => $get('source_system') === 'VEHICLE_AUDIT'
+                            ? 'Off = plat hilang / keberadaan baru → Terblokir. On = saat Apply boleh buat aset MOBIL/MOTOR dan lokasi dari CEK KEBERADAAN. Tidak mengubah Shelf saat preview.'
+                            : 'Lokasi baru hanya dibuat ketika koreksi diterapkan, tidak saat preview compare.')
                         ->default(true),
                 ])
                 ->columns(2),
@@ -96,6 +120,15 @@ class AssetReconciliationResource extends Resource
             ->columns([
                 TextColumn::make('created_at')->label('Dibuat')->dateTime('d M Y H:i')->sortable(),
                 TextColumn::make('original_filename')->label('Workbook')->searchable()->limit(36),
+                TextColumn::make('source_system')
+                    ->label('Jenis')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'VEHICLE_AUDIT' => 'Kendaraan',
+                        'CSA' => 'CSA',
+                        default => $state ?? '-',
+                    })
+                    ->color(fn (?string $state): string => $state === 'VEHICLE_AUDIT' ? 'info' : 'gray'),
                 TextColumn::make('businessEntity.name')->label('Badan Usaha Default')->searchable()->sortable()->toggleable(),
                 TextColumn::make('status')
                     ->label('Status')
@@ -110,6 +143,10 @@ class AssetReconciliationResource extends Resource
                 TextColumn::make('applied_at')->label('Diterapkan')->dateTime('d M Y H:i')->placeholder('-'),
             ])
             ->filters([
+                SelectFilter::make('source_system')->label('Jenis Audit')->options([
+                    'CSA' => 'CSA',
+                    'VEHICLE_AUDIT' => 'Kendaraan',
+                ]),
                 SelectFilter::make('status')->options([
                     AssetReconciliation::STATUS_PROCESSING => self::statusLabel(AssetReconciliation::STATUS_PROCESSING),
                     AssetReconciliation::STATUS_COMPARED => self::statusLabel(AssetReconciliation::STATUS_COMPARED),
@@ -121,11 +158,11 @@ class AssetReconciliationResource extends Resource
             ->actions([
                 ViewAction::make()->label('Buka Laporan'),
             ])
-            ->emptyStateHeading('Belum ada batch audit CSA')
-            ->emptyStateDescription('Mulai dari 0. Export Format CSA, isi Fisik/Selisih, lalu 1. Import Audit CSA.')
+            ->emptyStateHeading('Belum ada batch audit')
+            ->emptyStateDescription('Pilih CSA atau Audit Kendaraan: Export format → isi audit → Import → Laporan → Apply.')
             ->emptyStateActions([
                 CreateAction::make()
-                    ->label('1. Import Audit CSA')
+                    ->label('1. Import Audit')
                     ->icon('heroicon-o-document-magnifying-glass'),
             ]);
     }
@@ -158,8 +195,43 @@ class AssetReconciliationResource extends Resource
                     Grid::make(3)->schema([
                         TextEntry::make('created_rows')->label('Aset Dibuat')->numeric(),
                         TextEntry::make('updated_rows')->label('Aset Disesuaikan')->numeric(),
-                        TextEntry::make('retired_rows')->label('Saldo Jadi 0')->numeric(),
+                        TextEntry::make('retired_rows')
+                            ->label(fn (?AssetReconciliation $record): string => ($record?->source_system ?? null) === 'VEHICLE_AUDIT'
+                                ? 'Dinonaktifkan / Terjual'
+                                : 'Saldo Jadi 0')
+                            ->numeric(),
                     ]),
+                    TextEntry::make('summary.actions')
+                        ->label('Ringkasan Aksi Preview')
+                        ->formatStateUsing(function (mixed $state): string {
+                            if (! is_array($state) || $state === []) {
+                                return '-';
+                            }
+
+                            $labels = [
+                                'mark_sold' => 'Tandai terjual',
+                                'retire_duplicate' => 'Nonaktifkan duplikat',
+                                'create_missing' => 'Buat aset',
+                                'enrich' => 'Lengkapi identitas',
+                                'none' => 'Tanpa aksi',
+                                'create' => 'Buat aset',
+                                'adjust' => 'Sesuaikan',
+                                'retire' => 'Saldo 0',
+                                'review' => 'Tinjau',
+                            ];
+
+                            return collect($state)
+                                ->map(fn (int $count, string $action): string => ($labels[$action] ?? $action).": {$count}")
+                                ->implode(' · ');
+                        })
+                        ->columnSpanFull()
+                        ->visible(fn (?AssetReconciliation $record): bool => filled($record?->summary['actions'] ?? null)),
+                    TextEntry::make('summary.orphan_shelf_plates')
+                        ->label('Plat Shelf tanpa pasangan audit')
+                        ->numeric()
+                        ->helperText('Observasi saja — tidak dihapus otomatis (FR-VA-013).')
+                        ->visible(fn (?AssetReconciliation $record): bool => ($record?->source_system ?? null) === 'VEHICLE_AUDIT'
+                            && array_key_exists('orphan_shelf_plates', $record?->summary ?? [])),
                     TextEntry::make('parent.uuid')
                         ->label('Batch Induk')
                         ->placeholder('-')

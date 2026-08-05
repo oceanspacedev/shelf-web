@@ -146,16 +146,33 @@ class AssetTransfer extends Model
 
         $hasGeneralAffairRole = fn (Builder $roleQuery): Builder => $roleQuery->where('name', 'general_affair');
 
+        $isMainGaUser = fn (Builder $userQuery): Builder => $userQuery->where(function (Builder $u) {
+            $u->where('id', 2)->where('username', 'adminga');
+        })->orWhere('name', 'GA');
+
         return match ($type) {
             AssetTransferDocumentType::SerahTerima => $query
                 ->whereHas('fromUser.roles', $hasGeneralAffairRole)
-                ->whereDoesntHave('toUser.roles', $hasGeneralAffairRole),
+                ->where(function (Builder $q) use ($hasGeneralAffairRole, $isMainGaUser) {
+                    $q->whereDoesntHave('toUser.roles', $hasGeneralAffairRole)
+                        ->orWhere(function (Builder $sub) use ($hasGeneralAffairRole, $isMainGaUser) {
+                            $sub->whereHas('toUser.roles', $hasGeneralAffairRole)
+                                ->whereDoesntHave('toUser', $isMainGaUser);
+                        });
+                }),
             AssetTransferDocumentType::PengalihanBarang => $query
                 ->whereDoesntHave('fromUser.roles', $hasGeneralAffairRole)
                 ->whereDoesntHave('toUser.roles', $hasGeneralAffairRole),
             AssetTransferDocumentType::PengembalianBarang => $query
-                ->whereDoesntHave('fromUser.roles', $hasGeneralAffairRole)
-                ->whereHas('toUser.roles', $hasGeneralAffairRole),
+                ->where(function (Builder $q) use ($hasGeneralAffairRole, $isMainGaUser) {
+                    $q->where(function (Builder $sub) use ($hasGeneralAffairRole) {
+                        $sub->whereDoesntHave('fromUser.roles', $hasGeneralAffairRole)
+                            ->whereHas('toUser.roles', $hasGeneralAffairRole);
+                    })->orWhere(function (Builder $sub) use ($hasGeneralAffairRole, $isMainGaUser) {
+                        $sub->whereHas('fromUser.roles', $hasGeneralAffairRole)
+                            ->whereHas('toUser', $isMainGaUser);
+                    });
+                }),
         };
     }
 

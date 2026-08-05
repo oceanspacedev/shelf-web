@@ -9,32 +9,47 @@ class AssetLocationSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * Names must match config/vehicle-asset-reconciliation.php location_aliases targets
+     * (exact after normalize) so local/staging validate-masters passes.
      */
     public function run(): void
     {
+        $now = now();
+
         DB::table('asset_locations')->insert([
             [
-                'name' => 'Kantor Pusat',
-                'address' => 'Jl. Jendral Sudirman No. 123, Jakarta',
-                'description' => 'Kantor pusat perusahaan',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'name' => 'HEAD OFFICE PIK',
+                'address' => 'PIK, Jakarta',
+                'description' => 'Head Office PIK (alias HO/PIK)',
+                'external_code' => 'ho',
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
-                'name' => 'Gudang Utama',
-                'address' => 'Jl. Industri Raya No. 5, Bekasi',
-                'description' => 'Gudang penyimpanan barang',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'name' => 'GUDANG PRIMA CENTER',
+                'address' => 'Prima Center',
+                'description' => 'Gudang Prima Center (alias PC)',
+                'external_code' => 'pc',
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             [
-                'name' => 'Cabang Bandung',
-                'address' => 'Jl. Braga No. 90, Bandung',
-                'description' => 'Kantor cabang di Bandung',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'name' => 'PURWOKERTO',
+                'address' => 'Purwokerto',
+                'description' => 'Lokasi Purwokerto',
+                'external_code' => 'purwokerto',
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
-            // Tambahkan lokasi aset lainnya di sini sesuai kebutuhan
+            [
+                'name' => 'AUTO EV JATIWANGI',
+                'address' => 'Jatiwangi',
+                'description' => 'Auto EV Jatiwangi (alias JATIWANGI)',
+                'external_code' => 'jatiwangi',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
         ]);
     }
 }

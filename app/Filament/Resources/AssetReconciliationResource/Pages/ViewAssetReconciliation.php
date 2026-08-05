@@ -6,6 +6,8 @@ use App\Filament\Resources\AssetReconciliationResource;
 use App\Models\AssetReconciliation;
 use App\Models\BusinessEntity;
 use App\Services\AssetReconciliationService;
+use App\Services\VehicleAssetReconciliationService;
+use App\Support\AssetReconciliationNormalizer as Normalizer;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -59,7 +61,9 @@ class ViewAssetReconciliation extends ViewRecord
                 ->color('danger')
                 ->requiresConfirmation()
                 ->modalHeading('Apply: terapkan hasil laporan ke data Shelf?')
-                ->modalDescription('Langkah terakhir setelah Import dan Laporan. Kuantitas, lokasi, dan identitas item diselaraskan secara atomik. Aset target 0 tidak dihapus, tetapi dinonaktifkan dari inventori.')
+                ->modalDescription(fn (): string => $this->isVehicleAudit()
+                    ? 'Langkah terakhir. Sold/duplikat/create/enrich diterapkan secara atomik. Aset tidak dihapus; duplikat dinonaktifkan dari inventori.'
+                    : 'Langkah terakhir setelah Import dan Laporan. Kuantitas, lokasi, dan identitas item diselaraskan secara atomik. Aset target 0 tidak dihapus, tetapi dinonaktifkan dari inventori.')
                 ->visible(fn (): bool => in_array($this->record->status, [
                     AssetReconciliation::STATUS_COMPARED,
                     AssetReconciliation::STATUS_ALIGNED,
@@ -74,7 +78,11 @@ class ViewAssetReconciliation extends ViewRecord
                 })
                 ->action(function (): void {
                     try {
-                        app(AssetReconciliationService::class)->apply($this->record);
+                        if ($this->isVehicleAudit()) {
+                            app(VehicleAssetReconciliationService::class)->apply($this->record);
+                        } else {
+                            app(AssetReconciliationService::class)->apply($this->record);
+                        }
                         $this->record->refresh();
 
                         Notification::make()
@@ -98,7 +106,9 @@ class ViewAssetReconciliation extends ViewRecord
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
                 ->modalHeading('Compare ulang dengan mapping badan usaha')
-                ->modalDescription('Marker resmi dari workbook digunakan lebih dulu. Pilih default untuk baris tanpa marker dan isi override hanya jika suatu Gudang berbeda.')
+                ->modalDescription(fn (): string => $this->isVehicleAudit()
+                    ? 'Marker ACC/STNK dari workbook dipakai lebih dulu. Pilih default untuk baris tanpa marker, dan isi override hanya jika suatu keberadaan perlu badan usaha berbeda.'
+                    : 'Marker resmi dari workbook digunakan lebih dulu. Pilih default untuk baris tanpa marker dan isi override hanya jika suatu Gudang berbeda.')
                 ->schema([
                     Select::make('business_entity_id')
                         ->label('Badan Usaha Default')
@@ -108,16 +118,20 @@ class ViewAssetReconciliation extends ViewRecord
                         ->preload()
                         ->required()
                         ->placeholder('Pilih badan usaha resmi')
-                        ->helperText('Dipakai hanya untuk baris yang tidak memiliki marker badan usaha dari CSA dan tidak memiliki override Gudang.'),
+                        ->helperText(fn (): string => $this->isVehicleAudit()
+                            ? 'Dipakai hanya untuk baris tanpa marker ACC/STNK yang resolve dan tanpa override keberadaan.'
+                            : 'Dipakai hanya untuk baris yang tidak memiliki marker badan usaha dari CSA dan tidak memiliki override Gudang.'),
                     Repeater::make('location_mappings')
-                        ->label('Override Badan Usaha per Gudang')
+                        ->label(fn (): string => $this->isVehicleAudit()
+                            ? 'Override Badan Usaha per Keberadaan'
+                            : 'Override Badan Usaha per Gudang')
                         ->schema([
                             TextInput::make('external_location_code')
-                                ->label('Gudang')
+                                ->label(fn (): string => $this->isVehicleAudit() ? 'Keberadaan' : 'Gudang')
                                 ->disabled()
                                 ->dehydrated(),
                             TextInput::make('external_business_entity_code')
-                                ->label('Marker CSA')
+                                ->label(fn (): string => $this->isVehicleAudit() ? 'Marker ACC' : 'Marker CSA')
                                 ->disabled()
                                 ->placeholder('-'),
                             Select::make('business_entity_id')
@@ -143,12 +157,19 @@ class ViewAssetReconciliation extends ViewRecord
                     try {
                         $mappings = collect($data['location_mappings'] ?? [])
                             ->filter(fn (array $mapping): bool => filled($mapping['business_entity_id'] ?? null))
-                            ->mapWithKeys(fn (array $mapping): array => [
-                                $mapping['external_location_code'] => (int) $mapping['business_entity_id'],
-                            ])
+                            ->mapWithKeys(function (array $mapping): array {
+                                $key = Normalizer::key($mapping['external_location_code'] ?? null)
+                                    ?? (string) ($mapping['external_location_code'] ?? '');
+
+                                return [$key => (int) $mapping['business_entity_id']];
+                            })
                             ->all();
 
-                        $followUp = app(AssetReconciliationService::class)->recompare(
+                        $service = $this->isVehicleAudit()
+                            ? app(VehicleAssetReconciliationService::class)
+                            : app(AssetReconciliationService::class);
+
+                        $followUp = $service->recompare(
                             $this->record,
                             auth()->id(),
                             (int) $data['business_entity_id'],
@@ -179,12 +200,22 @@ class ViewAssetReconciliation extends ViewRecord
             ->orderBy('external_location_code')
             ->get(['external_location_code', 'external_business_entity_code'])
             ->unique('external_location_code')
-            ->map(fn ($item): array => [
-                'external_location_code' => $item->external_location_code,
-                'external_business_entity_code' => $item->external_business_entity_code,
-                'business_entity_id' => $overrides[$item->external_location_code] ?? null,
-            ])
+            ->map(function ($item) use ($overrides): array {
+                $raw = $item->external_location_code;
+                $normalized = Normalizer::key($raw) ?? $raw;
+
+                return [
+                    'external_location_code' => $raw,
+                    'external_business_entity_code' => $item->external_business_entity_code,
+                    'business_entity_id' => $overrides[$normalized] ?? $overrides[$raw] ?? null,
+                ];
+            })
             ->values()
             ->all();
+    }
+
+    private function isVehicleAudit(): bool
+    {
+        return ($this->record->source_system ?? null) === 'VEHICLE_AUDIT';
     }
 }

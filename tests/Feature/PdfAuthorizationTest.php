@@ -280,5 +280,16 @@ class PdfAuthorizationTest extends TestCase
             $table->timestamp('fulfilled_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('asset_request_approvals', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('asset_request_id');
+            $table->unsignedBigInteger('user_id');
+            $table->integer('level');
+            $table->string('status');
+            $table->text('notes')->nullable();
+            $table->timestamp('decided_at')->nullable();
+            $table->timestamps();
+        });
     }
 }
