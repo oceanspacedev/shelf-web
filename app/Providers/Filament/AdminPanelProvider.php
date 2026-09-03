@@ -70,6 +70,8 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            ->databaseNotifications(isLazy: false)
+            ->databaseNotificationsPolling('2s')
             ->plugins([
                 ResizedColumnPlugin::make(),
                 FilamentPWAPlugin::make(),

@@ -1,0 +1,15 @@
+[Unit]
+Description=Web Shelf queue worker
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/web-shelf
+ExecStart=/usr/bin/php /var/www/web-shelf/artisan queue:work database --queue=default,exports --sleep=1 --tries=2 --backoff=10 --timeout=300 --max-time=3600
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
