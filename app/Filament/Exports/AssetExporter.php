@@ -8,6 +8,7 @@ use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Number;
 
 class AssetExporter extends Exporter
@@ -46,7 +47,27 @@ class AssetExporter extends Exporter
                         ->map(fn ($attr) => $attr->customAttribute?->name.': '.$attr->displayValue())
                         ->implode(', ');
                 }),
+            ExportColumn::make('qty')->label('Qty'),
         ];
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function __invoke(Model $record): array
+    {
+        $this->record = $record;
+
+        $columns = $this->getCachedColumns();
+        $data = [];
+
+        foreach (array_keys($this->columnMap) as $column) {
+            $data[] = array_key_exists($column, $columns)
+                ? $columns[$column]->getFormattedState()
+                : '';
+        }
+
+        return $data;
     }
 
     public static function modifyQuery(Builder $query): Builder
@@ -71,6 +92,14 @@ class AssetExporter extends Exporter
     public function getJobQueue(): ?string
     {
         return 'default';
+    }
+
+    /**
+     * @return array<int, object>
+     */
+    public function getJobMiddleware(): array
+    {
+        return [];
     }
 
     public function getFileName(Export $export): string

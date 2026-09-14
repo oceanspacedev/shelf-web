@@ -48,7 +48,9 @@ class AssetExporterTest extends TestCase
             'recipient.name',
             'recipientBusinessEntity.name',
             'custom_attributes',
+            'qty',
         ], $names);
+        $this->assertSame('Qty', collect(AssetExporter::getColumns())->last()->getLabel());
     }
 
     public function test_completed_notification_mentions_successful_row_count(): void
@@ -75,6 +77,7 @@ class AssetExporterTest extends TestCase
         $exporter = new AssetExporter(new Export, [], []);
 
         $this->assertSame('default', $exporter->getJobQueue());
+        $this->assertSame([], $exporter->getJobMiddleware());
     }
 
     public function test_modify_query_eager_loads_export_relations(): void
@@ -84,5 +87,44 @@ class AssetExporterTest extends TestCase
         $this->assertContains('businessEntity', $eagerLoads);
         $this->assertContains('attributes.customAttribute', $eagerLoads);
         $this->assertContains('nbhResponsible', $eagerLoads);
+    }
+
+    public function test_export_row_includes_qty_as_last_column(): void
+    {
+        $columnMap = collect(AssetExporter::getColumns())
+            ->mapWithKeys(fn ($column) => [$column->getName() => $column->getLabel()])
+            ->all();
+
+        $asset = new Asset([
+            'name' => 'Laptop',
+            'qty' => 4,
+        ]);
+        $asset->setRelation('attributes', collect());
+        $asset->setRelation('businessEntity', null);
+        $asset->setRelation('category', null);
+        $asset->setRelation('brand', null);
+        $asset->setRelation('assetLocation', null);
+        $asset->setRelation('recipient', null);
+        $asset->setRelation('recipientBusinessEntity', null);
+        $asset->setRelation('nbhResponsible', null);
+
+        $row = (new AssetExporter(new Export, $columnMap, []))($asset);
+
+        $this->assertSame('4', array_values($row)[array_key_last($row)]);
+        $this->assertCount(count($columnMap), $row);
+    }
+
+    public function test_export_row_keeps_column_alignment_when_map_has_unknown_keys(): void
+    {
+        $asset = new Asset(['name' => 'Laptop', 'qty' => 2]);
+        $asset->setRelation('attributes', collect());
+
+        $row = (new AssetExporter(new Export, [
+            'name' => 'Nama Aset',
+            'qty' => 'Qty',
+            'missing_column' => 'Missing',
+        ], []))($asset);
+
+        $this->assertSame(['Laptop', '2', ''], $row);
     }
 }
