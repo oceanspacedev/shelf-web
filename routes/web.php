@@ -21,6 +21,7 @@ Route::get('asset-transfer/{id}/download', [PdfController::class, 'downloadAsset
 Route::get('pengadaan/{id}/download', [PdfController::class, 'downloadPengadaan'])->middleware(['auth'])->name('pengadaan.download');
 Route::get('task-completion/{id}/download', [PdfController::class, 'downloadTaskCompletion'])->middleware(['auth'])->name('task-completion.download');
 Route::get('task-completion/{id}/preview', [PdfController::class, 'previewTaskCompletion'])->middleware(['auth'])->name('task-completion.preview');
+Route::post('admin/camera-upload', [\App\Http\Controllers\CameraUploadController::class, 'upload'])->middleware(['auth'])->name('admin.camera-upload');
 
 Route::get('asset-requests', [PublicAssetRequestController::class, 'index'])->name('public.asset-requests.index');
 Route::get('asset-requests/status/{token}', [PublicAssetRequestController::class, 'show'])->name('public.asset-requests.show');

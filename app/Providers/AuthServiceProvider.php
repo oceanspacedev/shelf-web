@@ -32,6 +32,7 @@ class AuthServiceProvider extends ServiceProvider
         Exception::class => ExceptionPolicy::class,
         Role::class => RolePolicy::class,
         Task::class => TaskPolicy::class,
+        \App\Models\ObChecksheet::class => \App\Policies\ObChecksheetPolicy::class,
     ];
 
     /**

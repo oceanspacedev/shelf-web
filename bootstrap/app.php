@@ -24,6 +24,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Trust reverse proxy TLS termination so request()->secure() and URL generation match HTTPS.
         $middleware->trustProxies(at: '*');
 
+        $middleware->validateCsrfTokens(except: [
+            'admin/camera-upload',
+        ]);
+
         $middleware->redirectGuestsTo(fn (Request $request) => route('filament.admin.auth.login'));
         $middleware->redirectUsersTo('/admin');
     })
