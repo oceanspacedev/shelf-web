@@ -16,6 +16,7 @@ use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -260,6 +261,177 @@ class AssetResource extends Resource
                         ->columnSpanFull(),
                 ]),
         ];
+    }
+
+    /**
+     * Cek apakah aset memiliki atribut bertipe document_expiry (atau kategorinya mendukung).
+     */
+    public static function hasDocumentExpiryAttributes(Asset $record): bool
+    {
+        $hasExisting = $record->attributes()
+            ->whereHas('customAttribute', fn ($q) => $q->where('type', CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)->where('is_active', true))
+            ->exists();
+
+        if ($hasExisting) {
+            return true;
+        }
+
+        $categoryIds = is_array($record->category_id) ? $record->category_id : array_filter([$record->category_id]);
+
+        return CustomAssetAttribute::where('is_active', true)
+            ->where('type', CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)
+            ->where(function ($query) use ($categoryIds) {
+                if (! empty($categoryIds)) {
+                    foreach ($categoryIds as $id) {
+                        $query->orWhereJsonContains('category_id', (int) $id);
+                    }
+                }
+                $query->orWhereJsonLength('category_id', 0)
+                    ->orWhereNull('category_id');
+            })
+            ->exists();
+    }
+
+    /**
+     * Form schema untuk perbarui dokumen aset (hanya tipe document_expiry) secara individual.
+     */
+    public static function attributeDocumentUpdateFormSchema(Asset $record): array
+    {
+        $options = [];
+
+        // 1. Atribut dokumen yang sudah ada pada aset ini (hanya document_expiry)
+        $existing = $record->attributes()
+            ->whereHas('customAttribute', fn ($q) => $q->where('type', CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)->where('is_active', true))
+            ->with('customAttribute')
+            ->get();
+
+        foreach ($existing as $attr) {
+            if ($attr->customAttribute) {
+                $options[$attr->custom_attribute_id] = $attr->customAttribute->name;
+            }
+        }
+
+        // 2. Atribut dokumen aktif lainnya untuk kategori aset ini (hanya document_expiry)
+        $categoryIds = is_array($record->category_id) ? $record->category_id : array_filter([$record->category_id]);
+        $others = CustomAssetAttribute::where('is_active', true)
+            ->where('type', CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)
+            ->where(function ($query) use ($categoryIds) {
+                if (! empty($categoryIds)) {
+                    foreach ($categoryIds as $id) {
+                        $query->orWhereJsonContains('category_id', (int) $id);
+                    }
+                }
+                $query->orWhereJsonLength('category_id', 0)
+                    ->orWhereNull('category_id');
+            })
+            ->get();
+
+        foreach ($others as $other) {
+            if (! isset($options[$other->id])) {
+                $options[$other->id] = $other->name;
+            }
+        }
+
+        return [
+            Select::make('custom_attribute_id')
+                ->label('Pilih Dokumen')
+                ->placeholder('Pilih dokumen yang ingin diperbarui...')
+                ->options($options)
+                ->required()
+                ->searchable()
+                ->preload()
+                ->live()
+                ->afterStateUpdated(function ($state, callable $set) use ($record) {
+                    if (! $state) {
+                        $set('document_number', null);
+                        $set('document_expires_at', null);
+                        $set('document_notes', null);
+
+                        return;
+                    }
+                    $attr = $record->attributes()->where('custom_attribute_id', $state)->first();
+                    if ($attr && $attr->isDocumentExpiryAttribute()) {
+                        $payload = $attr->documentPayload();
+                        $set('document_number', $payload['document_number'] ?? null);
+                        $set('document_expires_at', $payload['expires_at'] ?? null);
+                        $set('document_notes', $payload['notes'] ?? null);
+                    } else {
+                        $set('document_number', null);
+                        $set('document_expires_at', null);
+                        $set('document_notes', null);
+                    }
+                }),
+
+            TextInput::make('document_number')
+                ->label('Nomor Dokumen')
+                ->placeholder('Contoh: Nomor STNK / No. Uji KIR / No. Polis')
+                ->visible(fn (callable $get) => filled($get('custom_attribute_id'))),
+
+            DatePicker::make('document_expires_at')
+                ->label('Masa Berlaku (Berlaku Sampai)')
+                ->required()
+                ->visible(fn (callable $get) => filled($get('custom_attribute_id'))),
+
+            FileUpload::make('document_file_path')
+                ->label('Foto / File Dokumen')
+                ->directory('asset-documents')
+                ->acceptedFileTypes(['application/pdf', 'image/*'])
+                ->maxSize(10240)
+                ->extraInputAttributes(['capture' => 'environment'])
+                ->visible(fn (callable $get) => filled($get('custom_attribute_id'))),
+
+            Textarea::make('document_notes')
+                ->label('Catatan Pembaruan (Opsional)')
+                ->rows(2)
+                ->placeholder('Catatan perpanjangan / keterangan...')
+                ->visible(fn (callable $get) => filled($get('custom_attribute_id'))),
+        ];
+    }
+
+    /**
+     * Handler simpan perbarui dokumen aset (hanya tipe document_expiry).
+     */
+    public static function handleAttributeDocumentUpdate(Asset $record, array $data): void
+    {
+        $customAttr = CustomAssetAttribute::where('type', CustomAssetAttribute::TYPE_DOCUMENT_EXPIRY)
+            ->findOrFail($data['custom_attribute_id']);
+
+        $filePath = $data['document_file_path'] ?? null;
+        if (is_array($filePath)) {
+            $filePath = reset($filePath) ?: null;
+        }
+
+        if (! $filePath) {
+            $existing = $record->attributes()->where('custom_attribute_id', $customAttr->id)->first();
+            if ($existing) {
+                $existingPayload = $existing->documentPayload();
+                $filePath = $existingPayload['document_path'] ?? null;
+            }
+        }
+
+        $attributeValue = AssetAttribute::documentValue([
+            'document_number' => $data['document_number'] ?? null,
+            'expires_at' => $data['document_expires_at'] ?? null,
+            'document_path' => $filePath,
+            'notes' => $data['document_notes'] ?? null,
+            'renewed_at' => now()->toDateString(),
+        ]);
+
+        AssetAttribute::updateOrCreate(
+            [
+                'asset_id' => $record->id,
+                'custom_attribute_id' => $customAttr->id,
+            ],
+            [
+                'attribute_value' => $attributeValue,
+            ]
+        );
+
+        Notification::make()
+            ->title('Dokumen Berhasil Diperbarui!')
+            ->body("{$customAttr->name} untuk aset \"{$record->name}\" telah berhasil disimpan.")
+            ->success()
+            ->send();
     }
 
     public static function form(Schema $form): Schema
@@ -867,9 +1039,24 @@ class AssetResource extends Resource
                             ->success()
                             ->send();
                     }),
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ActionGroup::make([
+                    Action::make('updateAttributeDocument')
+                        ->label('Perbarui Dokumen (STNK/KIR)')
+                        ->icon('heroicon-o-document-check')
+                        ->color('warning')
+                        ->visible(fn (Asset $record): bool => self::hasDocumentExpiryAttributes($record))
+                        ->modalWidth('lg')
+                        ->modalHeading(fn (Asset $record): string => 'Perbarui Dokumen: ' . $record->name)
+                        ->modalSubmitActionLabel('Simpan Pembaruan')
+                        ->form(fn (Asset $record): array => self::attributeDocumentUpdateFormSchema($record))
+                        ->action(function (Asset $record, array $data): void {
+                            self::handleAttributeDocumentUpdate($record, $data);
+                        }),
+
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -1085,6 +1272,21 @@ class AssetResource extends Resource
                                     ]),
                             ])
                             ->visible(fn (?Asset $record): bool => filled($record?->audit_document_path) || filled($record?->nbh_document_path) || filled($record?->sale_document_path)),
+
+                        ComponentsSection::make('Riwayat Servis Aset')
+                            ->schema([
+                                \Filament\Infolists\Components\RepeatableEntry::make('services')
+                                    ->label('')
+                                    ->schema([
+                                        TextEntry::make('service_number')->label(__('No. Servis'))->weight('bold'),
+                                        TextEntry::make('service_date')->label(__('Tgl Servis'))->state(fn ($record) => $record->service_date?->format('d M Y')),
+                                        TextEntry::make('provider_label')->label(__('Pelaksana')),
+                                        TextEntry::make('total_cost')->label(__('Biaya'))->state(fn ($record) => 'Rp ' . number_format($record->total_cost ?: 0, 0, ',', '.')),
+                                        TextEntry::make('status')->label(__('Status'))->badge()->color(fn ($state) => $state instanceof \App\Enums\AssetServiceStatus ? $state->color() : 'gray')->formatStateUsing(fn ($state) => $state instanceof \App\Enums\AssetServiceStatus ? $state->label() : (string) $state),
+                                    ])
+                                    ->columns(5),
+                            ])
+                            ->visible(fn (?Asset $record): bool => (bool) $record?->services()->exists()),
                     ])
                     ->columnSpan([
                         'default' => 'full',
