@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAssetNotificationJob;
 use App\Mail\AssetNotificationMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +11,14 @@ use Throwable;
 
 class AssetNotificationService
 {
+    /**
+     * @param  string|array{whatsapp: string, email?: array<string, mixed>}  $message
+     */
+    public static function dispatch(User $user, string $subject, string|array $message): void
+    {
+        SendAssetNotificationJob::dispatch($user->id, $subject, $message);
+    }
+
     /**
      * Send email and WhatsApp notifications to a user.
      *

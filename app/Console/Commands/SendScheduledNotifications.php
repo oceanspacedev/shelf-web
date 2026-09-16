@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\SendAssetEmailMessageJob;
+use App\Jobs\SendAssetWhatsAppMessageJob;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use App\Services\WhatsappService;
@@ -10,7 +12,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class SendScheduledNotifications extends Command
@@ -196,16 +197,18 @@ class SendScheduledNotifications extends Command
 
     protected function sendWhatsappNotification(string $message, $asset, string $phoneNumber): bool
     {
-        $sent = WhatsappService::send($phoneNumber, $message);
+        try {
+            SendAssetWhatsAppMessageJob::dispatch($phoneNumber, $message);
 
-        if (! $sent) {
-            Log::error('Gagal mengirim pesan WhatsApp pengingat aset.', [
+            return true;
+        } catch (Throwable $e) {
+            Log::error('Gagal mengantrekan pesan WhatsApp pengingat aset: '.$e->getMessage(), [
                 'asset_id' => $asset?->id,
                 'receiver' => $phoneNumber,
             ]);
-        }
 
-        return $sent;
+            return false;
+        }
     }
 
     protected function dailyDispatchLockKey(CustomAssetAttribute $attribute, $asset, string $channel, string $recipient): string
@@ -228,13 +231,11 @@ class SendScheduledNotifications extends Command
     protected function sendEmailNotification(string $subject, string $message, $asset, string $email): bool
     {
         try {
-            Mail::raw($message, function ($mail) use ($email, $subject) {
-                $mail->to($email)->subject($subject);
-            });
+            SendAssetEmailMessageJob::dispatch($email, $subject, $message);
 
             return true;
         } catch (Throwable $e) {
-            Log::error('Gagal mengirim email pengingat aset: '.$e->getMessage(), [
+            Log::error('Gagal mengantrekan email pengingat aset: '.$e->getMessage(), [
                 'asset_id' => $asset?->id,
                 'email' => $email,
             ]);

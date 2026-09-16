@@ -196,7 +196,8 @@ flowchart TB
     Models --> DB[(MySQL)]
     Filament --> Files[(Filesystem disk)]
     Form --> Files
-    Worker["queue:work database default,exports"] --> Files
+    Worker["php artisan horizon"] --> Redis[(Redis)]
+    Worker --> Files
 ```
 
 ### Peta source code
@@ -216,7 +217,7 @@ flowchart TB
 | `routes/web.php` | Redirect `/`, form publik, token, PDF |
 | `routes/api.php` | Sanctum `/api/user` dan query WhatsApp |
 | `bootstrap/app.php` | Health `/up`, jadwal 13:20, trust proxies |
-| `deploy/web-shelf-queue.service` | Unit systemd worker `database` antrian `default,exports` |
+| `deploy/web-shelf-queue.service` | Unit systemd `php artisan horizon` |
 | `resources/views/public` | Blade form/status/approval |
 | `tests` | Unit dan feature test |
 | `docs/` | Panduan atribut kustom dan chain-of-truth rekonsiliasi |
@@ -236,7 +237,7 @@ flowchart TB
 | PDF | barryvdh/laravel-dompdf |
 | Import/export | pxlrbt/filament-excel, eightynine/filament-excel-import |
 | Notifikasi | Mail + WhatsApp (WagHub `WAG_URL` / `WAG_TOKEN`) |
-| Queue | Laravel Horizon 5 (`php artisan horizon` bila `QUEUE_CONNECTION=redis`) |
+| Queue | Laravel Horizon 5 (`php artisan horizon`, `QUEUE_CONNECTION=redis`) |
 | Logs | [opcodesio/log-viewer](https://github.com/opcodesio/log-viewer) di `/log-viewer` |
 | Test | PHPUnit 11 / `php artisan test` |
 | Formatter | Laravel Pint |
@@ -326,11 +327,11 @@ Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, 
 | `CACHE_STORE` | Ya | Cache default; `.env.example` memakai `file` |
 | `FILESYSTEM_DISK` | Ya | Disk default; `local`, `public`, atau `s3` |
 | `SESSION_DRIVER` | Ya | Penyimpanan session; default `file` |
-| `QUEUE_CONNECTION` | Ya | Backend queue; default `sync`. Production worker memakai `database`. Horizon membutuhkan `redis` |
+| `QUEUE_CONNECTION` | Ya | Backend queue; default `redis`. Worker: `php artisan horizon` |
 | `HORIZON_PATH` | Tidak | UI Horizon; default `horizon` |
 | `LOG_VIEWER_ENABLED` / `LOG_VIEWER_PATH` | Tidak | UI [Log Viewer](https://github.com/opcodesio/log-viewer); default `/log-viewer` |
 | `BROADCAST_CONNECTION` | Tidak | Default Laravel 12 `log` |
-| `REDIS_CLIENT` / `REDIS_HOST` / `REDIS_PASSWORD` / `REDIS_PORT` | Jika Redis dipakai | Koneksi Redis |
+| `REDIS_CLIENT` / `REDIS_HOST` / `REDIS_PASSWORD` / `REDIS_PORT` | Ya | Koneksi Redis untuk Horizon |
 | `MAIL_*` | Untuk email | Default `.env.example` `MAIL_MAILER=log`. Override ke SMTP/Mailpit jika perlu |
 | `MAIL_SCHEME` | Tidak | Skema SMTP Laravel 12; ganti `MAIL_ENCRYPTION` lama |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` / `AWS_BUCKET` | Untuk S3 | Disk `s3` di `config/filesystems.php` |
@@ -380,10 +381,10 @@ Scheduler tidak wajib untuk UI, tetapi harus dijalankan bila sedang mengembangka
 php artisan schedule:work
 ```
 
-Queue default adalah `sync`. Jalankan worker hanya jika `QUEUE_CONNECTION` diubah ke driver yang mengantri (unit systemd memakai `database` dan antrian `default,exports`):
+Queue default adalah `redis`. Jalankan Horizon agar notifikasi dan export tidak menumpuk (unit systemd juga `php artisan horizon`):
 
 ```bash
-php artisan queue:work
+php artisan horizon
 ```
 
 Untuk frontend production-like:
@@ -478,7 +479,7 @@ Daftar ini adalah batas perilaku aktual, bukan fitur yang dijanjikan:
 4. **Role `general_affair` dan `admin` tidak di-seed.** Alur penarikan/BA dan grant `export_asset` membutuhkan role itu di database.
 5. **Reset password dan profil panel dimatikan.** Onboarding staf tetap seeder / administrator.
 6. **Tidak ada REST API domain.** Jangan mengasumsikan klien mobile/API v1 terpisah.
-7. **Queue default `sync`.** Export dan job mengantri hanya setelah `QUEUE_CONNECTION` diubah; unit systemd mengasumsikan `database`.
+7. **Queue default `redis` + Horizon.** Notifikasi aset mengantri di `notifications`, export Filament di `exports`. Tanpa Redis dan `php artisan horizon`, job tidak diproses. Tes memakai `QUEUE_CONNECTION=sync` di `phpunit.xml`.
 8. **`phpunit.xml` tidak memin SQLite memory.** Full suite dapat menyentuh database development jika feature test tidak mengisolasi koneksi.
 9. **Command `app:test-whats-app` dan `app:clear-log` kosong.** Jangan diandalkan.
 10. **`model:prune` dijadwalkan** meskipun model aplikasi saat ini tidak menonjolkan trait `Prunable`.

@@ -157,7 +157,7 @@ class AssetRequest extends Model
             if ($notify && $this->user) {
                 $assetRequest = $this;
                 DB::afterCommit(function () use ($assetRequest) {
-                    AssetNotificationService::send(
+                    AssetNotificationService::dispatch(
                         $assetRequest->user,
                         'Pengajuan aset disetujui - '.$assetRequest->reference_number,
                         $assetRequest->formatRequesterApprovedNotificationMessage()
@@ -199,14 +199,14 @@ class AssetRequest extends Model
                 $firstApproval?->publicApprovalUrl() ?? $this->publicProgressUrl(),
             );
             $approverUser = $firstApprover->user;
-            DB::afterCommit(fn () => AssetNotificationService::send($approverUser, $approverSubject, $approverMessage));
+            DB::afterCommit(fn () => AssetNotificationService::dispatch($approverUser, $approverSubject, $approverMessage));
         }
 
         if ($this->user) {
             $requesterSubject = 'Pengajuan aset diterima - '.$this->reference_number;
             $requesterMessage = $this->formatRequesterCreatedNotificationMessage($firstApprover?->user);
             $requester = $this->user;
-            DB::afterCommit(fn () => AssetNotificationService::send($requester, $requesterSubject, $requesterMessage));
+            DB::afterCommit(fn () => AssetNotificationService::dispatch($requester, $requesterSubject, $requesterMessage));
         }
     }
 
@@ -353,7 +353,7 @@ class AssetRequest extends Model
     {
         $notification = $this->buildCurrentApprovalReminderNotification();
 
-        AssetNotificationService::send(
+        AssetNotificationService::dispatch(
             $notification['recipient'],
             $notification['subject'],
             $notification['message'],
@@ -369,7 +369,7 @@ class AssetRequest extends Model
     {
         $notification = $this->buildRequesterProgressNotification();
 
-        AssetNotificationService::send(
+        AssetNotificationService::dispatch(
             $notification['recipient'],
             $notification['subject'],
             $notification['message'],
@@ -1052,7 +1052,7 @@ class AssetRequest extends Model
         // Notifikasi dikirim setelah commit supaya kegagalan pengiriman tidak
         // merusak state approval, dan approval tidak diblokir HTTP WhatsApp/Email.
         foreach ($notifications as [$notifiable, $subject, $message]) {
-            AssetNotificationService::send($notifiable, $subject, $message);
+            AssetNotificationService::dispatch($notifiable, $subject, $message);
         }
     }
 
@@ -1118,7 +1118,7 @@ class AssetRequest extends Model
         });
 
         foreach ($notifications as [$notifiable, $subject, $message]) {
-            AssetNotificationService::send($notifiable, $subject, $message);
+            AssetNotificationService::dispatch($notifiable, $subject, $message);
         }
     }
 
@@ -1354,7 +1354,7 @@ class AssetRequest extends Model
                         RequestStatus::Rejected => 'Ditolak',
                         RequestStatus::Pending => 'Menunggu',
                     }
-                    : ucfirst((string) $approval->status);
+                : ucfirst((string) $approval->status);
 
                 return [
                     'approver' => $approval->user?->name ?? '-',

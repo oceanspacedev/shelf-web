@@ -72,11 +72,11 @@ class AssetExporterTest extends TestCase
         $this->assertStringNotContainsString('ExportAssetListAction', $source);
     }
 
-    public function test_uses_default_queue_so_legacy_export_jobs_cannot_block_it(): void
+    public function test_uses_exports_queue_so_horizon_can_isolate_spreadsheet_work(): void
     {
         $exporter = new AssetExporter(new Export, [], []);
 
-        $this->assertSame('default', $exporter->getJobQueue());
+        $this->assertSame('exports', $exporter->getJobQueue());
         $this->assertSame([], $exporter->getJobMiddleware());
     }
 

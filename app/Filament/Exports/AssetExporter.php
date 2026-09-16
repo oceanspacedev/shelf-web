@@ -91,7 +91,7 @@ class AssetExporter extends Exporter
 
     public function getJobQueue(): ?string
     {
-        return 'default';
+        return 'exports';
     }
 
     /**
