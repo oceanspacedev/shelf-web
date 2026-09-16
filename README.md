@@ -314,7 +314,7 @@ Seeder membuat Super Admin lokal (tabel di atas) plus master kategori, badan usa
 
 Jangan commit `.env` atau credential apa pun ke Git. Daftar berikut mengikuti [`.env.example`](.env.example), plus default seeder Super Admin yang dibaca `DatabaseSeeder`.
 
-Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, `MAIL_SCHEME`, `BROADCAST_CONNECTION`, `REDIS_CLIENT`, dan `AWS_*`. Zona waktu aplikasi di-hardcode `Asia/Jakarta` di `config/app.php`, bukan lewat `APP_TIMEZONE`. Nama lama `CACHE_DRIVER`, `MAIL_ENCRYPTION`, `BROADCAST_DRIVER`, `MINIO_*`, dan `PUSHER_*` tidak dipakai di template; `config/filesystems.php` masih membaca `MINIO_*` sebagai fallback rollout.
+Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, `MAIL_SCHEME`, `BROADCAST_CONNECTION`, `REDIS_CLIENT`, dan `AWS_*`. Zona waktu aplikasi di-hardcode `Asia/Jakarta` di `config/app.php`, bukan lewat `APP_TIMEZONE`. Nama lama `CACHE_DRIVER`, `MAIL_ENCRYPTION`, `BROADCAST_DRIVER`, `MINIO_*`, dan `PUSHER_*` tidak dipakai.
 
 | Variabel | Wajib | Fungsi |
 |---|:---:|---|

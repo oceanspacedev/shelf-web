@@ -76,38 +76,6 @@ class Laravel12EnvironmentConfigTest extends TestCase
         });
     }
 
-    public function test_s3_disk_falls_back_to_minio_env_names(): void
-    {
-        $this->withEnv([
-            'AWS_ACCESS_KEY_ID' => null,
-            'AWS_SECRET_ACCESS_KEY' => null,
-            'AWS_DEFAULT_REGION' => null,
-            'AWS_BUCKET' => null,
-            'AWS_ENDPOINT' => null,
-            'AWS_URL' => null,
-            'AWS_USE_PATH_STYLE_ENDPOINT' => null,
-            'MINIO_ACCESS_KEY_ID' => 'minio-key',
-            'MINIO_SECRET_ACCESS_KEY' => 'minio-secret',
-            'MINIO_DEFAULT_REGION' => 'us-east-1',
-            'MINIO_BUCKET' => 'minio-bucket',
-            'MINIO_ENDPOINT' => 'http://127.0.0.1:9000',
-            'MINIO_URL' => 'http://127.0.0.1:9000/minio-bucket',
-            'MINIO_USE_PATH_STYLE_ENDPOINT' => 'true',
-        ], function (): void {
-            config([
-                'filesystems' => require config_path('filesystems.php'),
-            ]);
-
-            $this->assertSame('minio-key', config('filesystems.disks.s3.key'));
-            $this->assertSame('minio-secret', config('filesystems.disks.s3.secret'));
-            $this->assertSame('us-east-1', config('filesystems.disks.s3.region'));
-            $this->assertSame('minio-bucket', config('filesystems.disks.s3.bucket'));
-            $this->assertSame('http://127.0.0.1:9000', config('filesystems.disks.s3.endpoint'));
-            $this->assertSame('http://127.0.0.1:9000/minio-bucket', config('filesystems.disks.s3.url'));
-            $this->assertTrue((bool) config('filesystems.disks.s3.use_path_style_endpoint'));
-        });
-    }
-
     /**
      * @param  array<string, string|null>  $variables
      */

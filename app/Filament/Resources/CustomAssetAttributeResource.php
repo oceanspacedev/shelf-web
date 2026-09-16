@@ -6,12 +6,15 @@ use App\Filament\Resources\CustomAssetAttributeResource\Pages;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms;
-use Filament\Schemas\Schema;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
-use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
@@ -196,16 +199,14 @@ class CustomAssetAttributeResource extends Resource
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean()
                     ->toggleable(),
-                Tables\Columns\BadgeColumn::make('category_id')
+                Tables\Columns\TextColumn::make('category_id')
                     ->label('Kategori')
-                    ->colors([
-                        'primary', // Warna utama untuk semua badge, dapat disesuaikan berdasarkan kebutuhan
-                    ])
+                    ->badge()
+                    ->color('primary')
                     ->formatStateUsing(function ($state) {
-                        // Jika category_id menyimpan ID kategori, ubah menjadi nama kategori
                         $categories = Category::whereIn('id', is_array($state) ? $state : [$state])->pluck('name')->toArray();
 
-                        return implode(', ', $categories); // Menggabungkan nama kategori dengan koma jika ada lebih dari satu
+                        return implode(', ', $categories);
                     })
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -253,11 +254,11 @@ class CustomAssetAttributeResource extends Resource
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
-                \Filament\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->bulkActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

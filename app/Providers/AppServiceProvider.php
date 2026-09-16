@@ -3,7 +3,18 @@
 namespace App\Providers;
 
 use App\Enums\BadgeColor;
+use App\Models\AssetRequest;
+use App\Models\AssetTransfer;
+use App\Models\Task;
+use App\Models\User;
+use App\Policies\ActivityPolicy;
+use App\Policies\AssetRequestPolicy;
+use App\Policies\AssetTransferPolicy;
+use App\Policies\ExceptionPolicy;
+use App\Policies\RolePolicy;
+use App\Policies\TaskPolicy;
 use App\Support\ObservabilityAccess;
+use BezhanSalleh\FilamentExceptions\Models\Exception;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
 use Filament\Resources\Resource;
@@ -14,11 +25,14 @@ use Filament\Support\Facades\FilamentColor;
 use Filament\Widgets\Widget;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Role;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         ObservabilityAccess::register();
+        $this->registerAuthorization();
         $this->configureHttps();
         $this->configureLivewireUploads();
         $this->configureFilamentShield();
@@ -65,6 +80,18 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+    }
+
+    protected function registerAuthorization(): void
+    {
+        Gate::policy(AssetRequest::class, AssetRequestPolicy::class);
+        Gate::policy(AssetTransfer::class, AssetTransferPolicy::class);
+        Gate::policy(Activity::class, ActivityPolicy::class);
+        Gate::policy(Exception::class, ExceptionPolicy::class);
+        Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Task::class, TaskPolicy::class);
+
+        Gate::define('viewPulse', fn (User $user): bool => $user->hasRole('super_admin'));
     }
 
     /**

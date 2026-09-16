@@ -26,6 +26,8 @@ class Laravel12SkeletonTest extends TestCase
         $this->assertFileDoesNotExist($root.'/app/Providers/RouteServiceProvider.php');
         $this->assertFileDoesNotExist($root.'/app/Providers/EventServiceProvider.php');
         $this->assertFileDoesNotExist($root.'/app/Providers/BroadcastServiceProvider.php');
+        $this->assertFileDoesNotExist($root.'/app/Providers/AuthServiceProvider.php');
+        $this->assertTrue(str_starts_with((string) ($composer['require']['filament/filament'] ?? ''), '^4.'));
         $this->assertFileDoesNotExist($root.'/app/Http/Middleware/EncryptCookies.php');
         $this->assertFileDoesNotExist($root.'/app/Http/Middleware/VerifyCsrfToken.php');
         $this->assertStringContainsString('CACHE_STORE', $phpunit);
