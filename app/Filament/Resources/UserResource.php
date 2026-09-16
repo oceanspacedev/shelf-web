@@ -54,7 +54,7 @@ class UserResource extends Resource
                             ->label('Nomor WhatsApp')
                             ->tel()
                             ->placeholder('081234567890')
-                            ->helperText('Dipakai untuk pengingat aset via WhatsApp/Fonnte.')
+                            ->helperText('Dipakai untuk pengingat aset via WhatsApp (WagHub).')
                             ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
                             ->maxLength(32),
                     ]),

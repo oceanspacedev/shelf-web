@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Enums\BadgeColor;
+use App\Support\ObservabilityAccess;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
 use Filament\Resources\Resource;
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        ObservabilityAccess::register();
         $this->configureHttps();
         $this->configureLivewireUploads();
         $this->configureFilamentShield();

@@ -18,23 +18,22 @@ use Illuminate\Support\Facades\Cache;
 use ReflectionMethod;
 use Tests\TestCase;
 
-class FonnteWhatsappNotificationTest extends TestCase
+class WhatsappNotificationTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        config()->set('services.whatsapp_gateway.min_seconds_between_sends', 0);
-        config()->set('services.whatsapp_gateway.fallback_enabled', false);
+        config()->set('services.whatsapp_gateway.url', 'https://waghub.mekayastudio.com');
+        config()->set('services.whatsapp_gateway.token', 'wag-secret');
+        config()->set('services.whatsapp_gateway.country_code', '62');
     }
 
-    public function test_whatsapp_reminder_is_sent_using_waha_payload(): void
+    public function test_whatsapp_reminder_is_sent_using_wag_payload(): void
     {
         config([
-            'services.whatsapp_gateway.provider' => 'waha',
-            'services.whatsapp_gateway.waha.base_url' => 'http://waha.local',
-            'services.whatsapp_gateway.waha.api_key' => 'waha-secret',
-            'services.whatsapp_gateway.waha.session' => 'default',
+            'services.whatsapp_gateway.url' => 'https://waghub.mekayastudio.com',
+            'services.whatsapp_gateway.token' => 'wag-secret',
             'services.whatsapp_gateway.country_code' => '62',
         ]);
 
@@ -51,38 +50,11 @@ class FonnteWhatsappNotificationTest extends TestCase
         $this->assertTrue($method->invoke($command, 'Pesan pengingat STNK', null, '081234567890'));
     }
 
-    public function test_whatsapp_reminder_falls_back_to_fonnte_when_waha_fails(): void
+    public function test_whatsapp_reminder_is_sent_when_gateway_is_configured(): void
     {
         config([
-            'services.whatsapp_gateway.provider' => 'waha',
-            'services.whatsapp_gateway.fallback_provider' => 'fonnte',
-            'services.whatsapp_gateway.fallback_enabled' => true,
-            'services.whatsapp_gateway.waha.base_url' => 'http://waha.local',
-            'services.whatsapp_gateway.fonnte.endpoint' => 'https://api.fonnte.com/send',
-            'services.whatsapp_gateway.fonnte.token' => 'secret-token',
-            'services.whatsapp_gateway.country_code' => '62',
-        ]);
-
-        $this->app->instance(WhatsAppGateway::class, new WhatsAppGateway(
-            new Client(['handler' => HandlerStack::create(new MockHandler([
-                new Response(500, [], '{"error":"session down"}'),
-                new Response(200, [], '{"status":true}'),
-            ]))])
-        ));
-
-        $command = app(SendScheduledNotifications::class);
-        $method = new ReflectionMethod($command, 'sendWhatsappNotification');
-        $method->setAccessible(true);
-
-        $this->assertTrue($method->invoke($command, 'Pesan pengingat STNK', null, '081234567890'));
-    }
-
-    public function test_whatsapp_reminder_is_sent_using_fonnte_when_waha_is_not_configured(): void
-    {
-        config([
-            'services.whatsapp_gateway.provider' => 'fonnte',
-            'services.whatsapp_gateway.fonnte.endpoint' => 'https://api.fonnte.com/send',
-            'services.whatsapp_gateway.fonnte.token' => 'secret-token',
+            'services.whatsapp_gateway.url' => 'https://waghub.mekayastudio.com',
+            'services.whatsapp_gateway.token' => 'wag-secret',
             'services.whatsapp_gateway.country_code' => '62',
         ]);
 
@@ -159,9 +131,8 @@ class FonnteWhatsappNotificationTest extends TestCase
         Cache::flush();
 
         config([
-            'services.whatsapp_gateway.provider' => 'waha',
-            'services.whatsapp_gateway.waha.base_url' => 'http://waha.local',
-            'services.whatsapp_gateway.waha.session' => 'default',
+            'services.whatsapp_gateway.url' => 'https://waghub.mekayastudio.com',
+            'services.whatsapp_gateway.token' => 'wag-secret',
             'services.whatsapp_gateway.country_code' => '62',
         ]);
 

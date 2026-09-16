@@ -51,7 +51,7 @@ Shelf menyatukan pencatatan aset dengan pengajuan dari pemohon. Alur utamanya di
 - Login panel dengan username atau email di `/admin/login`. Registrasi mandiri, reset password, dan halaman profil default Filament dimatikan.
 - Unduhan PDF berita acara / pengadaan / penyelesaian tugas (hanya user terautentikasi).
 - Pengingat dokumen terjadwal (`notifications:send-scheduled` setiap hari pukul 13:20) plus `model:prune` harian.
-- Gateway WhatsApp (WAHA utama, Fonnte cadangan) untuk notifikasi pengajuan dan pengingat.
+- Gateway WhatsApp WagHub (`WAG_URL` + `WAG_TOKEN`) untuk notifikasi pengajuan dan pengingat.
 - Query aset dari integrasi WhatsApp: `shelf.search_asset`, `shelf.asset_history`, `shelf.expiring_documents`.
 - Health check Laravel di `/up`.
 
@@ -192,7 +192,7 @@ flowchart TB
     PublicCtrl --> Models[Eloquent Models]
     Filament --> Models
     Query --> Models
-    Notif --> WA[WhatsAppGateway WAHA / Fonnte]
+    Notif --> WA[WhatsAppGateway WagHub]
     Models --> DB[(MySQL)]
     Filament --> Files[(Filesystem disk)]
     Form --> Files
@@ -230,12 +230,14 @@ flowchart TB
 | Form publik | Blade + Vite (`resources/css/public.css`) |
 | Frontend build | Vite 8, Tailwind CSS 4, Axios |
 | Database | MySQL (default `.env.example`) |
-| Filesystem | Disk Laravel `local` / `public`; disk `s3` via `MINIO_*` |
+| Filesystem | Disk Laravel `local` / `public`; disk `s3` via `AWS_*` (MinIO/S3-compatible) |
 | Auth panel | Filament login (username atau email); reset password dan profil default dimatikan |
 | Authorization | Filament Shield / Spatie Permission |
 | PDF | barryvdh/laravel-dompdf |
 | Import/export | pxlrbt/filament-excel, eightynine/filament-excel-import |
-| Notifikasi | Mail + WhatsApp (WAHA, cadangan Fonnte) |
+| Notifikasi | Mail + WhatsApp (WagHub `WAG_URL` / `WAG_TOKEN`) |
+| Queue | Laravel Horizon 5 (`php artisan horizon` bila `QUEUE_CONNECTION=redis`) |
+| Logs | [opcodesio/log-viewer](https://github.com/opcodesio/log-viewer) di `/log-viewer` |
 | Test | PHPUnit 11 / `php artisan test` |
 | Formatter | Laravel Pint |
 
@@ -250,7 +252,7 @@ flowchart TB
 - MySQL 8+ (atau MariaDB yang kompatibel) untuk development sesuai `.env.example`.
 - Extension PHP yang biasa dipakai Laravel/Filament, termasuk `curl`, `fileinfo`, `gd`, `intl`, `mbstring`, `openssl`, `pdo_mysql`, `xml`, dan `zip`.
 
-Gateway WhatsApp dan MinIO/S3 bersifat opsional untuk menjalankan form publik dan panel dasar. Notifikasi WhatsApp membutuhkan `WHATSAPP_GATEWAY_*` yang valid. Composer memasang `kungfufafa/mekaya-theme` dari repositori Git yang tercantum di `composer.json`.
+Gateway WhatsApp dan object storage S3/MinIO bersifat opsional untuk menjalankan form publik dan panel dasar. Notifikasi WhatsApp membutuhkan `WAG_URL` dan `WAG_TOKEN`. Composer memasang `kungfufafa/mekaya-theme` dari repositori Git yang tercantum di `composer.json`.
 
 ### Clone dan dependency
 
@@ -275,7 +277,6 @@ APP_NAME=Shelf
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://127.0.0.1:8000
-APP_TIMEZONE=Asia/Jakarta
 APP_LOCALE=id
 
 DB_CONNECTION=mysql
@@ -312,40 +313,38 @@ Seeder membuat Super Admin lokal (tabel di atas) plus master kategori, badan usa
 
 Jangan commit `.env` atau credential apa pun ke Git. Daftar berikut mengikuti [`.env.example`](.env.example), plus default seeder Super Admin yang dibaca `DatabaseSeeder`.
 
+Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, `MAIL_SCHEME`, `BROADCAST_CONNECTION`, `REDIS_CLIENT`, dan `AWS_*`. Zona waktu aplikasi di-hardcode `Asia/Jakarta` di `config/app.php`, bukan lewat `APP_TIMEZONE`. Nama lama `CACHE_DRIVER`, `MAIL_ENCRYPTION`, `BROADCAST_DRIVER`, `MINIO_*`, dan `PUSHER_*` tidak dipakai di template; `config/filesystems.php` masih membaca `MINIO_*` sebagai fallback rollout.
+
 | Variabel | Wajib | Fungsi |
 |---|:---:|---|
 | `APP_KEY` | Ya | Kunci enkripsi Laravel; dibuat dengan `php artisan key:generate` |
-| `APP_URL` | Ya | Base URL, tautan token, dan `ASSET_URL` |
+| `APP_URL` | Ya | Base URL, tautan token, dan asset |
 | `APP_NAME` | Tidak | Nama tampilan; default `.env.example` `Shelf` |
 | `APP_ENV` / `APP_DEBUG` | Ya | Environment dan debug |
-| `APP_TIMEZONE` | Ya | Default `.env.example` `Asia/Jakarta` |
 | `APP_LOCALE` / `APP_FALLBACK_LOCALE` | Ya | Default `.env.example` `id` |
 | `DB_CONNECTION` / `DB_*` | Ya | Driver dan koneksi; default proyek `mysql` |
-| `CACHE_DRIVER` | Ya | Cache default; `.env.example` memakai `file` |
+| `CACHE_STORE` | Ya | Cache default; `.env.example` memakai `file` |
 | `FILESYSTEM_DISK` | Ya | Disk default; `local`, `public`, atau `s3` |
 | `SESSION_DRIVER` | Ya | Penyimpanan session; default `file` |
-| `QUEUE_CONNECTION` | Ya | Backend queue; default `sync`. Production worker memakai `database` |
-| `BROADCAST_CONNECTION` | Tidak | Default `null` |
-| `REDIS_HOST` / `REDIS_PASSWORD` / `REDIS_PORT` | Jika Redis dipakai | Koneksi Redis |
-| `MAIL_*` | Untuk email | SMTP dan identitas pengirim; `.env.example` menunjuk Mailpit |
-| `MINIO_ACCESS_KEY_ID` / `MINIO_SECRET_ACCESS_KEY` / `MINIO_DEFAULT_REGION` / `MINIO_BUCKET` | Untuk S3 | Disk `s3` di `config/filesystems.php` |
-| `MINIO_USE_PATH_STYLE_ENDPOINT` | Tidak | Path-style S3; default `false` |
-| `MINIO_URL` / `MINIO_ENDPOINT` | Untuk S3 | Dibaca `config/filesystems.php`; belum tercantum di `.env.example` |
-| `WHATSAPP_GATEWAY_PROVIDER` | Untuk WhatsApp | Default `waha` |
-| `WHATSAPP_GATEWAY_FALLBACK_PROVIDER` | Tidak | Default `fonnte` |
-| `WHATSAPP_GATEWAY_FALLBACK_ENABLED` | Tidak | Default `true` |
-| `WHATSAPP_GATEWAY_WAHA_BASE_URL` / `WHATSAPP_GATEWAY_WAHA_API_KEY` / `WHATSAPP_GATEWAY_WAHA_SESSION` | Untuk WAHA | Gateway utama |
-| `WHATSAPP_GATEWAY_FONNTE_ENDPOINT` / `WHATSAPP_GATEWAY_FONNTE_TOKEN` | Untuk cadangan | Default endpoint `https://api.fonnte.com/send` |
-| `WHATSAPP_GATEWAY_COUNTRY_CODE` | Tidak | Default `62` |
-| `WHATSAPP_GATEWAY_DEFAULT_TARGET` | Tidak | Target fallback |
-| `WHATSAPP_GATEWAY_TIMEOUT` | Tidak | Default `15` detik |
-| `WHATSAPP_GATEWAY_MIN_SECONDS_BETWEEN_SENDS` | Tidak | Default `3` |
-| `WHATSAPP_GATEWAY_MIN_DIGITS` / `WHATSAPP_GATEWAY_MAX_DIGITS` | Tidak | Default `10` / `15` |
+| `QUEUE_CONNECTION` | Ya | Backend queue; default `sync`. Production worker memakai `database`. Horizon membutuhkan `redis` |
+| `HORIZON_PATH` | Tidak | UI Horizon; default `horizon` |
+| `LOG_VIEWER_ENABLED` / `LOG_VIEWER_PATH` | Tidak | UI [Log Viewer](https://github.com/opcodesio/log-viewer); default `/log-viewer` |
+| `BROADCAST_CONNECTION` | Tidak | Default Laravel 12 `log` |
+| `REDIS_CLIENT` / `REDIS_HOST` / `REDIS_PASSWORD` / `REDIS_PORT` | Jika Redis dipakai | Koneksi Redis |
+| `MAIL_*` | Untuk email | Default `.env.example` `MAIL_MAILER=log`. Override ke SMTP/Mailpit jika perlu |
+| `MAIL_SCHEME` | Tidak | Skema SMTP Laravel 12; ganti `MAIL_ENCRYPTION` lama |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` / `AWS_BUCKET` | Untuk S3 | Disk `s3` di `config/filesystems.php` |
+| `AWS_ENDPOINT` / `AWS_URL` | Untuk MinIO/S3-compatible | Endpoint dan URL publik object storage |
+| `AWS_USE_PATH_STYLE_ENDPOINT` | Tidak | Path-style S3; default `false`. Set `true` plus `AWS_ENDPOINT` untuk MinIO |
+| `WAG_URL` | Untuk WhatsApp | Endpoint WagHub; default `https://waghub.mekayastudio.com` |
+| `WAG_TOKEN` | Untuk WhatsApp | Bearer credential WagHub |
+| `WA_CONNECT_TIMEOUT` | Tidak | Timeout koneksi gateway; default `5` detik |
+| `WA_API_TIMEOUT` | Tidak | Timeout request gateway; default `15` detik |
+| `WHATSAPP_DEFAULT_TARGET` | Tidak | Target fallback pengingat jika penerima kosong |
 | `SEED_SUPER_ADMIN_USERNAME` | Tidak | Default seeder `admin` |
 | `SEED_SUPER_ADMIN_EMAIL` | Tidak | Default seeder `admin@dev.com` |
 | `SEED_SUPER_ADMIN_NAME` | Tidak | Default seeder `Super Admin` |
 | `SEED_SUPER_ADMIN_PASSWORD` | Production seed | Wajib di production jika ingin men-seed Super Admin; local default kata sandi `password` |
-| `PUSHER_*` / `VITE_PUSHER_*` | Tidak | Kredensial broadcast Vite/Pusher |
 
 Untuk local development tanpa SMTP:
 
@@ -525,7 +524,7 @@ Buat role `general_affair`, tugaskan ke user penerima GA, lalu pilih user itu se
 
 ### WhatsApp atau pengingat tidak terkirim
 
-1. Isi `WHATSAPP_GATEWAY_*` (WAHA dan/atau Fonnte).
+1. Isi `WAG_URL` dan `WAG_TOKEN`.
 2. Pastikan nomor pemohon/penerima valid (normalisasi ke kode negara `62`).
 3. Periksa `storage/logs/laravel.log`.
 4. Jalankan `php artisan notifications:send-scheduled` dan pastikan scheduler aktif.

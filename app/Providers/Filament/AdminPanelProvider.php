@@ -7,6 +7,7 @@ use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Plugins\FilamentExceptionsPlugin;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
+use App\Support\ObservabilityAccess;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
 use Awcodes\Overlook\OverlookPlugin;
 use Awcodes\Overlook\Widgets\OverlookWidget;
@@ -52,6 +53,7 @@ class AdminPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            ->navigationItems(ObservabilityAccess::filamentNavigationItems())
             ->widgets([
                 Widgets\AccountWidget::class,
                 OverlookWidget::class,

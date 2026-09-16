@@ -12,22 +12,11 @@ use Tests\TestCase;
 
 class WhatsAppGatewayTest extends TestCase
 {
-    protected function setUp(): void
+    public function test_it_sends_whatsapp_message_via_waghub(): void
     {
-        parent::setUp();
-
-        config()->set('services.whatsapp_gateway.min_seconds_between_sends', 0);
-        config()->set('services.whatsapp_gateway.min_digits', 10);
-        config()->set('services.whatsapp_gateway.max_digits', 15);
-        config()->set('services.whatsapp_gateway.fallback_enabled', false);
-    }
-
-    public function test_it_sends_whatsapp_message_via_waha_by_default(): void
-    {
-        config()->set('services.whatsapp_gateway.provider', 'waha');
-        config()->set('services.whatsapp_gateway.waha.base_url', 'http://waha.local');
-        config()->set('services.whatsapp_gateway.waha.api_key', 'waha-secret');
-        config()->set('services.whatsapp_gateway.waha.session', 'default');
+        config()->set('services.whatsapp_gateway.url', 'https://waghub.mekayastudio.com');
+        config()->set('services.whatsapp_gateway.token', 'wag-secret');
+        config()->set('services.whatsapp_gateway.country_code', '62');
 
         $history = [];
         $client = $this->clientWithResponses([
@@ -41,52 +30,32 @@ class WhatsAppGatewayTest extends TestCase
 
         $request = $history[0]['request'];
 
-        $this->assertSame('http://waha.local/api/sendText', (string) $request->getUri());
-        $this->assertSame('waha-secret', $request->getHeaderLine('X-Api-Key'));
+        $this->assertSame('https://waghub.mekayastudio.com/api/v1/messages', (string) $request->getUri());
+        $this->assertSame('Bearer wag-secret', $request->getHeaderLine('Authorization'));
 
         $payload = json_decode((string) $request->getBody(), true);
-        $this->assertSame('default', $payload['session']);
-        $this->assertSame('6281234567890@c.us', $payload['chatId']);
-        $this->assertSame('Halo', $payload['text']);
+        $this->assertSame('phone', $payload['recipient']['type']);
+        $this->assertSame('6281234567890', $payload['recipient']['value']);
+        $this->assertSame('text', $payload['message']['type']);
+        $this->assertSame('Halo', $payload['message']['text']);
+        $this->assertSame('shelf', $payload['client_reference']);
     }
 
-    public function test_it_falls_back_to_fonnte_when_waha_fails(): void
+    public function test_it_fails_without_wag_token(): void
     {
-        config()->set('services.whatsapp_gateway.provider', 'waha');
-        config()->set('services.whatsapp_gateway.fallback_provider', 'fonnte');
-        config()->set('services.whatsapp_gateway.fallback_enabled', true);
-        config()->set('services.whatsapp_gateway.waha.base_url', 'http://waha.local');
-        config()->set('services.whatsapp_gateway.fonnte.endpoint', 'https://api.fonnte.com/send');
-        config()->set('services.whatsapp_gateway.fonnte.token', 'fonnte-secret');
+        config()->set('services.whatsapp_gateway.url', 'https://waghub.mekayastudio.com');
+        config()->set('services.whatsapp_gateway.token', '');
 
-        $history = [];
-        $client = $this->clientWithResponses([
-            new Response(500, [], '{"error":"session not ready"}'),
-            new Response(200, [], '{"status":true}'),
-        ], $history);
+        $gateway = new WhatsAppGateway;
 
-        $gateway = new WhatsAppGateway($client);
-
-        $this->assertTrue($gateway->send('081234567890', 'Halo'));
-        $this->assertCount(2, $history);
-        $this->assertSame('http://waha.local/api/sendText', (string) $history[0]['request']->getUri());
-        $this->assertSame('https://api.fonnte.com/send', (string) $history[1]['request']->getUri());
+        $this->assertFalse($gateway->send('081234567890', 'Halo'));
     }
 
     public function test_it_normalizes_local_indonesian_phone_numbers(): void
     {
-        config()->set('services.whatsapp_gateway.provider', 'fonnte');
-        config()->set('services.whatsapp_gateway.fonnte.endpoint', 'https://api.fonnte.com/send');
-        config()->set('services.whatsapp_gateway.fonnte.token', 'secret-token');
         config()->set('services.whatsapp_gateway.country_code', '62');
 
-        $history = [];
-        $client = $this->clientWithResponses([
-            new Response(200, [], '{"status":true}'),
-            new Response(200, [], '{"status":true}'),
-        ], $history);
-
-        $gateway = new WhatsAppGateway($client);
+        $gateway = new WhatsAppGateway;
 
         $this->assertSame('6281234567890', $gateway->normalizeTarget('0812-3456-7890'));
         $this->assertSame('6281234567890', $gateway->normalizeTarget('81234567890'));

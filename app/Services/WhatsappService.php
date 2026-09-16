@@ -5,7 +5,7 @@ namespace App\Services;
 class WhatsappService
 {
     /**
-     * Send a WhatsApp message via configured gateway (WAHA primary, Fonnte fallback).
+     * Send a WhatsApp message via WagHub (`WAG_URL` + `WAG_TOKEN`).
      */
     public static function send(string $phoneNumber, string $message): bool
     {
