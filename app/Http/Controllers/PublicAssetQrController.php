@@ -28,6 +28,13 @@ class PublicAssetQrController extends Controller
             return response()->view('qr.invalid', [], 404);
         }
 
+        $lastSeenScan = AssetQrScan::query()
+            ->where('asset_qr_id', $qr->id)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->latest('id')
+            ->first();
+
         $scan = $scanService->record(
             $qr,
             $request->user(),
@@ -40,6 +47,7 @@ class PublicAssetQrController extends Controller
             'qr' => $qr,
             'asset' => $asset,
             'scan' => $scan,
+            'lastSeenScan' => $lastSeenScan,
         ]);
     }
 
@@ -59,8 +67,17 @@ class PublicAssetQrController extends Controller
             $scan = $scanService->record($qr, $request->user(), $request->userAgent());
         }
 
-        $scanService->attachLocation($scan, (float) $data['latitude'], (float) $data['longitude']);
+        $scan = $scanService->attachLocation($scan, (float) $data['latitude'], (float) $data['longitude']);
 
-        return response()->json(['ok' => true]);
+        $lat = (float) $scan->latitude;
+        $lng = (float) $scan->longitude;
+
+        return response()->json([
+            'ok' => true,
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'scanned_at' => $scan->updated_at?->timezone(config('app.timezone'))->format('d/m/Y H:i'),
+            'maps_url' => 'https://www.google.com/maps?q='.$lat.','.$lng,
+        ]);
     }
 }

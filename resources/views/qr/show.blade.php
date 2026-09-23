@@ -78,6 +78,35 @@
             display: grid;
             gap: 1rem;
         }
+        .last-seen {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        .last-seen-coords {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: #111827;
+            word-break: break-all;
+        }
+        .last-seen-time {
+            font-size: 0.8125rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        .last-seen-link {
+            display: inline-block;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .last-seen-link:hover { text-decoration: underline; }
+        .last-seen-empty {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
         .detail-grid {
             display: grid;
             gap: 0.75rem;
@@ -130,6 +159,32 @@
                 <div class="highlight-label">Kuantitas</div>
                 <div class="highlight-value">{{ $asset->qty }}</div>
             </div>
+        </div>
+
+        <div class="last-seen" id="last-seen-card">
+            <div class="highlight-label">Terakhir dilihat (GPS)</div>
+            @if ($lastSeenScan)
+                <div class="last-seen-coords" id="last-seen-coords">
+                    {{ number_format((float) $lastSeenScan->latitude, 6, '.', '') }},
+                    {{ number_format((float) $lastSeenScan->longitude, 6, '.', '') }}
+                </div>
+                <div class="last-seen-time" id="last-seen-time">
+                    {{ $lastSeenScan->updated_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') }}
+                </div>
+                <a
+                    class="last-seen-link"
+                    id="last-seen-maps"
+                    href="https://www.google.com/maps?q={{ $lastSeenScan->latitude }},{{ $lastSeenScan->longitude }}"
+                    target="_blank"
+                    rel="noopener"
+                >Buka di Google Maps</a>
+            @else
+                <div class="last-seen-empty" id="last-seen-empty">Belum ada data GPS</div>
+                <div class="last-seen-coords" id="last-seen-coords" hidden></div>
+                <div class="last-seen-time" id="last-seen-time" hidden></div>
+                <a class="last-seen-link" id="last-seen-maps" href="#" target="_blank" rel="noopener" hidden>Buka di Google Maps</a>
+            @endif
+            <div class="last-seen-empty" id="last-seen-pending" hidden>Mengambil lokasi…</div>
         </div>
     </div>
 
@@ -210,7 +265,33 @@
 
     <script>
     (function () {
+      var coordsEl = document.getElementById('last-seen-coords');
+      var timeEl = document.getElementById('last-seen-time');
+      var mapsEl = document.getElementById('last-seen-maps');
+      var emptyEl = document.getElementById('last-seen-empty');
+      var pendingEl = document.getElementById('last-seen-pending');
+
+      function showPending(on) {
+        if (pendingEl) pendingEl.hidden = !on;
+      }
+
+      function applyLastSeen(data) {
+        if (!coordsEl || !timeEl || !mapsEl) return;
+        var lat = Number(data.latitude).toFixed(6);
+        var lng = Number(data.longitude).toFixed(6);
+        coordsEl.textContent = lat + ', ' + lng;
+        coordsEl.hidden = false;
+        timeEl.textContent = data.scanned_at || '';
+        timeEl.hidden = false;
+        mapsEl.href = data.maps_url;
+        mapsEl.hidden = false;
+        if (emptyEl) emptyEl.hidden = true;
+        showPending(false);
+      }
+
       if (!navigator.geolocation) return;
+
+      showPending(true);
       navigator.geolocation.getCurrentPosition(function (pos) {
         fetch(@json(route('qr.location', $qr)), {
           method: 'POST',
@@ -223,8 +304,19 @@
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
           })
-        }).catch(function () {});
-      }, function () {}, { enableHighAccuracy: false, timeout: 10000 });
+        })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (data) {
+            if (data && data.ok) {
+              applyLastSeen(data);
+            } else {
+              showPending(false);
+            }
+          })
+          .catch(function () { showPending(false); });
+      }, function () {
+        showPending(false);
+      }, { enableHighAccuracy: false, timeout: 10000 });
     })();
     </script>
 </body>

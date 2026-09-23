@@ -21,9 +21,34 @@ class PublicAssetQrTest extends TestCase
         $response->assertOk();
         $response->assertSee($asset->name);
         $response->assertSee((string) $asset->qty);
+        $response->assertSee('Terakhir dilihat (GPS)');
+        $response->assertSee('Belum ada data GPS');
         $response->assertDontSee('999999');
         $response->assertDontSee('Rp');
         $this->assertDatabaseHas('asset_qr_scans', ['asset_qr_id' => $qr->id]);
+    }
+
+    public function test_show_displays_previous_gps_last_seen(): void
+    {
+        $asset = Asset::factory()->create();
+        $qr = $asset->fresh()->qr;
+
+        AssetQrScan::query()->create([
+            'asset_qr_id' => $qr->id,
+            'latitude' => -6.200000,
+            'longitude' => 106.816666,
+            'user_agent' => 'seed',
+        ]);
+
+        $response = $this->get(route('qr.show', $qr));
+
+        $response->assertOk();
+        $response->assertSee('Terakhir dilihat (GPS)');
+        $response->assertSee('-6.200000');
+        $response->assertSee('106.816666');
+        $response->assertSee('Buka di Google Maps');
+        $response->assertSee('https://www.google.com/maps?q=-6.2,106.816666', false);
+        $response->assertDontSee('Belum ada data GPS');
     }
 
     public function test_unknown_qr_returns_invalid_page(): void
@@ -40,10 +65,19 @@ class PublicAssetQrTest extends TestCase
 
         $this->get(route('qr.show', $qr))->assertOk();
 
-        $this->postJson(route('qr.location', $qr), [
+        $response = $this->postJson(route('qr.location', $qr), [
             'latitude' => -6.1754,
             'longitude' => 106.8272,
-        ])->assertOk();
+        ]);
+
+        $response->assertOk();
+        $response->assertJson([
+            'ok' => true,
+            'latitude' => -6.1754,
+            'longitude' => 106.8272,
+        ]);
+        $response->assertJsonPath('maps_url', 'https://www.google.com/maps?q=-6.1754,106.8272');
+        $this->assertNotEmpty($response->json('scanned_at'));
 
         $scan = AssetQrScan::where('asset_qr_id', $qr->id)->latest('id')->first();
         $this->assertNotNull($scan->latitude);
