@@ -1089,7 +1089,11 @@ class AssetResource extends Resource
                             'qrService' => $qrService,
                         ]);
 
-                        return $pdf->download('asset-qr-labels.pdf');
+                        return response()->streamDownload(
+                            fn () => print($pdf->output()),
+                            'asset-qr-labels.pdf',
+                            ['Content-Type' => 'application/pdf']
+                        );
                     })
                     ->deselectRecordsAfterCompletion(),
             ]);

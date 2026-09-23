@@ -334,7 +334,11 @@ class ViewAsset extends ViewRecord
                         'qrService' => $qrService,
                     ]);
 
-                    return $pdf->download('asset-qr-'.$asset->id.'.pdf');
+                    return response()->streamDownload(
+                        fn () => print($pdf->output()),
+                        'asset-qr-'.$asset->id.'.pdf',
+                        ['Content-Type' => 'application/pdf']
+                    );
                 }),
             Actions\Action::make('regenerateQr')
                 ->label('Regenerate QR')
