@@ -28,7 +28,7 @@ class AssetQrService
     public function regenerate(Asset $asset): AssetQr
     {
         return DB::transaction(function () use ($asset) {
-            $asset->qr()?->delete();
+            $asset->qr()->delete();
             $asset->unsetRelation('qr');
 
             return $this->createForAsset($asset);
