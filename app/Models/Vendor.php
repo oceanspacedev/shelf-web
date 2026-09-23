@@ -10,4 +10,10 @@ class Vendor extends Model
     use HasFactory;
 
     protected $fillable = ['name', 'contact_person', 'location', 'last_price'];
+
+    public function services()
+    {
+        return $this->hasMany(AssetService::class);
+    }
 }
+
