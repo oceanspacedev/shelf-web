@@ -8,6 +8,7 @@ use App\Filament\Resources\AssetResource\Pages;
 use App\Filament\Resources\AssetResource\RelationManagers\AssetTransfersRelationManager;
 use App\Filament\Resources\AssetResource\RelationManagers\QrScansRelationManager;
 use App\Services\AssetQrService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Asset;
 use App\Models\AssetAttribute;
 use App\Models\AssetLocation;
@@ -1070,6 +1071,27 @@ class AssetResource extends Resource
                     ->requiresConfirmation()
                     ->color('primary')
                     ->icon('heroicon-o-arrow-right'), // Ikon untuk bulk action
+                BulkAction::make('printQrLabels')
+                    ->label('Cetak Label QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->action(function (Collection $records) {
+                        $qrService = app(AssetQrService::class);
+                        $assets = $records->loadMissing(['qr', 'assetLocation']);
+
+                        foreach ($assets as $asset) {
+                            $qrService->ensureForAsset($asset);
+                        }
+
+                        $assets = $assets->fresh(['qr', 'assetLocation']);
+
+                        $pdf = Pdf::loadView('pdf.asset-qr-labels', [
+                            'assets' => $assets,
+                            'qrService' => $qrService,
+                        ]);
+
+                        return $pdf->download('asset-qr-labels.pdf');
+                    })
+                    ->deselectRecordsAfterCompletion(),
             ]);
     }
 
