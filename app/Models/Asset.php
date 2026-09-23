@@ -71,6 +71,16 @@ class Asset extends Model
         return $this->hasMany(AssetAttribute::class);
     }
 
+    public function qr(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AssetQr::class);
+    }
+
+    public function qrScans(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(AssetQrScan::class, AssetQr::class);
+    }
+
     // Relasi ke tabel business_entities
     public function businessEntity()
     {
