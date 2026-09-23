@@ -111,6 +111,11 @@ class Asset extends Model
         return $this->hasMany(AssetTransfer::class);
     }
 
+    public function services(): HasMany
+    {
+        return $this->hasMany(AssetService::class);
+    }
+
     // Relasi ke tabel asset_transfer_details
     public function assetTransferDetails()
     {

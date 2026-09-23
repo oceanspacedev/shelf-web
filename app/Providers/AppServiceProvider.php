@@ -4,13 +4,17 @@ namespace App\Providers;
 
 use App\Enums\BadgeColor;
 use App\Models\AssetRequest;
+use App\Models\AssetService;
 use App\Models\AssetTransfer;
+use App\Models\ObChecksheet;
 use App\Models\Task;
 use App\Models\User;
 use App\Policies\ActivityPolicy;
 use App\Policies\AssetRequestPolicy;
+use App\Policies\AssetServicePolicy;
 use App\Policies\AssetTransferPolicy;
 use App\Policies\ExceptionPolicy;
+use App\Policies\ObChecksheetPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\TaskPolicy;
 use App\Support\ObservabilityAccess;
@@ -85,7 +89,9 @@ class AppServiceProvider extends ServiceProvider
     protected function registerAuthorization(): void
     {
         Gate::policy(AssetRequest::class, AssetRequestPolicy::class);
+        Gate::policy(AssetService::class, AssetServicePolicy::class);
         Gate::policy(AssetTransfer::class, AssetTransferPolicy::class);
+        Gate::policy(ObChecksheet::class, ObChecksheetPolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);
         Gate::policy(Exception::class, ExceptionPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);
