@@ -6,6 +6,8 @@ use App\Enums\AssetCondition;
 use App\Enums\NbhStatus;
 use App\Filament\Resources\AssetResource\Pages;
 use App\Filament\Resources\AssetResource\RelationManagers\AssetTransfersRelationManager;
+use App\Filament\Resources\AssetResource\RelationManagers\QrScansRelationManager;
+use App\Services\AssetQrService;
 use App\Models\Asset;
 use App\Models\AssetAttribute;
 use App\Models\AssetLocation;
@@ -1075,6 +1077,7 @@ class AssetResource extends Resource
     {
         return [
             AssetTransfersRelationManager::class,
+            QrScansRelationManager::class,
         ];
     }
 
@@ -1209,6 +1212,35 @@ class AssetResource extends Resource
                                             ->label(__('Pemegang Aset'))
                                             ->state(fn (Asset $record): string => $record->recipient?->name ?? '-'),
                                     ]),
+
+                        ComponentsSection::make('QR Code')
+                            ->schema([
+                                TextEntry::make('qr.id')
+                                    ->label('ID QR')
+                                    ->copyable()
+                                    ->placeholder('Belum ada QR'),
+                                TextEntry::make('qr_public_url')
+                                    ->label('URL Scan')
+                                    ->state(fn (Asset $record): string => $record->qr
+                                        ? app(AssetQrService::class)->publicUrl($record->qr)
+                                        : '-')
+                                    ->url(fn (Asset $record): ?string => $record->qr
+                                        ? app(AssetQrService::class)->publicUrl($record->qr)
+                                        : null, true)
+                                    ->placeholder('-'),
+                                ImageEntry::make('qr_preview')
+                                    ->label('Preview')
+                                    ->state(function (Asset $record): ?string {
+                                        if (! $record->qr) {
+                                            return null;
+                                        }
+
+                                        $png = app(AssetQrService::class)->png($record->qr, 200);
+
+                                        return 'data:image/png;base64,'.base64_encode($png);
+                                    })
+                                    ->visible(fn (Asset $record): bool => (bool) $record->qr),
+                            ]),
                                 ComponentsGrid::make(1)
                                     ->schema([
                                         TextEntry::make('nbh_reported_at_display')
