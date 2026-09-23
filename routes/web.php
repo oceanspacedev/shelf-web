@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PdfController;
+use App\Http\Controllers\PublicAssetQrController;
 use App\Http\Controllers\PublicAssetRequestController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,3 +30,8 @@ Route::get('asset-requests/approval/{token}', [PublicAssetRequestController::cla
 Route::post('asset-requests/approval/{token}/approve', [PublicAssetRequestController::class, 'approveApproval'])->middleware(['throttle:public'])->name('public.asset-requests.approval.approve');
 Route::post('asset-requests/approval/{token}/reject', [PublicAssetRequestController::class, 'rejectApproval'])->middleware(['throttle:public'])->name('public.asset-requests.approval.reject');
 Route::post('asset-requests', [PublicAssetRequestController::class, 'store'])->middleware(['throttle:public'])->name('public.asset-requests.store');
+
+Route::get('qr/{qr}', [PublicAssetQrController::class, 'show'])->name('qr.show');
+Route::post('qr/{qr}/location', [PublicAssetQrController::class, 'storeLocation'])
+    ->middleware('throttle:60,1')
+    ->name('qr.location');
