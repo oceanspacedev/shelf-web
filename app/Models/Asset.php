@@ -18,6 +18,13 @@ class Asset extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::created(function (Asset $asset): void {
+            app(\App\Services\AssetQrService::class)->ensureForAsset($asset);
+        });
+    }
+
     protected $fillable = [
         'purchase_date',
         'business_entity_id',

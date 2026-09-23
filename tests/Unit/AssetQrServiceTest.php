@@ -12,9 +12,18 @@ class AssetQrServiceTest extends TestCase
 {
     use DatabaseTransactions;
 
+    public function test_creating_asset_auto_creates_qr(): void
+    {
+        $asset = Asset::factory()->create();
+
+        $this->assertNotNull($asset->fresh()->qr);
+    }
+
     public function test_create_for_asset_creates_one_qr(): void
     {
         $asset = Asset::factory()->create();
+        $asset->qr()->delete();
+        $asset->unsetRelation('qr');
         $service = app(AssetQrService::class);
 
         $qr = $service->createForAsset($asset);
@@ -41,7 +50,8 @@ class AssetQrServiceTest extends TestCase
     {
         $asset = Asset::factory()->create();
         $service = app(AssetQrService::class);
-        $old = $service->createForAsset($asset);
+        $old = $asset->qr;
+        $this->assertNotNull($old);
 
         $new = $service->regenerate($asset);
 
@@ -54,7 +64,8 @@ class AssetQrServiceTest extends TestCase
     {
         $asset = Asset::factory()->create();
         $service = app(AssetQrService::class);
-        $qr = $service->createForAsset($asset);
+        $qr = $asset->qr;
+        $this->assertNotNull($qr);
 
         $url = $service->publicUrl($qr);
 
@@ -65,7 +76,8 @@ class AssetQrServiceTest extends TestCase
     {
         $asset = Asset::factory()->create();
         $service = app(AssetQrService::class);
-        $qr = $service->createForAsset($asset);
+        $qr = $asset->qr;
+        $this->assertNotNull($qr);
 
         $png = $service->png($qr, 200);
 
