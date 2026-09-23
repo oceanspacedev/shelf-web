@@ -1,7 +1,7 @@
 # Asset QR Codes — Design Spec
 
 **Date:** 2026-09-23  
-**Status:** Approved — implementation plan at `docs/superpowers/plans/2026-09-23-asset-qr.md`  
+**Status:** Implemented (see docs/superpowers/plans/2026-09-23-asset-qr.md)  
 **Inspired by:** [shelf.nu](https://github.com/Shelf-nu/shelf.nu) QR asset tags (adapted for Laravel/Filament shelf-web)
 
 ## Goal
