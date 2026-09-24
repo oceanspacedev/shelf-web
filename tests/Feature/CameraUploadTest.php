@@ -4,16 +4,25 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CameraUploadTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:']);
+        DB::purge('sqlite');
+        (require database_path('migrations/2014_10_12_000000_create_users_table.php'))->up();
+    }
+
     public function test_guest_cannot_upload_camera_photo(): void
     {
         $response = $this->postJson(route('admin.camera-upload'), [
             'folder' => 'ob-checksheets/before',
-            'image_data' => 'data:image/jpeg;base64,' . base64_encode('fake-image-content'),
+            'image_data' => 'data:image/jpeg;base64,'.base64_encode('fake-image-content'),
         ]);
 
         $response->assertStatus(401);

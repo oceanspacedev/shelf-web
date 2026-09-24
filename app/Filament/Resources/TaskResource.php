@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TaskResource\Pages;
 use App\Models\Task;
+use App\Support\StoredFile;
 use Filament\Forms;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
@@ -18,7 +19,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Storage;
 
 class TaskResource extends Resource
 {
@@ -163,7 +163,7 @@ class TaskResource extends Resource
                     ])
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('document_upload')
-                    ->url(fn ($record) => $record && $record->document_upload ? Storage::url($record->document_upload) : null, true) // Membuat kolom URL untuk unduh
+                    ->url(fn ($record) => $record && $record->document_upload ? StoredFile::url($record->document_upload) : null, true) // Membuat kolom URL untuk unduh
                     ->openUrlInNewTab()
                     ->translateLabel()
                     ->getStateUsing(fn ($record) => $record && $record->document_upload ? 'Dokumen' : '-')
@@ -330,8 +330,6 @@ class TaskResource extends Resource
                         TextEntry::make('attachment')
                             ->label('Lampiran')
                             ->formatStateUsing(function ($state) {
-                                $baseUrl = asset('storage'); // Path dasar untuk storage
-
                                 // Jika state adalah JSON-encoded string, ubah menjadi array
                                 if (is_string($state) && str_starts_with($state, '[')) {
                                     $state = json_decode($state, true); // Decode JSON string to array
@@ -340,15 +338,17 @@ class TaskResource extends Resource
                                 // Jika state adalah array, tampilkan gambar
                                 if (is_array($state)) {
                                     return "<div style='display: flex; flex-wrap: wrap; gap: 10px;'>"
-                                        .collect($state)->map(function ($image) use ($baseUrl) {
-                                            return "<img src='{$baseUrl}/{$image}' alt='Lampiran' style='max-width: 100px; border-radius: 5px;'>";
+                                        .collect($state)->map(function ($image) {
+                                            $url = e(StoredFile::url($image));
+                                            return "<img src='{$url}' alt='Lampiran' style='max-width: 100px; border-radius: 5px;'>";
                                         })->implode('').
                                         '</div>';
                                 }
 
                                 // Jika hanya satu gambar
                                 if (is_string($state) && ! empty($state)) {
-                                    return "<img src='{$baseUrl}/{$state}' alt='Lampiran' style='max-width: 100px; border-radius: 5px;'>";
+                                    $url = e(StoredFile::url($state));
+                                    return "<img src='{$url}' alt='Lampiran' style='max-width: 100px; border-radius: 5px;'>";
                                 }
 
                                 return 'Tidak ada lampiran';

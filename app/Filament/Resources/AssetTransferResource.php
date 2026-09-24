@@ -10,6 +10,7 @@ use App\Models\AssetTransfer;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use App\Support\StoredFile;
 use Carbon\Carbon;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
@@ -294,7 +295,7 @@ class AssetTransferResource extends Resource
                     ->toggleable(),
                 TextColumn::make('transfer_date')->translateLabel()->date()->toggleable(),
                 TextColumn::make('document')
-                    ->url(fn ($record) => $record && $record->document ? Storage::url($record->document) : null, true) // Membuat kolom URL untuk unduh
+                    ->url(fn ($record) => $record && $record->document ? StoredFile::url($record->document) : null, true) // Membuat kolom URL untuk unduh
                     ->openUrlInNewTab()
                     ->translateLabel()
                     ->getStateUsing(fn ($record) => $record && $record->document ? 'Dokumen' : '-')
@@ -413,7 +414,7 @@ class AssetTransferResource extends Resource
                                     ->icon('heroicon-o-briefcase'),
                                 TextEntry::make('document')
                                     ->label('Dokumen')
-                                    ->url(fn ($record) => $record->document ? Storage::url($record->document) : null, true)
+                                    ->url(fn ($record) => $record->document ? StoredFile::url($record->document) : null, true)
                                     ->openUrlInNewTab()
                                     ->icon('heroicon-o-document')
                                     ->getStateUsing(fn ($record) => $record && $record->document ? 'Unduh Dokumen' : 'Tidak Ada Dokumen')

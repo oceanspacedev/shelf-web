@@ -1,6 +1,10 @@
 @php
     $fieldWrapperView = $getFieldWrapperView();
     $statePath = $getStatePath();
+    $storedPath = $getState();
+    $storedUrl = filled($storedPath)
+        ? (filter_var($storedPath, FILTER_VALIDATE_URL) ? $storedPath : \App\Support\StoredFile::url($storedPath))
+        : '';
 @endphp
 
 <x-dynamic-component
@@ -8,6 +12,8 @@
     :field="$field"
 >
     <div
+        data-stored-path="{{ $storedPath }}"
+        data-stored-url="{{ $storedUrl }}"
         x-data="{
             state: $wire.{{ $applyStateBindingModifiers("\$entangle('{$statePath}')") }},
             statePath: @js($statePath),
@@ -19,13 +25,16 @@
             capturedImage: null,
             mediaStream: null,
             facingMode: 'environment',
+            uploadedPath: null,
+            uploadedUrl: null,
 
             get imageUrl() {
                 if (!this.state) return '';
                 if (this.state.startsWith('http://') || this.state.startsWith('https://')) {
                     return this.state;
                 }
-                return '/storage/' + this.state.replace(/^\/+/, '');
+                if (this.state === this.uploadedPath) return this.uploadedUrl;
+                return this.state === this.$el.dataset.storedPath ? this.$el.dataset.storedUrl : '';
             },
 
             async openCamera() {
@@ -175,6 +184,8 @@
                     const result = await response.json();
 
                     if (result.success && result.path) {
+                        this.uploadedPath = result.path;
+                        this.uploadedUrl = result.url;
                         this.state = result.path;
                         if (typeof $wire !== 'undefined' && this.statePath) {
                             $wire.set(this.statePath, result.path);

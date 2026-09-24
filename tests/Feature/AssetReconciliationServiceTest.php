@@ -104,6 +104,16 @@ class AssetReconciliationServiceTest extends TestCase
         $businessEntityMigration->up();
         $perItemBusinessEntityMigration = require database_path('migrations/2026_08_01_000003_add_per_item_business_entity_to_asset_reconciliations.php');
         $perItemBusinessEntityMigration->up();
+
+        foreach ([
+            '2026_09_23_150000_create_asset_qrs_tables',
+            '2026_09_24_000001_create_asset_qr_label_histories_table',
+            '2026_09_24_000002_batch_asset_qr_label_histories',
+            '2026_09_24_000003_add_file_to_asset_qr_label_histories',
+            '2026_09_24_000004_add_storage_disks_to_asset_files',
+        ] as $fileMigration) {
+            (require database_path('migrations/'.$fileMigration.'.php'))->up();
+        }
     }
 
     public function test_compare_apply_and_recompare_make_shelf_inline_without_deleting_the_asset(): void

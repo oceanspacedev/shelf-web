@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AssetRequest;
 use App\Models\AssetTransfer;
 use App\Models\Task;
+use App\Support\StoredFile;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class PdfController extends Controller
@@ -19,7 +20,7 @@ class PdfController extends Controller
         $status = $assetTransfer->documentCode();
 
         $headerImage = $assetTransfer->businessEntity->letterhead
-            ? storage_path('app/public/'.$assetTransfer->businessEntity->letterhead)
+            ? StoredFile::imageDataUri('public', $assetTransfer->businessEntity->letterhead)
             : public_path('images/cvcs_kop.png');
 
         $letterNumber = $assetTransfer->letter_number;
@@ -41,7 +42,7 @@ class PdfController extends Controller
         $task->load('businessEntity');
 
         $headerImage = $task->businessEntity->letterhead
-            ? storage_path('app/public/'.$task->businessEntity->letterhead)
+            ? StoredFile::imageDataUri('public', $task->businessEntity->letterhead)
             : public_path('images/cvcs_kop.png');
 
         $fileName = strtolower(str_replace(' ', '_', $task->name));
@@ -59,7 +60,7 @@ class PdfController extends Controller
         $task->load('businessEntity');
 
         $headerImage = $task->businessEntity->letterhead
-            ? storage_path('app/public/'.$task->businessEntity->letterhead)
+            ? StoredFile::imageDataUri('public', $task->businessEntity->letterhead)
             : public_path('images/cvcs_kop.png');
 
         $fileName = strtolower(str_replace(' ', '_', $task->name));
@@ -95,7 +96,7 @@ class PdfController extends Controller
         ]);
 
         $headerImage = $assetRequest->createdAssets->first()?->businessEntity?->letterhead
-            ? storage_path('app/public/'.$assetRequest->createdAssets->first()->businessEntity->letterhead)
+            ? StoredFile::imageDataUri('public', $assetRequest->createdAssets->first()->businessEntity->letterhead)
             : public_path('images/cvcs_kop.png');
 
         $referenceNumber = $assetRequest->reference_number ?? 'PENGADAAN';
@@ -122,7 +123,7 @@ class PdfController extends Controller
     private function taskAttachmentsHtml(Task $task): string
     {
         return collect(json_decode($task->attachment))->map(function ($image) {
-            $imagePath = storage_path('app/public/'.$image);
+            $imagePath = StoredFile::imageDataUri('public', $image);
 
             return "<img src='{$imagePath}' alt='Lampiran' style='max-width: 100%; height: auto; margin: 10px 0;'>";
         })->implode('');

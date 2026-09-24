@@ -14,10 +14,10 @@ use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
 use App\Support\AssetReconciliationNormalizer as Normalizer;
+use App\Support\StoredFile;
 use App\Support\VehiclePlateNormalizer;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use LogicException;
 use Throwable;
 
@@ -43,8 +43,11 @@ class VehicleAssetReconciliationService
                 throw new LogicException('Badan usaha wajib dipilih dari master resmi sebelum compare.');
             }
 
-            $path = Storage::disk('local')->path($reconciliation->stored_path);
-            $rows = $this->parser->parse($path, $reconciliation->source_sheet);
+            $rows = StoredFile::withLocalPath(
+                $reconciliation->stored_disk ?: 'local',
+                $reconciliation->stored_path,
+                fn (string $path): array => $this->parser->parse($path, $reconciliation->source_sheet),
+            );
 
             DB::transaction(function () use ($reconciliation, $rows): void {
                 $reconciliation->items()->delete();
@@ -235,6 +238,7 @@ class VehicleAssetReconciliationService
             'business_entity_mappings' => $businessEntityMappings ?? $reconciliation->business_entity_mappings,
             'original_filename' => $reconciliation->original_filename,
             'stored_path' => $reconciliation->stored_path,
+            'stored_disk' => $reconciliation->stored_disk ?: 'local',
             'file_sha256' => $reconciliation->file_sha256,
             'status' => AssetReconciliation::STATUS_PROCESSING,
             'auto_create_locations' => $reconciliation->auto_create_locations,
@@ -1079,7 +1083,7 @@ class VehicleAssetReconciliationService
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  array<int, int>  $categories name=>id actually values are ids keyed by name
+     * @param  array<int, int>  $categories  name=>id actually values are ids keyed by name
      */
     private function guessCategoryId(array $payload, array $categories): int
     {

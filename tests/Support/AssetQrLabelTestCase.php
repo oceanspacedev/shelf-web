@@ -23,6 +23,7 @@ abstract class AssetQrLabelTestCase extends TestCase
             'database.connections.sqlite.database' => ':memory:',
             'database.connections.sqlite.foreign_key_constraints' => true,
             'app.url' => 'https://shelf.example.test',
+            'filesystems.default' => 'local',
         ]);
         DB::purge('sqlite');
         Storage::fake('local');
@@ -37,6 +38,10 @@ abstract class AssetQrLabelTestCase extends TestCase
             $table->foreignId('asset_location_id')->nullable()->constrained();
             $table->timestamps();
         });
+        Schema::create('asset_reconciliations', function (Blueprint $table): void {
+            $table->id();
+            $table->string('stored_path');
+        });
 
         foreach ([
             '2014_10_12_000000_create_users_table',
@@ -45,6 +50,7 @@ abstract class AssetQrLabelTestCase extends TestCase
             '2026_09_24_000001_create_asset_qr_label_histories_table',
             '2026_09_24_000002_batch_asset_qr_label_histories',
             '2026_09_24_000003_add_file_to_asset_qr_label_histories',
+            '2026_09_24_000004_add_storage_disks_to_asset_files',
         ] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
         }

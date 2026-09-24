@@ -3,6 +3,7 @@
 namespace App\Filament\Exports;
 
 use App\Models\ObChecksheet;
+use App\Support\StoredFile;
 use Filament\Actions\Exports\Enums\ExportFormat;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
@@ -49,11 +50,11 @@ class ObChecksheetExporter extends Exporter
 
             ExportColumn::make('before_photo')
                 ->label('Foto Sebelum')
-                ->state(fn (ObChecksheet $record): ?string => $record->before_photo ? asset('storage/' . ltrim($record->before_photo, '/')) : null),
+                ->state(fn (ObChecksheet $record): ?string => $record->before_photo ? StoredFile::downloadUrl(ltrim($record->before_photo, '/')) : null),
 
             ExportColumn::make('after_photo')
                 ->label('Foto Sesudah')
-                ->state(fn (ObChecksheet $record): ?string => $record->after_photo ? asset('storage/' . ltrim($record->after_photo, '/')) : null),
+                ->state(fn (ObChecksheet $record): ?string => $record->after_photo ? StoredFile::downloadUrl(ltrim($record->after_photo, '/')) : null),
 
             ExportColumn::make('notes')
                 ->label('Catatan'),

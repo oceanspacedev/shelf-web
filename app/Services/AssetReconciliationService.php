@@ -11,9 +11,9 @@ use App\Models\AssetReconciliation;
 use App\Models\AssetReconciliationItem;
 use App\Models\BusinessEntity;
 use App\Support\AssetReconciliationNormalizer as Normalizer;
+use App\Support\StoredFile;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use LogicException;
 use Throwable;
 
@@ -35,8 +35,11 @@ class AssetReconciliationService
                 throw new LogicException('Badan usaha wajib dipilih dari master resmi sebelum compare. Sistem tidak akan mengisi atau menebaknya otomatis.');
             }
 
-            $path = Storage::disk('local')->path($reconciliation->stored_path);
-            $sourceRows = $this->parser->parse($path, $reconciliation->source_sheet);
+            $sourceRows = StoredFile::withLocalPath(
+                $reconciliation->stored_disk ?: 'local',
+                $reconciliation->stored_path,
+                fn (string $path): array => $this->parser->parse($path, $reconciliation->source_sheet),
+            );
             $rows = $this->aggregateNonSerializedRows($sourceRows);
 
             DB::transaction(function () use ($reconciliation, $rows, $sourceRows): void {
@@ -311,6 +314,7 @@ class AssetReconciliationService
             'business_entity_mappings' => $businessEntityMappings ?? $reconciliation->business_entity_mappings,
             'original_filename' => $reconciliation->original_filename,
             'stored_path' => $reconciliation->stored_path,
+            'stored_disk' => $reconciliation->stored_disk ?: 'local',
             'file_sha256' => $reconciliation->file_sha256,
             'status' => AssetReconciliation::STATUS_PROCESSING,
             'auto_create_locations' => $reconciliation->auto_create_locations,

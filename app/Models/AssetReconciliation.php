@@ -28,6 +28,7 @@ class AssetReconciliation extends Model
         'business_entity_mappings',
         'original_filename',
         'stored_path',
+        'stored_disk',
         'file_sha256',
         'status',
         'auto_create_locations',

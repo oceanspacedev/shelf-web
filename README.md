@@ -338,6 +338,7 @@ Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, 
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` / `AWS_BUCKET` | Untuk S3 | Disk `s3` di `config/filesystems.php` |
 | `AWS_ENDPOINT` / `AWS_URL` | Untuk MinIO/S3-compatible | Endpoint dan URL publik object storage |
 | `AWS_USE_PATH_STYLE_ENDPOINT` | Tidak | Path-style S3; default `false`. Set `true` plus `AWS_ENDPOINT` untuk MinIO |
+| `PUBLIC_FILESYSTEM_DRIVER` | Untuk S3 | `s3` mengarahkan upload aplikasi ke S3 privat; `local` untuk development |
 | `WAG_URL` | Untuk WhatsApp | Endpoint WagHub; default `https://waghub.mekayastudio.com` |
 | `WAG_TOKEN` | Untuk WhatsApp | Bearer credential WagHub |
 | `WHATSAPP_OTP_TTL_MINUTES` | Tidak | Masa berlaku OTP login; default `5` menit |
@@ -348,6 +349,9 @@ Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, 
 | `SEED_SUPER_ADMIN_EMAIL` | Tidak | Default seeder `admin@dev.com` |
 | `SEED_SUPER_ADMIN_NAME` | Tidak | Default seeder `Super Admin` |
 | `SEED_SUPER_ADMIN_PASSWORD` | Production seed | Wajib di production jika ingin men-seed Super Admin; local default kata sandi `password` |
+
+Panduan ENV production, preview bucket privat, dan pemindahan file lama:
+[`docs/s3-production.md`](docs/s3-production.md).
 
 Untuk local development tanpa SMTP:
 

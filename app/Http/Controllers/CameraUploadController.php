@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\StoredFile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -134,7 +135,7 @@ class CameraUploadController extends Controller
         return response()->json([
             'success' => true,
             'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            'url' => StoredFile::url($path),
         ]);
     }
 }

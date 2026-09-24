@@ -1,5 +1,20 @@
 <?php
 
+$s3 = [
+    'driver' => 's3',
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'bucket' => env('AWS_BUCKET'),
+    'url' => env('AWS_URL'),
+    'endpoint' => env('AWS_ENDPOINT'),
+    'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+    'visibility' => 'private',
+    'throw' => true,
+];
+
+$publicDriver = env('PUBLIC_FILESYSTEM_DRIVER', env('FILESYSTEM_DISK') === 's3' ? 's3' : 'local');
+
 return [
 
     /*
@@ -46,7 +61,7 @@ return [
             ],
         ],
 
-        'public' => [
+        'public' => $publicDriver === 's3' ? $s3 : [
             'driver' => 'local',
             'root' => storage_path('app/public'),
             'url' => env('APP_URL').'/storage',
@@ -54,16 +69,13 @@ return [
             'throw' => false,
         ],
 
-        's3' => [
-            'driver' => 's3',
-            'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
-            'url' => env('AWS_URL'),
-            'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
+        's3' => $s3,
+
+        // Tetap tersedia sebagai sumber migrasi setelah disk public memakai S3.
+        'legacy-public' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public'),
+            'throw' => true,
         ],
 
     ],

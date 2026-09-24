@@ -8,6 +8,7 @@ use App\Filament\Resources\AssetServiceResource\Pages;
 use App\Models\Asset;
 use App\Models\AssetService;
 use App\Models\Vendor;
+use App\Support\StoredFile;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -569,7 +570,7 @@ class AssetServiceResource extends Resource
                         ImageEntry::make('after_service_photo')->label('Foto Sesudah Servis')->height(200),
                         TextEntry::make('receipt_document_path')
                             ->label('Nota / Bukti Kuitansi')
-                            ->url(fn (?AssetService $record) => $record?->receipt_document_path ? asset('storage/' . ltrim($record->receipt_document_path, '/')) : null, true)
+                            ->url(fn (?AssetService $record) => $record?->receipt_document_path ? StoredFile::url(ltrim($record->receipt_document_path, '/')) : null, true)
                             ->openUrlInNewTab()
                             ->visible(fn (?AssetService $record) => filled($record?->receipt_document_path)),
                     ])

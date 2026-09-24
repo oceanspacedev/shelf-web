@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AssetResource\RelationManagers;
 
 use App\Enums\AssetTransferDocumentType;
+use App\Support\StoredFile;
 use Asmit\ResizedColumn\HasResizableColumn;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -10,7 +11,6 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Storage;
 
 class AssetTransfersRelationManager extends RelationManager
 {
@@ -51,7 +51,7 @@ class AssetTransfersRelationManager extends RelationManager
                         return $record->assetTransfer->status;
                     }),
                 TextColumn::make('assetTransfer.document')
-                    ->url(fn ($record) => $record && $record->assetTransfer && $record->assetTransfer->document ? Storage::url($record->assetTransfer->document) : null, true) // Membuat kolom URL untuk unduh
+                    ->url(fn ($record) => $record && $record->assetTransfer && $record->assetTransfer->document ? StoredFile::url($record->assetTransfer->document) : null, true) // Membuat kolom URL untuk unduh
                     ->openUrlInNewTab()
                     ->translateLabel()
                     ->getStateUsing(fn ($record) => $record->assetTransfer && $record->assetTransfer->document ? 'Dokumen' : '-')

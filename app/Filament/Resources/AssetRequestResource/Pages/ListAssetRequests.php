@@ -4,9 +4,9 @@ namespace App\Filament\Resources\AssetRequestResource\Pages;
 
 use App\Enums\AssetRequestType;
 use App\Filament\Resources\AssetRequestResource;
+use App\Support\StoredFile;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
-use Illuminate\Support\Facades\Storage;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -57,7 +57,7 @@ class ListAssetRequests extends ListRecords
                                     $attachments = is_array($record->attachment) ? $record->attachment : [$record->attachment];
 
                                     return collect($attachments)
-                                        ->map(fn ($file) => Storage::disk('public')->url($file))
+                                        ->map(fn ($file) => StoredFile::downloadUrl($file))
                                         ->implode(', ');
                                 }),
                             Column::make('description')->heading('Keterangan'),

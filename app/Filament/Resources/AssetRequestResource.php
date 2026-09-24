@@ -13,6 +13,7 @@ use App\Models\AssetRequestItem;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use App\Support\StoredFile;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -40,7 +41,6 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Columns\Column;
@@ -288,7 +288,7 @@ class AssetRequestResource extends Resource
                                         Forms\Components\FileUpload::make('attachment')
                                             ->label('Lampiran / Dokumen Pendukung')
                                             ->directory('asset-requests')
-                                            ->visibility('public')
+                                            ->visibility(fn (): string => StoredFile::uploadVisibility())
                                             ->multiple()
                                             ->required()
                                             ->minFiles(1)
@@ -947,7 +947,7 @@ class AssetRequestResource extends Resource
                                             $attachments = is_array($record->attachment) ? $record->attachment : [$record->attachment];
 
                                             return collect($attachments)
-                                                ->map(fn($file) => Storage::disk('public')->url($file))
+                                                ->map(fn($file) => StoredFile::downloadUrl($file))
                                                 ->implode(', ');
                                         }),
                                     Column::make('description')->heading('Keterangan'),

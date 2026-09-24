@@ -53,8 +53,9 @@ class AssetQrLabelHistoryService
             : 'asset-qr-labels-'.$count.'-'.$suffix.'.pdf';
         $filePath = 'asset-qr-labels/'.$createdAt->format('Y/m').'/'.$fileName;
 
-        $disk = Storage::disk('local');
-        if (! $disk->put($filePath, $pdfBinary)) {
+        $diskName = config('filesystems.default');
+        $disk = Storage::disk($diskName);
+        if (! $disk->put($filePath, $pdfBinary, ['visibility' => 'private'])) {
             throw UnableToWriteFile::atLocation($filePath, 'Gagal menyimpan PDF label QR.');
         }
 
@@ -66,6 +67,7 @@ class AssetQrLabelHistoryService
                 'asset_count' => $count,
                 'asset_summary' => $names->implode(', '),
                 'file_path' => $filePath,
+                'file_disk' => $diskName,
                 'file_name' => $fileName,
             ]);
         } catch (Throwable $exception) {
@@ -78,11 +80,11 @@ class AssetQrLabelHistoryService
     public function download(AssetQrLabelHistory $history): StreamedResponse
     {
         abort_unless(
-            filled($history->file_path) && Storage::disk('local')->exists($history->file_path),
+            $history->hasStoredFile(),
             404
         );
 
-        return Storage::disk('local')->download(
+        return Storage::disk($history->file_disk ?: 'local')->download(
             $history->file_path,
             $history->file_name ?: basename($history->file_path),
             ['Content-Type' => 'application/pdf']
