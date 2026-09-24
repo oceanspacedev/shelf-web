@@ -8,15 +8,17 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Support\PhoneNumber;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -51,33 +53,31 @@ class UserResource extends Resource
                             ->options(JobTitle::all()->pluck('title', 'id'))
                             ->label('Job Title')
                             ->searchable(),
+                        TextInput::make('employee_id')
+                            ->label('Employee ID')
+                            ->maxLength(64)
+                            ->unique(User::class, 'employee_id', ignoreRecord: true),
                         TextInput::make('whatsapp_number')
                             ->label('Nomor WhatsApp')
                             ->tel()
                             ->placeholder('081234567890')
-                            ->helperText('Dipakai untuk pengingat aset via WhatsApp (WagHub).')
-                            ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
-                            ->maxLength(32),
-                    ]),
-                Section::make('Akses & Keamanan')
-                    ->schema([
-                        TextInput::make('whatsapp_login_number')
-                            ->label('Nomor WhatsApp untuk login')
-                            ->tel()
-                            ->placeholder('081234567890')
-                            ->helperText('Tetapkan nomor milik pengguna yang sudah dikonfirmasi. Kosongkan untuk menonaktifkan login WhatsApp.')
-                            ->maxLength(30)
+                            ->helperText('Dipakai untuk pengingat aset via WhatsApp dan login OTP. Kosongkan untuk menonaktifkan login WhatsApp.')
                             ->afterStateHydrated(function (TextInput $component, ?User $record) use ($isSuperAdmin): void {
-                                if ($isSuperAdmin) {
-                                    $component->state($record?->whatsapp_login_number);
+                                if ($isSuperAdmin && $record && blank($record->whatsapp_number) && filled($record->whatsapp_login_number)) {
+                                    $component->state($record->whatsapp_login_number);
                                 }
                             })
                             ->mutateStateForValidationUsing(fn ($state) => PhoneNumber::canonical($state) ?? $state)
-                            ->rules(['nullable', 'regex:/^[1-9][0-9]{9,14}$/D'])
+                            ->rules($isSuperAdmin ? ['nullable', 'regex:/^[1-9][0-9]{9,14}$/D'] : ['nullable'])
                             ->unique(User::class, 'whatsapp_login_number', ignoreRecord: true)
-                            ->dehydrateStateUsing(fn ($state) => PhoneNumber::canonical($state))
-                            ->dehydrated($isSuperAdmin)
-                            ->visible($isSuperAdmin),
+                            ->dehydrateStateUsing(fn ($state) => filled($state) ? preg_replace('/[^\d+]/', '', (string) $state) : null)
+                            ->maxLength(32),
+                        TextInput::make('whatsapp_login_number')
+                            ->hidden()
+                            ->dehydrated(false),
+                    ]),
+                Section::make('Akses & Keamanan')
+                    ->schema([
                         TextInput::make('username')
                             ->maxLength(255)
                             ->unique(User::class, 'username', ignoreRecord: true)
@@ -124,6 +124,10 @@ class UserResource extends Resource
                     ->getStateUsing(fn ($record) => $record->businessEntity->name ?? null)
                     ->toggleable(),
                 TextColumn::make('jobTitle.title')->translateLabel()->sortable()->searchable()->toggleable(),
+                TextColumn::make('employee_id')
+                    ->label('Employee ID')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('whatsapp_number')
                     ->label('WhatsApp')
                     ->searchable()
@@ -157,11 +161,11 @@ class UserResource extends Resource
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
-                \Filament\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->bulkActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -220,6 +224,10 @@ class UserResource extends Resource
                                     ->columnSpan(1),
                                 TextEntry::make('email')
                                     ->label('Email Address')
+                                    ->columnSpan(1),
+                                TextEntry::make('employee_id')
+                                    ->label('Employee ID')
+                                    ->placeholder('-')
                                     ->columnSpan(1),
                                 TextEntry::make('whatsapp_number')
                                     ->label('Nomor WhatsApp')

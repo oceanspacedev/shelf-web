@@ -51,6 +51,7 @@ class PhoneOtpLoginTest extends TestCase
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password')->nullable();
             $table->string('whatsapp_number')->nullable();
+            $table->string('employee_id')->nullable()->unique();
             $table->unsignedBigInteger('business_entity_id')->nullable();
             $table->unsignedBigInteger('job_title_id')->nullable();
             $table->rememberToken();
@@ -115,7 +116,7 @@ class PhoneOtpLoginTest extends TestCase
         $this->assertSame('6281234567890', $this->gateway->messages[0]['phone']);
     }
 
-    public function test_admin_edit_preserves_the_existing_hidden_login_credential(): void
+    public function test_admin_edit_uses_a_single_whatsapp_field_for_contact_and_login(): void
     {
         $user = $this->registeredUser();
         $this->actingAs($user);
@@ -123,7 +124,8 @@ class PhoneOtpLoginTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $user->getRouteKey()])
-            ->assertSet('data.whatsapp_login_number', '6281234567890')
+            ->assertFormFieldIsHidden('whatsapp_login_number')
+            ->assertSet('data.whatsapp_number', '6281234567890')
             ->fillForm(['name' => 'Budi Updated'])
             ->call('save')->assertHasNoFormErrors();
 
@@ -131,7 +133,7 @@ class PhoneOtpLoginTest extends TestCase
         $this->assertSame('6281234567890', $user->fresh()->whatsapp_login_number);
     }
 
-    public function test_admin_cannot_assign_an_equivalent_login_number_already_used_by_another_user(): void
+    public function test_admin_whatsapp_number_becomes_the_login_credential(): void
     {
         $admin = $this->registeredUser();
         $other = User::create(['name' => 'Other']);
@@ -140,8 +142,25 @@ class PhoneOtpLoginTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
-            ->fillForm(['whatsapp_login_number' => '0812-3456-7890'])
-            ->call('save')->assertHasFormErrors(['whatsapp_login_number' => 'unique']);
+            ->fillForm(['whatsapp_number' => '0812-9999-0000'])
+            ->call('save')->assertHasNoFormErrors();
+
+        $other->refresh();
+        $this->assertSame('081299990000', $other->whatsapp_number);
+        $this->assertSame('6281299990000', $other->whatsapp_login_number);
+    }
+
+    public function test_admin_cannot_assign_an_equivalent_number_already_used_by_another_user(): void
+    {
+        $admin = $this->registeredUser();
+        $other = User::create(['name' => 'Other']);
+        $this->actingAs($admin);
+        Gate::before(fn (): bool => true);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
+            ->fillForm(['whatsapp_number' => '0812-3456-7890'])
+            ->call('save')->assertHasFormErrors(['whatsapp_number' => 'unique']);
 
         $this->assertNull($other->fresh()->whatsapp_login_number);
     }
@@ -158,9 +177,12 @@ class PhoneOtpLoginTest extends TestCase
             ->assertFormFieldIsHidden('whatsapp_login_number')
             ->assertSet('data.whatsapp_login_number', null)
             ->set('data.whatsapp_login_number', '6289999999999')
+            ->fillForm(['whatsapp_number' => '0812999999999'])
             ->call('save')->assertHasNoFormErrors();
 
-        $this->assertSame('6281234567890', $user->fresh()->whatsapp_login_number);
+        $user->refresh();
+        $this->assertSame('0812999999999', $user->whatsapp_number);
+        $this->assertSame('6281234567890', $user->whatsapp_login_number);
     }
 
     public function test_unknown_number_is_only_rejected_after_otp_without_registration(): void

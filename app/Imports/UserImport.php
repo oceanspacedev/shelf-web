@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -31,18 +32,18 @@ class UserImport implements ToCollection, WithChunkReading
 
     public function collection(Collection $rows)
     {
-        $usersToInsert = [];
-        $now = now();
-
         DB::beginTransaction();
 
         try {
             foreach ($rows as $row) {
-                if ($row[0] === 'Nama' || empty($row[0])) {
+                $name = trim((string) ($row[0] ?? ''));
+                if ($name === '' || strcasecmp($name, 'Nama') === 0) {
                     continue;
                 }
 
-                if (empty($row[1]) || empty($row[2])) {
+                $entityName = trim((string) ($row[1] ?? ''));
+                $titleName = trim((string) ($row[2] ?? ''));
+                if ($entityName === '' || $titleName === '') {
                     Log::error('Data untuk Badan Usaha atau Jabatan hilang', [
                         'baris' => $row,
                     ]);
@@ -50,21 +51,54 @@ class UserImport implements ToCollection, WithChunkReading
                     continue;
                 }
 
-                $businessEntityId = $this->findOrCreateBusinessEntity($row[1]);
-                $jobTitleId = $this->findOrCreateJobTitle($row[2]);
+                $employeeId = trim((string) ($row[3] ?? ''));
+                $phoneRaw = trim((string) ($row[4] ?? ''));
+                $user = $employeeId !== ''
+                    ? User::query()->where('employee_id', $employeeId)->first()
+                    : null;
 
-                $usersToInsert[] = [
-                    'name' => $row[0],
-                    'business_entity_id' => $businessEntityId,
-                    'job_title_id' => $jobTitleId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                $payload = [
+                    'name' => $name,
+                    'business_entity_id' => $this->findOrCreateBusinessEntity($entityName),
+                    'job_title_id' => $this->findOrCreateJobTitle($titleName),
                 ];
-            }
 
-            if (! empty($usersToInsert)) {
-                foreach (array_chunk($usersToInsert, 500) as $chunk) {
-                    User::insert($chunk);
+                if ($employeeId !== '') {
+                    $payload['employee_id'] = $employeeId;
+                }
+
+                if ($phoneRaw !== '') {
+                    $contact = preg_replace('/[^\d+]/', '', $phoneRaw) ?: '';
+                    $login = PhoneNumber::canonical($phoneRaw);
+                    if ($contact === '' || $login === null) {
+                        Log::error('Nomor HP tidak valid saat impor pengguna', [
+                            'baris' => $row,
+                        ]);
+
+                        continue;
+                    }
+
+                    $taken = User::query()
+                        ->where('whatsapp_login_number', $login)
+                        ->when($user, fn ($query) => $query->whereKeyNot($user->getKey()))
+                        ->exists();
+
+                    if ($taken) {
+                        Log::error('Nomor WhatsApp sudah dipakai user lain', [
+                            'baris' => $row,
+                        ]);
+
+                        continue;
+                    }
+
+                    $payload['whatsapp_number'] = $contact;
+                    $payload['whatsapp_login_number'] = $login;
+                }
+
+                if ($user) {
+                    $user->update($payload);
+                } else {
+                    User::create($payload);
                 }
             }
 
@@ -79,9 +113,6 @@ class UserImport implements ToCollection, WithChunkReading
 
             throw ValidationException::withMessages(['import' => 'Terjadi kesalahan saat impor pengguna. Silakan periksa log untuk detail lebih lanjut.']);
         }
-
-        unset($usersToInsert);
-        gc_collect_cycles();
     }
 
     public function chunkSize(): int
