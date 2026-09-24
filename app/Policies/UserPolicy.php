@@ -110,6 +110,8 @@ class UserPolicy
      */
     public function import(User $user): bool
     {
-        return $user->can('import_user');
+        return $user->can('import_user')
+            || $user->can('create_user')
+            || $user->hasRole(['super_admin', 'admin']);
     }
 }
