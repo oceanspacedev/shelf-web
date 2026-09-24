@@ -13,9 +13,11 @@ class UserWhatsappNumberTest extends TestCase
             'name' => 'BAYU MARSHARENO, S.KOM.I',
             'email' => 'bayu@example.com',
             'whatsapp_number' => '081234567890',
+            'employee_id' => '2024.08.15.03',
         ]);
 
         $this->assertSame('081234567890', $user->whatsapp_number);
+        $this->assertSame('2024.08.15.03', $user->employee_id);
     }
 
     public function test_login_number_is_normalized_without_changing_the_notification_contact(): void

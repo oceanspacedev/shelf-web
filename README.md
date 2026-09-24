@@ -78,7 +78,7 @@ Ketersediaan modul pada setiap surface saat ini:
 | Atribut kustom dan pengingat dokumen | Tidak | Ya | Query kedaluwarsa | Scheduler `notifications:send-scheduled` |
 | Tugas (task) | Tidak | Ya | Tidak | PDF penyelesaian tugas butuh auth |
 | Master data | Tidak | Ya | Tidak | Kategori, badan usaha, jabatan, merek, lokasi, divisi+approver, vendor, pengguna |
-| Pengguna dan role | Tidak | Ya | Tidak | Permission Filament Shield; masuk panel hanya jika user punya role |
+| Pengguna dan role | Tidak | Ya | Tidak | Permission Filament Shield; masuk panel hanya jika user punya role. Import Talenta/Excel mengisi `employee_id` dan nomor WhatsApp |
 | Query aset WhatsApp | Tidak | Tidak | Ya | `POST /api/integrations/whatsapp/assets/query` tanpa auth |
 
 > [!NOTE]
@@ -533,9 +533,9 @@ Untuk mengaktifkan:
 
 1. Jalankan `php artisan migrate` untuk menambahkan `users.whatsapp_login_number`.
 2. Isi `WAG_URL` dan `WAG_TOKEN`. Tombol WhatsApp muncul jika keduanya terisi.
-3. Sebagai admin, buka **Master Data → Users → Edit → Akses & Keamanan**, lalu isi **Nomor WhatsApp untuk login** dengan nomor pengguna yang sudah dikonfirmasi. Nomor dinormalisasi dan harus unik; kosongkan untuk menonaktifkan akses melalui WhatsApp.
+3. Sebagai admin, buka **Master Data → Users → Edit**, lalu isi **Nomor WhatsApp**. Satu nomor dipakai untuk pengingat aset dan login OTP. Nomor dinormalisasi dan harus unik; kosongkan untuk menonaktifkan akses melalui WhatsApp.
 
-Nomor kontak `whatsapp_number` tetap dipakai untuk notifikasi. Karena kontak ini dapat diisi dari formulir publik, migrasi sengaja tidak menyalinnya menjadi kredensial login. OTP baru membuktikan kepemilikan nomor, bukan hak untuk mengaitkannya ke akun tertentu.
+Formulir publik tetap hanya mengisi kontak notifikasi, bukan kredensial login. Admin yang menyimpan nomor di panel, atau **Import Talenta** / impor Excel yang memuat `employee_id` dan nomor HP, yang menautkan nomor itu sebagai login. OTP baru membuktikan kepemilikan nomor, bukan hak untuk mengaitkannya ke akun tertentu.
 
 OTP tersimpan sebagai hash, berlaku lima menit secara default (`WHATSAPP_OTP_TTL_MINUTES`), terikat ke sesi, dan hanya dapat digunakan sekali. Pengiriman dibatasi per nomor, sesi, dan IP; verifikasi dibatasi lima percobaan salah selama masa berlaku kode. Akun baru dicari setelah OTP valid dan sesi diganti setelah login. Pada beberapa instance aplikasi, gunakan cache dan session bersama serta `CACHE_PREFIX` khusus Shelf.
 

@@ -4,7 +4,9 @@ namespace App\Filament\Resources;
 
 use App\Filament\Exports\ObChecksheetExporter;
 use App\Filament\Resources\ObChecksheetResource\Pages;
+use App\Forms\Components\CameraCapture;
 use App\Models\ObChecksheet;
+use App\Support\StoredFile;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -15,9 +17,13 @@ use Filament\Actions\ExportBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -50,13 +56,13 @@ class ObChecksheetResource extends Resource
         return $form
             ->schema([
                 // Field otomatis yang tersimpan di latar belakang
-                \Filament\Forms\Components\Hidden::make('user_id')
+                Hidden::make('user_id')
                     ->default(fn () => auth()->id()),
 
-                \Filament\Forms\Components\Hidden::make('started_at')
+                Hidden::make('started_at')
                     ->default(now()),
 
-                \Filament\Forms\Components\Hidden::make('cleaned_at')
+                Hidden::make('cleaned_at')
                     ->default(now()),
 
                 // Hanya tampil di halaman detail / edit admin untuk kebutuhan pelacakan & edit penuh
@@ -129,14 +135,15 @@ class ObChecksheetResource extends Resource
                 Section::make('Dokumentasi Foto Kebersihan')
                     ->columns(['default' => 1, 'md' => 2])
                     ->schema([
-                        \App\Forms\Components\CameraCapture::make('before_photo')
+                        CameraCapture::make('before_photo')
                             ->label('Foto Sebelum Pembersihan')
                             ->folder('ob-checksheets/before')
-                            ->required(),
-
-                        \App\Forms\Components\CameraCapture::make('after_photo')
-                            ->label('Foto Sesudah Pembersihan')
-                            ->folder('ob-checksheets/after')
+                            ->required()
+                            ->visibleOn('create'),
+                        self::photoPreview('before_photo', 'Foto Sebelum Pembersihan', 'ob-checksheets/before')
+                            ->required()
+                            ->hiddenOn('create'),
+                        self::photoPreview('after_photo', 'Foto Sesudah Pembersihan', 'ob-checksheets/after')
                             ->hiddenOn('create'),
                     ]),
 
@@ -150,6 +157,50 @@ class ObChecksheetResource extends Resource
                             ->rows(3)
                             ->columnSpanFull(),
                     ]),
+            ]);
+    }
+
+    public static function infolist(Schema $infolist): Schema
+    {
+        return $infolist
+            ->schema([
+                Section::make('Informasi Laporan')
+                    ->schema([
+                        TextEntry::make('reference_number')->label('Nomor Referensi'),
+                        TextEntry::make('user.name')->label('Petugas OB'),
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->color(fn (?string $state): string => match ($state) {
+                                'in_progress' => 'warning',
+                                'completed' => 'success',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                'in_progress' => 'Sedang Dikerjakan',
+                                'completed' => 'Selesai',
+                                default => $state ?? '-',
+                            }),
+                        TextEntry::make('room')->label('Ruangan'),
+                        TextEntry::make('started_at')->label('Waktu Mulai')->dateTime('d M Y H:i'),
+                        TextEntry::make('finished_at')->label('Waktu Selesai')->dateTime('d M Y H:i')->placeholder('-'),
+                        TextEntry::make('duration_minutes')->label('Durasi')->suffix(' menit')->placeholder('-'),
+                        TextEntry::make('notes')->label('Catatan')->placeholder('-')->columnSpanFull(),
+                    ])
+                    ->columns(['default' => 1, 'md' => 3]),
+                Section::make('Dokumentasi Foto Kebersihan')
+                    ->schema([
+                        ImageEntry::make('before_photo')
+                            ->label('Foto Sebelum Pembersihan')
+                            ->disk('public')
+                            ->height(250),
+                        ImageEntry::make('after_photo')
+                            ->label('Foto Sesudah Pembersihan')
+                            ->disk('public')
+                            ->height(250)
+                            ->placeholder('-'),
+                    ])
+                    ->columns(['default' => 1, 'md' => 2]),
             ]);
     }
 
@@ -184,7 +235,7 @@ class ObChecksheetResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->description(fn (ObChecksheet $record) => $record->started_at?->format('d M H:i') . ($record->duration_minutes !== null ? " ({$record->duration_minutes} mnt)" : ($record->status === 'in_progress' ? ' • Berjalan...' : '')))
+                    ->description(fn (ObChecksheet $record) => $record->started_at?->format('d M H:i').($record->duration_minutes !== null ? " ({$record->duration_minutes} mnt)" : ($record->status === 'in_progress' ? ' • Berjalan...' : '')))
                     ->wrap(),
 
                 ImageColumn::make('before_photo')
@@ -282,15 +333,15 @@ class ObChecksheetResource extends Resource
 
                         return $canAccess && ($record->status === 'in_progress' || blank($record->after_photo));
                     })
-                    ->modalHeading(fn (ObChecksheet $record) => 'Selesaikan Pembersihan: ' . $record->room)
+                    ->modalHeading(fn (ObChecksheet $record) => 'Selesaikan Pembersihan: '.$record->room)
                     ->modalSubmitActionLabel('Simpan & Selesaikan')
                     ->form([
-                        \App\Forms\Components\CameraCapture::make('after_photo')
+                        CameraCapture::make('after_photo')
                             ->label('Foto Sesudah Pembersihan')
                             ->folder('ob-checksheets/after')
                             ->columnSpanFull()
                             ->required(),
-                        \Filament\Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('Catatan Tambahan (Opsional)')
                             ->placeholder('Tulis catatan jika ada...')
                             ->rows(3)
@@ -299,7 +350,7 @@ class ObChecksheetResource extends Resource
                     ->action(function (ObChecksheet $record, array $data) {
                         $record->markAsCompleted($data['after_photo'], $data['notes'] ?? null);
 
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Pembersihan Selesai!')
                             ->body("Ruangan {$record->room} berhasil diselesaikan (durasi: {$record->duration_minutes} menit).")
                             ->success()
@@ -356,7 +407,21 @@ class ObChecksheetResource extends Resource
         return [
             'index' => Pages\ListObChecksheets::route('/'),
             'create' => Pages\CreateObChecksheet::route('/create'),
+            'view' => Pages\ViewObChecksheet::route('/{record}'),
             'edit' => Pages\EditObChecksheet::route('/{record}/edit'),
         ];
+    }
+
+    private static function photoPreview(string $name, string $label, string $directory): FileUpload
+    {
+        return FileUpload::make($name)
+            ->label($label)
+            ->image()
+            ->disk('public')
+            ->directory($directory)
+            ->previewable()
+            ->imagePreviewHeight('250')
+            ->visibility(fn (): string => StoredFile::uploadVisibility())
+            ->maxSize(10240);
     }
 }
