@@ -63,6 +63,7 @@ class PublicAssetRequestTest extends TestCase
             $table->id();
             $table->string('name');
             $table->string('whatsapp_number')->nullable();
+            $table->string('whatsapp_login_number', 15)->nullable()->unique();
             $table->string('email')->nullable();
             $table->unsignedBigInteger('business_entity_id')->nullable();
             $table->unsignedBigInteger('job_title_id')->nullable();
@@ -704,6 +705,32 @@ class PublicAssetRequestTest extends TestCase
         ]);
         $this->assertSame('081234567890', $user->fresh()->whatsapp_number);
         $this->assertSame('john@example.com', $user->fresh()->email);
+    }
+
+    public function test_public_contact_submission_cannot_set_a_whatsapp_login_credential(): void
+    {
+        $businessEntity = $this->createBusinessEntity();
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'business_entity_id' => $businessEntity->id,
+        ]);
+        $division = Division::create(['name' => 'IT Department']);
+
+        $this->submitRequest([
+            'type' => 'pengadaan',
+            'user_id' => $user->id,
+            'whatsapp_number' => '081234567890',
+            'whatsapp_login_number' => '6281234567890',
+            'business_entity_id' => $businessEntity->id,
+            'division_id' => $division->id,
+            'item_name' => 'Keyboard',
+            'qty' => 1,
+        ])->assertOk();
+
+        $this->assertSame('081234567890', $user->fresh()->whatsapp_number);
+        $this->assertNull($user->fresh()->whatsapp_login_number);
+        $this->assertGuest();
     }
 
     public function test_existing_applicant_must_complete_missing_contact_only(): void

@@ -7,6 +7,7 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
+use App\Support\PhoneNumber;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -60,6 +61,23 @@ class UserResource extends Resource
                     ]),
                 Section::make('Akses & Keamanan')
                     ->schema([
+                        TextInput::make('whatsapp_login_number')
+                            ->label('Nomor WhatsApp untuk login')
+                            ->tel()
+                            ->placeholder('081234567890')
+                            ->helperText('Tetapkan nomor milik pengguna yang sudah dikonfirmasi. Kosongkan untuk menonaktifkan login WhatsApp.')
+                            ->maxLength(30)
+                            ->afterStateHydrated(function (TextInput $component, ?User $record) use ($isSuperAdmin): void {
+                                if ($isSuperAdmin) {
+                                    $component->state($record?->whatsapp_login_number);
+                                }
+                            })
+                            ->mutateStateForValidationUsing(fn ($state) => PhoneNumber::canonical($state) ?? $state)
+                            ->rules(['nullable', 'regex:/^[1-9][0-9]{9,14}$/D'])
+                            ->unique(User::class, 'whatsapp_login_number', ignoreRecord: true)
+                            ->dehydrateStateUsing(fn ($state) => PhoneNumber::canonical($state))
+                            ->dehydrated($isSuperAdmin)
+                            ->visible($isSuperAdmin),
                         TextInput::make('username')
                             ->maxLength(255)
                             ->unique(User::class, 'username', ignoreRecord: true)

@@ -1,5 +1,8 @@
 @import '../../../../vendor/kungfufafa/mekaya-theme/resources/css/theme.css';
 
+@source '../../../views/auth/**/*.blade.php';
+@source '../../../views/filament/auth/**/*.blade.php';
+
 @source '../../../../vendor/awcodes/overlook/resources/views/**/*.blade.php';
 
 /* Ensure language switcher utilities are generated for the Mekaya appshell. */
@@ -12,6 +15,18 @@
         height: 100%;
         max-height: 100dvh;
         overflow: hidden;
+    }
+
+    /* Authentication cards must remain reachable on short screens and with a keyboard open. */
+    html.fi:has(.fi-simple-layout),
+    html.fi body.fi-body:has(.fi-simple-layout) {
+        height: auto;
+        max-height: none;
+        overflow: auto;
+    }
+
+    .fi-simple-main > .min-h-screen {
+        padding: 1.5rem 1rem;
     }
 
     #overlook-widget > div {

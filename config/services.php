@@ -31,6 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'whatsapp_otp' => [
+        'ttl_minutes' => env('WHATSAPP_OTP_TTL_MINUTES', 5),
+    ],
+
     'whatsapp_gateway' => [
         'url' => env('WAG_URL', 'https://waghub.mekayastudio.com'),
         'token' => env('WAG_TOKEN'),

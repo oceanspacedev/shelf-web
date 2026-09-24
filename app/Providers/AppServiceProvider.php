@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Enums\BadgeColor;
+use App\Filament\Auth\Pages\PhoneLogin;
 use App\Models\AssetRequest;
 use App\Models\AssetService;
 use App\Models\AssetTransfer;
@@ -35,6 +36,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 
@@ -53,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Livewire::component('phone-login', PhoneLogin::class);
         ObservabilityAccess::register();
         $this->registerAuthorization();
         $this->configureHttps();
