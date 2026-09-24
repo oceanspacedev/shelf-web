@@ -8,7 +8,10 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use League\Flysystem\UnableToWriteFile;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class AssetQrLabelHistoryService
 {
@@ -42,24 +45,34 @@ class AssetQrLabelHistoryService
             'qrService' => $qrService,
         ])->output();
 
-        $timestamp = now()->format('Ymd_His');
+        $createdAt = now();
+        $suffix = $createdAt->format('Ymd_His').'-'.Str::ulid();
         $count = $collection->count();
         $fileName = $count === 1
-            ? 'asset-qr-'.$collection->first()->id.'-'.$timestamp.'.pdf'
-            : 'asset-qr-labels-'.$count.'-'.$timestamp.'.pdf';
-        $filePath = 'asset-qr-labels/'.now()->format('Y/m').'/'.$fileName;
+            ? 'asset-qr-'.$collection->first()->id.'-'.$suffix.'.pdf'
+            : 'asset-qr-labels-'.$count.'-'.$suffix.'.pdf';
+        $filePath = 'asset-qr-labels/'.$createdAt->format('Y/m').'/'.$fileName;
 
-        Storage::disk('local')->put($filePath, $pdfBinary);
+        $disk = Storage::disk('local');
+        if (! $disk->put($filePath, $pdfBinary)) {
+            throw UnableToWriteFile::atLocation($filePath, 'Gagal menyimpan PDF label QR.');
+        }
 
-        return AssetQrLabelHistory::query()->create([
-            'user_id' => $user?->id,
-            'action' => $action,
-            'asset_ids' => $collection->pluck('id')->map(fn ($id) => (int) $id)->all(),
-            'asset_count' => $count,
-            'asset_summary' => $names->implode(', '),
-            'file_path' => $filePath,
-            'file_name' => $fileName,
-        ]);
+        try {
+            return AssetQrLabelHistory::query()->create([
+                'user_id' => $user?->id,
+                'action' => $action,
+                'asset_ids' => $collection->pluck('id')->map(fn ($id) => (int) $id)->all(),
+                'asset_count' => $count,
+                'asset_summary' => $names->implode(', '),
+                'file_path' => $filePath,
+                'file_name' => $fileName,
+            ]);
+        } catch (Throwable $exception) {
+            $disk->delete($filePath);
+
+            throw $exception;
+        }
     }
 
     public function download(AssetQrLabelHistory $history): StreamedResponse

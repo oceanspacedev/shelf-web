@@ -15,7 +15,8 @@
         }
         .label {
             display: inline-block;
-            width: 3.2cm;
+            /* Dompdf memakai content-box: lebar total termasuk padding dan border = 3.2 cm. */
+            width: calc(3.2cm - 0.4cm - 2px);
             vertical-align: top;
             border: 1px solid #111;
             padding: 0.2cm;

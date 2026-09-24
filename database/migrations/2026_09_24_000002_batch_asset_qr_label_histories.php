@@ -62,6 +62,9 @@ return new class extends Migration
             ->each(function ($row): void {
                 $ids = json_decode((string) $row->asset_ids, true);
                 $firstId = is_array($ids) && $ids !== [] ? (int) $ids[0] : null;
+                if ($firstId !== null && ! DB::table('assets')->where('id', $firstId)->exists()) {
+                    $firstId = null;
+                }
 
                 DB::table('asset_qr_label_histories')
                     ->where('id', $row->id)

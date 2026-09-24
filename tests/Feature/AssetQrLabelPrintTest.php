@@ -4,19 +4,16 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Tests\TestCase;
+use Tests\Support\AssetQrLabelTestCase;
 
-class AssetQrLabelPrintTest extends TestCase
+class AssetQrLabelPrintTest extends AssetQrLabelTestCase
 {
-    use DatabaseTransactions;
-
     public function test_authenticated_user_can_open_print_page_with_qr_image(): void
     {
         $user = User::factory()->create();
         $user->assignRole('super_admin');
 
-        $asset = Asset::factory()->create(['name' => 'Printer Test Asset']);
+        $asset = Asset::create(['name' => 'Printer Test Asset']);
         $qr = $asset->fresh()->qr;
 
         $response = $this->actingAs($user)->get(route('assets.qr-label.print', $asset));
@@ -33,7 +30,7 @@ class AssetQrLabelPrintTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('super_admin');
 
-        $assets = Asset::factory()->count(3)->create();
+        $assets = $this->createAssets(3);
         $ids = $assets->pluck('id')->implode(',');
 
         $response = $this->actingAs($user)->get(route('assets.qr-labels.print', ['ids' => $ids]));
@@ -48,9 +45,20 @@ class AssetQrLabelPrintTest extends TestCase
 
     public function test_guest_cannot_open_print_page(): void
     {
-        $asset = Asset::factory()->create();
+        $asset = $this->createAssets(1)->first();
 
         $this->get(route('assets.qr-label.print', $asset))
             ->assertRedirect();
+    }
+
+    public function test_user_without_asset_permission_cannot_print_or_create_history(): void
+    {
+        $user = User::factory()->create();
+        $asset = $this->createAssets(1)->first();
+
+        $this->actingAs($user)->get(route('assets.qr-label.print', $asset))->assertForbidden();
+        $this->get(route('assets.qr-labels.print', ['ids' => $asset->id]))->assertForbidden();
+
+        $this->assertDatabaseCount('asset_qr_label_histories', 0);
     }
 }

@@ -6,26 +6,21 @@ use App\Models\Asset;
 use App\Models\AssetQrLabelHistory;
 use App\Models\User;
 use App\Services\AssetQrLabelHistoryService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Database\QueryException;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Storage;
-use Tests\TestCase;
+use League\Flysystem\UnableToWriteFile;
+use Mockery;
+use Tests\Support\AssetQrLabelTestCase;
 
-class AssetQrLabelHistoryTest extends TestCase
+class AssetQrLabelHistoryTest extends AssetQrLabelTestCase
 {
-    use DatabaseTransactions;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        Storage::fake('local');
-    }
-
     public function test_print_label_records_history_with_user_and_timestamp(): void
     {
         $user = User::factory()->create();
         $user->assignRole('super_admin');
 
-        $asset = Asset::factory()->create(['name' => 'Single Print Asset']);
+        $asset = Asset::create(['name' => 'Single Print Asset']);
 
         $this->actingAs($user)
             ->get(route('assets.qr-label.print', $asset))
@@ -51,7 +46,7 @@ class AssetQrLabelHistoryTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('super_admin');
 
-        $assets = Asset::factory()->count(3)->create();
+        $assets = $this->createAssets(3);
         $ids = $assets->pluck('id')->implode(',');
 
         $this->actingAs($user)
@@ -78,7 +73,7 @@ class AssetQrLabelHistoryTest extends TestCase
     public function test_history_service_records_one_download_batch_with_pdf_file(): void
     {
         $user = User::factory()->create();
-        $assets = Asset::factory()->count(2)->create();
+        $assets = $this->createAssets(2);
 
         $history = app(AssetQrLabelHistoryService::class)->record(
             $user,
@@ -93,5 +88,67 @@ class AssetQrLabelHistoryTest extends TestCase
 
         $response = app(AssetQrLabelHistoryService::class)->download($history);
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_same_size_batches_in_the_same_second_keep_separate_pdf_files(): void
+    {
+        $this->freezeTime();
+        $service = app(AssetQrLabelHistoryService::class);
+        $first = $service->record(null, AssetQrLabelHistory::ACTION_PRINT, $this->createAssets(2, 'Batch A'));
+        $originalPdf = Storage::disk('local')->get($first->file_path);
+
+        $second = $service->record(null, AssetQrLabelHistory::ACTION_DOWNLOAD_PDF, $this->createAssets(2, 'Batch B'));
+
+        $this->assertNotSame($first->file_path, $second->file_path);
+        $this->assertNotSame($first->file_name, $second->file_name);
+        $this->assertSame($originalPdf, Storage::disk('local')->get($first->file_path));
+        $this->assertNotSame($originalPdf, Storage::disk('local')->get($second->file_path));
+        $this->assertDatabaseCount('asset_qr_label_histories', 2);
+        $this->assertCount(2, Storage::disk('local')->allFiles());
+    }
+
+    public function test_reprinting_the_same_asset_in_the_same_second_preserves_each_pdf(): void
+    {
+        $this->freezeTime();
+        $assets = $this->createAssets(1);
+        $service = app(AssetQrLabelHistoryService::class);
+        $first = $service->record(null, AssetQrLabelHistory::ACTION_PRINT, $assets);
+        $originalPdf = Storage::disk('local')->get($first->file_path);
+        $assets->first()->update(['name' => 'Updated asset name']);
+
+        $second = $service->record(null, AssetQrLabelHistory::ACTION_PRINT, $assets);
+
+        $this->assertNotSame($first->file_path, $second->file_path);
+        $this->assertSame($originalPdf, Storage::disk('local')->get($first->file_path));
+        $this->assertCount(2, Storage::disk('local')->allFiles());
+    }
+
+    public function test_failed_pdf_write_does_not_create_a_history(): void
+    {
+        $disk = Mockery::mock(FilesystemAdapter::class);
+        $disk->shouldReceive('put')->once()->andReturn(false);
+        Storage::shouldReceive('disk')->with('local')->andReturn($disk);
+
+        try {
+            app(AssetQrLabelHistoryService::class)->record(null, AssetQrLabelHistory::ACTION_PRINT, $this->createAssets(1));
+            $this->fail('A failed PDF write must stop history creation.');
+        } catch (UnableToWriteFile $exception) {
+            $this->assertStringContainsString('Gagal menyimpan PDF label QR.', $exception->getMessage());
+            $this->assertDatabaseCount('asset_qr_label_histories', 0);
+        }
+    }
+
+    public function test_failed_history_insert_removes_the_pdf(): void
+    {
+        $missingUser = new User;
+        $missingUser->id = 999;
+
+        try {
+            app(AssetQrLabelHistoryService::class)->record($missingUser, AssetQrLabelHistory::ACTION_PRINT, $this->createAssets(1));
+            $this->fail('An invalid user must fail the history foreign key constraint.');
+        } catch (QueryException) {
+            $this->assertDatabaseCount('asset_qr_label_histories', 0);
+            $this->assertSame([], Storage::disk('local')->allFiles());
+        }
     }
 }
