@@ -6,7 +6,11 @@ use App\Enums\AssetCondition;
 use App\Enums\NbhStatus;
 use App\Filament\Resources\AssetResource\Pages;
 use App\Filament\Resources\AssetResource\RelationManagers\AssetTransfersRelationManager;
+use App\Filament\Resources\AssetResource\RelationManagers\QrScansRelationManager;
+use App\Services\AssetQrLabelHistoryService;
+use App\Services\AssetQrService;
 use App\Models\Asset;
+use App\Models\AssetQrLabelHistory;
 use App\Models\AssetAttribute;
 use App\Models\AssetLocation;
 use App\Models\Brand;
@@ -1060,14 +1064,36 @@ class AssetResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('printQrLabels')
+                        ->label('Print Label QR')
+                        ->icon('heroicon-o-printer')
+                        ->action(function (Collection $records) {
+                            $ids = $records->pluck('id')->implode(',');
+
+                            return redirect()->route('assets.qr-labels.print', ['ids' => $ids]);
+                        }),
+                    BulkAction::make('downloadQrLabelsPdf')
+                        ->label('Download Label QR (PDF)')
+                        ->icon('heroicon-o-qr-code')
+                        ->action(function (Collection $records) {
+                            $history = app(AssetQrLabelHistoryService::class)->record(
+                                auth()->user(),
+                                AssetQrLabelHistory::ACTION_DOWNLOAD_PDF,
+                                $records,
+                            );
+
+                            abort_unless($history, 500);
+
+                            return app(AssetQrLabelHistoryService::class)->download($history);
+                        }),
+                    BulkAction::make('pindahkanKeAtribut')
+                        ->label('Pindahkan ke Atribut')
+                        ->action(fn (Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
+                        ->requiresConfirmation()
+                        ->color('primary')
+                        ->icon('heroicon-o-arrow-right'),
                     DeleteBulkAction::make(),
                 ]),
-                BulkAction::make('pindahkanKeAtribut')
-                    ->label('Pindahkan ke Atribut')
-                    ->action(fn (Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
-                    ->requiresConfirmation()
-                    ->color('primary')
-                    ->icon('heroicon-o-arrow-right'), // Ikon untuk bulk action
             ]);
     }
 
@@ -1075,6 +1101,7 @@ class AssetResource extends Resource
     {
         return [
             AssetTransfersRelationManager::class,
+            QrScansRelationManager::class,
         ];
     }
 
@@ -1209,6 +1236,35 @@ class AssetResource extends Resource
                                             ->label(__('Pemegang Aset'))
                                             ->state(fn (Asset $record): string => $record->recipient?->name ?? '-'),
                                     ]),
+
+                        ComponentsSection::make('QR Code')
+                            ->schema([
+                                TextEntry::make('qr.id')
+                                    ->label('ID QR')
+                                    ->copyable()
+                                    ->placeholder('Belum ada QR'),
+                                TextEntry::make('qr_public_url')
+                                    ->label('URL Scan')
+                                    ->state(fn (Asset $record): string => $record->qr
+                                        ? app(AssetQrService::class)->publicUrl($record->qr)
+                                        : '-')
+                                    ->url(fn (Asset $record): ?string => $record->qr
+                                        ? app(AssetQrService::class)->publicUrl($record->qr)
+                                        : null, true)
+                                    ->placeholder('-'),
+                                ImageEntry::make('qr_preview')
+                                    ->label('Preview')
+                                    ->state(function (Asset $record): ?string {
+                                        if (! $record->qr) {
+                                            return null;
+                                        }
+
+                                        $png = app(AssetQrService::class)->png($record->qr, 200);
+
+                                        return 'data:image/png;base64,'.base64_encode($png);
+                                    })
+                                    ->visible(fn (Asset $record): bool => (bool) $record->qr),
+                            ]),
                                 ComponentsGrid::make(1)
                                     ->schema([
                                         TextEntry::make('nbh_reported_at_display')

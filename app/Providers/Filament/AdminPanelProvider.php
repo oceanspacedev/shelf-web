@@ -2,12 +2,12 @@
 
 namespace App\Providers\Filament;
 
-use Apriansyahrs\MekayaTheme\Livewire\MekayaSidebar;
-use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Plugins\FilamentExceptionsPlugin;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
 use App\Support\ObservabilityAccess;
+use Apriansyahrs\MekayaTheme\Livewire\MekayaSidebar;
+use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
 use Awcodes\Overlook\OverlookPlugin;
 use Awcodes\Overlook\Widgets\OverlookWidget;
@@ -20,6 +20,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -45,6 +46,10 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarLivewireComponent(MekayaSidebar::class)
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(Login::class)
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn () => view('auth.login-extra'),
+            )
             ->passwordReset(null, null)
             ->profile(null)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
+use App\Support\PhoneNumber;
 use BezhanSalleh\FilamentShield\Traits\HasPanelShield;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -29,6 +30,7 @@ class User extends Authenticatable implements FilamentUser
         'username',
         'email',
         'whatsapp_number',
+        'whatsapp_login_number',
         'password',
         'email_verified_at',
         'business_entity_id',
@@ -43,6 +45,7 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
+        'whatsapp_login_number',
     ];
 
     /**
@@ -70,6 +73,16 @@ class User extends Authenticatable implements FilamentUser
         }
 
         $this->attributes['email'] = $email;
+    }
+
+    public function setWhatsappLoginNumberAttribute($value): void
+    {
+        $phone = PhoneNumber::canonical($value);
+        if (filled($value) && $phone === null) {
+            throw new InvalidArgumentException('Nomor WhatsApp untuk login tidak valid.');
+        }
+
+        $this->attributes['whatsapp_login_number'] = $phone;
     }
 
     public function canAccessPanel(Panel $panel): bool

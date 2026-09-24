@@ -206,6 +206,7 @@ flowchart TB
 |---|---|
 | `app/Filament/Resources` | CRUD aset, pengajuan, transfer, rekonsiliasi, checksheet, tugas, master, pengguna |
 | `app/Filament/Pages/Auth` | Login username/email Mekaya |
+| `app/Filament/Auth/Pages` | Login OTP WhatsApp untuk akun terdaftar |
 | `app/Http/Controllers` | Form publik, PDF, query WhatsApp, `GET /api/user` |
 | `app/Models` | Model dan lifecycle pengajuan/transfer |
 | `app/Policies` | Authorization panel dan unduhan PDF |
@@ -339,6 +340,7 @@ Blok inti `.env.example` mengikuti skeleton Laravel 12, termasuk `CACHE_STORE`, 
 | `AWS_USE_PATH_STYLE_ENDPOINT` | Tidak | Path-style S3; default `false`. Set `true` plus `AWS_ENDPOINT` untuk MinIO |
 | `WAG_URL` | Untuk WhatsApp | Endpoint WagHub; default `https://waghub.mekayastudio.com` |
 | `WAG_TOKEN` | Untuk WhatsApp | Bearer credential WagHub |
+| `WHATSAPP_OTP_TTL_MINUTES` | Tidak | Masa berlaku OTP login; default `5` menit |
 | `WA_CONNECT_TIMEOUT` | Tidak | Timeout koneksi gateway; default `5` detik |
 | `WA_API_TIMEOUT` | Tidak | Timeout request gateway; default `15` detik |
 | `WHATSAPP_DEFAULT_TARGET` | Tidak | Target fallback pengingat jika penerima kosong |
@@ -518,6 +520,20 @@ php artisan storage:link
 ### Login panel ditolak
 
 Pastikan user memiliki minimal satu role. Akun yang dibuat dari form publik tanpa role tidak dapat masuk `/admin`. Reset password tidak tersedia di panel.
+
+### Login WhatsApp
+
+Alur mengikuti Helpdesk: pilih **WhatsApp** di `/admin/login`, masukkan nomor HP di `/phone-login`, lalu masukkan OTP enam digit. Tautan **Ganti nomor atau kirim ulang OTP** membatalkan kode sebelumnya. Hanya akun terdaftar yang memiliki akses panel yang dapat masuk; tidak ada pendaftaran otomatis.
+
+Untuk mengaktifkan:
+
+1. Jalankan `php artisan migrate` untuk menambahkan `users.whatsapp_login_number`.
+2. Isi `WAG_URL` dan `WAG_TOKEN`. Tombol WhatsApp muncul jika keduanya terisi.
+3. Sebagai admin, buka **Master Data → Users → Edit → Akses & Keamanan**, lalu isi **Nomor WhatsApp untuk login** dengan nomor pengguna yang sudah dikonfirmasi. Nomor dinormalisasi dan harus unik; kosongkan untuk menonaktifkan akses melalui WhatsApp.
+
+Nomor kontak `whatsapp_number` tetap dipakai untuk notifikasi. Karena kontak ini dapat diisi dari formulir publik, migrasi sengaja tidak menyalinnya menjadi kredensial login. OTP baru membuktikan kepemilikan nomor, bukan hak untuk mengaitkannya ke akun tertentu.
+
+OTP tersimpan sebagai hash, berlaku lima menit secara default (`WHATSAPP_OTP_TTL_MINUTES`), terikat ke sesi, dan hanya dapat digunakan sekali. Pengiriman dibatasi per nomor, sesi, dan IP; verifikasi dibatasi lima percobaan salah selama masa berlaku kode. Akun baru dicari setelah OTP valid dan sesi diganti setelah login. Pada beberapa instance aplikasi, gunakan cache dan session bersama serta `CACHE_PREFIX` khusus Shelf.
 
 ### Penarikan tidak bisa di-fulfill
 

@@ -18,6 +18,13 @@ class Asset extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::created(function (Asset $asset): void {
+            app(\App\Services\AssetQrService::class)->ensureForAsset($asset);
+        });
+    }
+
     protected $fillable = [
         'purchase_date',
         'business_entity_id',
@@ -69,6 +76,16 @@ class Asset extends Model
     public function attributes(): HasMany
     {
         return $this->hasMany(AssetAttribute::class);
+    }
+
+    public function qr(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AssetQr::class);
+    }
+
+    public function qrScans(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(AssetQrScan::class, AssetQr::class);
     }
 
     // Relasi ke tabel business_entities

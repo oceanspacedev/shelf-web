@@ -10,6 +10,9 @@ use App\Models\AssetAttribute;
 use App\Models\AssetTransferDetail;
 use App\Models\User;
 use App\Models\VehicleChecksheet;
+use App\Models\AssetQrLabelHistory;
+use App\Services\AssetQrLabelHistoryService;
+use App\Services\AssetQrService;
 use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Forms;
@@ -21,6 +24,12 @@ use Illuminate\Support\Facades\DB;
 class ViewAsset extends ViewRecord
 {
     protected static string $resource = AssetResource::class;
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+        $this->record->loadMissing('qr');
+    }
 
     protected function getActions(): array
     {
@@ -311,6 +320,44 @@ class ViewAsset extends ViewRecord
                 ->icon('heroicon-m-ellipsis-vertical')
                 ->color('gray')
                 ->button(),
+            Actions\Action::make('printQrLabel')
+                ->label('Print Label QR')
+                ->icon('heroicon-o-printer')
+                ->url(fn (): string => route('assets.qr-label.print', $this->record))
+                ->openUrlInNewTab(),
+            Actions\Action::make('downloadQrLabel')
+                ->label('Download Label QR (PDF)')
+                ->icon('heroicon-o-qr-code')
+                ->action(function () {
+                    /** @var Asset $asset */
+                    $asset = $this->record;
+
+                    $history = app(AssetQrLabelHistoryService::class)->record(
+                        auth()->user(),
+                        AssetQrLabelHistory::ACTION_DOWNLOAD_PDF,
+                        [$asset],
+                    );
+
+                    abort_unless($history, 500);
+
+                    return app(AssetQrLabelHistoryService::class)->download($history);
+                }),
+            Actions\Action::make('regenerateQr')
+                ->label('Regenerate QR')
+                ->icon('heroicon-o-arrow-path')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false)
+                ->action(function (): void {
+                    app(AssetQrService::class)->regenerate($this->record);
+                    $this->record->refresh()->load('qr');
+
+                    Notification::make()
+                        ->title('QR diganti')
+                        ->body('Stiker lama tidak berlaku. Cetak ulang label.')
+                        ->success()
+                        ->send();
+                }),
             Actions\EditAction::make(),
         ];
     }
