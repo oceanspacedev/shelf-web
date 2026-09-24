@@ -6,6 +6,7 @@ use App\Http\Controllers\CameraUploadController;
 use App\Http\Controllers\PdfController;
 use App\Http\Controllers\PublicAssetQrController;
 use App\Http\Controllers\PublicAssetRequestController;
+use App\Http\Controllers\StoredFileController;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,9 @@ Route::get('pengadaan/{id}/download', [PdfController::class, 'downloadPengadaan'
 Route::get('task-completion/{id}/download', [PdfController::class, 'downloadTaskCompletion'])->middleware(['auth'])->name('task-completion.download');
 Route::get('task-completion/{id}/preview', [PdfController::class, 'previewTaskCompletion'])->middleware(['auth'])->name('task-completion.preview');
 Route::post('admin/camera-upload', [CameraUploadController::class, 'upload'])->middleware(['auth'])->name('admin.camera-upload');
+Route::get('stored-file/download', [StoredFileController::class, 'download'])
+    ->middleware(['auth', 'signed'])
+    ->name('stored-file.download');
 
 Route::get('assets/{asset}/qr-label/print', [AssetQrLabelPrintController::class, 'show'])
     ->middleware(['auth'])

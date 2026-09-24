@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\VehicleChecksheetResource\Pages;
 use App\Models\AssetAttribute;
 use App\Models\VehicleChecksheet;
+use App\Support\StoredFile;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
@@ -16,7 +17,6 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
@@ -115,7 +115,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public')
+                            ->visibility(fn (): string => StoredFile::uploadVisibility())
                             ->disabledOn('edit')
                             ->dehydrated()
                             ->deletable(fn (string $operation): bool => $operation !== 'edit')
@@ -133,7 +133,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public')
+                            ->visibility(fn (): string => StoredFile::uploadVisibility())
                             ->disabledOn('edit')
                             ->dehydrated()
                             ->deletable(fn (string $operation): bool => $operation !== 'edit')
@@ -164,7 +164,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public')
+                            ->visibility(fn (): string => StoredFile::uploadVisibility())
                             ->getUploadedFileNameForStorageUsing(
                                 fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
                                     $file,
@@ -179,7 +179,7 @@ class VehicleChecksheetResource extends Resource
                             ->directory('vehiclechecksheet')
                             ->previewable()
                             ->imagePreviewHeight('250')
-                            ->visibility('public')
+                            ->visibility(fn (): string => StoredFile::uploadVisibility())
                             ->getUploadedFileNameForStorageUsing(
                                 fn (TemporaryUploadedFile $file, Get $get, $record) => self::vehicleChecksheetUploadFilename(
                                     $file,
@@ -332,18 +332,18 @@ class VehicleChecksheetResource extends Resource
                                     Column::make('departure_time')->heading('Waktu Keberangkatan'),
                                     Column::make('departure_photo')
                                         ->heading('Foto Keberangkatan')
-                                        ->getStateUsing(fn ($record) => $record->departure_photo ? Storage::disk('public')->url($record->departure_photo) : null),
+                                        ->getStateUsing(fn ($record) => $record->departure_photo ? StoredFile::downloadUrl($record->departure_photo) : null),
                                     Column::make('departure_damage_report')
                                         ->heading('Laporan Kerusakan Keberangkatan')
-                                        ->getStateUsing(fn ($record) => $record->departure_damage_report ? Storage::disk('public')->url($record->departure_damage_report) : null),
+                                        ->getStateUsing(fn ($record) => $record->departure_damage_report ? StoredFile::downloadUrl($record->departure_damage_report) : null),
                                     Column::make('end_km')->heading('Kilometer Akhir'),
                                     Column::make('return_time')->heading('Waktu Pengembalian'),
                                     Column::make('return_photo')
                                         ->heading('Foto Pengembalian')
-                                        ->getStateUsing(fn ($record) => $record->return_photo ? Storage::disk('public')->url($record->return_photo) : null),
+                                        ->getStateUsing(fn ($record) => $record->return_photo ? StoredFile::downloadUrl($record->return_photo) : null),
                                     Column::make('return_damage_report')
                                         ->heading('Laporan Kerusakan Pengembalian')
-                                        ->getStateUsing(fn ($record) => $record->return_damage_report ? Storage::disk('public')->url($record->return_damage_report) : null),
+                                        ->getStateUsing(fn ($record) => $record->return_damage_report ? StoredFile::downloadUrl($record->return_damage_report) : null),
                                     Column::make('rental_duration')->heading('Durasi Sewa'),
                                     Column::make('distance_traveled')->heading('Jarak Tempuh'),
                                     Column::make('remarks')->heading('Catatan Tambahan'),

@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\StoredFile;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class AssetAttribute extends Model
 {
@@ -110,7 +110,7 @@ class AssetAttribute extends Model
             return $path;
         }
 
-        return Storage::url($path);
+        return StoredFile::url($path);
     }
 
     public function documentNumber(): ?string

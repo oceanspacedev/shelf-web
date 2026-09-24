@@ -9,9 +9,9 @@ use App\Models\AssetReconciliation;
 use App\Services\AssetReconciliationService;
 use App\Services\VehicleAssetAuditWorkbookParser;
 use App\Services\VehicleAssetReconciliationService;
+use App\Support\StoredFile;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class CreateAssetReconciliation extends CreateRecord
@@ -41,7 +41,8 @@ class CreateAssetReconciliation extends CreateRecord
         $storedPath = is_array($data['stored_path']) ? reset($data['stored_path']) : $data['stored_path'];
         $originalFilename = $data['original_filename'] ?? basename($storedPath);
         $originalFilename = is_array($originalFilename) ? reset($originalFilename) : $originalFilename;
-        $absolutePath = Storage::disk('local')->path($storedPath);
+        $diskName = config('filesystems.default');
+        $checksum = StoredFile::withLocalPath($diskName, $storedPath, fn (string $path) => hash_file('sha256', $path));
         $sourceSystem = $data['source_system'] ?? 'CSA';
         $sourceSheet = $data['source_sheet'] ?? null;
 
@@ -56,10 +57,11 @@ class CreateAssetReconciliation extends CreateRecord
         return [
             ...$data,
             'stored_path' => $storedPath,
+            'stored_disk' => $diskName,
             'source_system' => $sourceSystem,
             'source_sheet' => $sourceSheet,
             'original_filename' => $originalFilename,
-            'file_sha256' => hash_file('sha256', $absolutePath),
+            'file_sha256' => $checksum,
             'status' => AssetReconciliation::STATUS_PROCESSING,
             'imported_by' => auth()->id(),
         ];

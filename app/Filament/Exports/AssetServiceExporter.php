@@ -3,6 +3,7 @@
 namespace App\Filament\Exports;
 
 use App\Models\AssetService;
+use App\Support\StoredFile;
 use Filament\Actions\Exports\Enums\ExportFormat;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
@@ -67,7 +68,7 @@ class AssetServiceExporter extends Exporter
 
             ExportColumn::make('receipt_document_path')
                 ->label('Dokumen / Nota')
-                ->state(fn (AssetService $record): ?string => $record->receipt_document_path ? asset('storage/' . ltrim($record->receipt_document_path, '/')) : null),
+                ->state(fn (AssetService $record): ?string => $record->receipt_document_path ? StoredFile::downloadUrl(ltrim($record->receipt_document_path, '/')) : null),
 
             ExportColumn::make('notes')
                 ->label('Catatan'),

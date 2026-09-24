@@ -19,14 +19,20 @@ use App\Policies\ObChecksheetPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\TaskPolicy;
 use App\Support\ObservabilityAccess;
+use App\Support\StoredFile;
 use BezhanSalleh\FilamentExceptions\Models\Exception;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
+use Filament\Actions\ExportAction;
+use Filament\Actions\ExportBulkAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Facades\FilamentColor;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Widgets\Widget;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -70,6 +76,11 @@ class AppServiceProvider extends ServiceProvider
         Fieldset::configureUsing(fn (Fieldset $fieldset) => $fieldset->columnSpanFull());
         Grid::configureUsing(fn (Grid $grid) => $grid->columnSpanFull());
         Section::configureUsing(fn (Section $section) => $section->columnSpanFull());
+        FileUpload::configureUsing(fn (FileUpload $upload) => $upload->disk('public')->visibility(fn (): string => StoredFile::uploadVisibility()));
+        ImageEntry::configureUsing(fn (ImageEntry $image) => $image->visibility(fn (): string => StoredFile::uploadVisibility()));
+        ImageColumn::configureUsing(fn (ImageColumn $image) => $image->visibility(fn (): string => StoredFile::uploadVisibility()));
+        ExportAction::configureUsing(fn (ExportAction $action) => $action->fileDisk(fn (): string => config('filesystems.default')));
+        ExportBulkAction::configureUsing(fn (ExportBulkAction $action) => $action->fileDisk(fn (): string => config('filesystems.default')));
 
         LanguageSwitch::configureUsing(function (LanguageSwitch $switch) {
             $switch

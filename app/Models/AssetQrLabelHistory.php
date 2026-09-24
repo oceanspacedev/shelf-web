@@ -19,6 +19,7 @@ class AssetQrLabelHistory extends Model
         'asset_count',
         'asset_summary',
         'file_path',
+        'file_disk',
         'file_name',
     ];
 
@@ -56,6 +57,6 @@ class AssetQrLabelHistory extends Model
     public function hasStoredFile(): bool
     {
         return filled($this->file_path)
-            && Storage::disk('local')->exists($this->file_path);
+            && Storage::disk($this->file_disk ?: 'local')->exists($this->file_path);
     }
 }

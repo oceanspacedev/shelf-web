@@ -245,7 +245,7 @@
     @if ($asset->image)
         <div class="card">
             <h2 class="section-title">Foto Aset</h2>
-            <img class="asset-image" src="{{ \Illuminate\Support\Facades\Storage::url($asset->image) }}" alt="{{ $asset->name }}">
+            <img class="asset-image" src="{{ \App\Support\StoredFile::url($asset->image) }}" alt="{{ $asset->name }}">
         </div>
     @endif
 

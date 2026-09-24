@@ -23,6 +23,7 @@ class AssetQrLabelHistoryMigrationTest extends AssetQrLabelTestCase
         ]));
         $deleted->delete();
 
+        (require database_path('migrations/2026_09_24_000004_add_storage_disks_to_asset_files.php'))->down();
         (require database_path('migrations/2026_09_24_000003_add_file_to_asset_qr_label_histories.php'))->down();
         (require database_path('migrations/2026_09_24_000002_batch_asset_qr_label_histories.php'))->down();
 

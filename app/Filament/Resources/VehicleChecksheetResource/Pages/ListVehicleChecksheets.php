@@ -4,11 +4,11 @@ namespace App\Filament\Resources\VehicleChecksheetResource\Pages;
 
 use App\Filament\Resources\VehicleChecksheetResource;
 use App\Imports\VehicleChecksheetImport;
+use App\Support\StoredFile;
 use Asmit\ResizedColumn\HasResizableColumn;
 use EightyNine\ExcelImport\ExcelImportAction;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
-use Illuminate\Support\Facades\Storage;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -40,18 +40,18 @@ class ListVehicleChecksheets extends ListRecords
                             Column::make('departure_time')->heading('Waktu Keberangkatan'),
                             Column::make('departure_photo')
                                 ->heading('Foto Keberangkatan')
-                                ->getStateUsing(fn ($record) => $record->departure_photo ? Storage::disk('public')->url($record->departure_photo) : null),
+                                ->getStateUsing(fn ($record) => $record->departure_photo ? StoredFile::downloadUrl($record->departure_photo) : null),
                             Column::make('departure_damage_report')
                                 ->heading('Laporan Kerusakan Keberangkatan')
-                                ->getStateUsing(fn ($record) => $record->departure_damage_report ? Storage::disk('public')->url($record->departure_damage_report) : null),
+                                ->getStateUsing(fn ($record) => $record->departure_damage_report ? StoredFile::downloadUrl($record->departure_damage_report) : null),
                             Column::make('end_km')->heading('Kilometer Akhir'),
                             Column::make('return_time')->heading('Waktu Pengembalian'),
                             Column::make('return_photo')
                                 ->heading('Foto Pengembalian')
-                                ->getStateUsing(fn ($record) => $record->return_photo ? Storage::disk('public')->url($record->return_photo) : null),
+                                ->getStateUsing(fn ($record) => $record->return_photo ? StoredFile::downloadUrl($record->return_photo) : null),
                             Column::make('return_damage_report')
                                 ->heading('Laporan Kerusakan Pengembalian')
-                                ->getStateUsing(fn ($record) => $record->return_damage_report ? Storage::disk('public')->url($record->return_damage_report) : null),
+                                ->getStateUsing(fn ($record) => $record->return_damage_report ? StoredFile::downloadUrl($record->return_damage_report) : null),
                             Column::make('rental_duration')->heading('Durasi Sewa'),
                             Column::make('distance_traveled')->heading('Jarak Tempuh'),
                             Column::make('remarks')->heading('Catatan Tambahan'),

@@ -83,7 +83,8 @@ class AssetReconciliationResource extends Resource
                         ->columnSpanFull(),
                     FileUpload::make('stored_path')
                         ->label('File Excel Audit')
-                        ->disk('local')
+                        ->disk(fn (): string => config('filesystems.default'))
+                        ->visibility('private')
                         ->directory('asset-reconciliations')
                         ->storeFileNamesIn('original_filename')
                         ->acceptedFileTypes([

@@ -18,6 +18,7 @@ use App\Models\BusinessEntity;
 use App\Models\Category;
 use App\Models\CustomAssetAttribute;
 use App\Models\User;
+use App\Support\StoredFile;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -52,7 +53,6 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 
 class AssetResource extends Resource
 {
@@ -115,7 +115,7 @@ class AssetResource extends Resource
             return $path;
         }
 
-        return Storage::url($path);
+        return StoredFile::url($path);
     }
 
     protected static function customAttributeType($customAttributeId): ?string
@@ -1312,12 +1312,12 @@ class AssetResource extends Resource
                                     ->schema([
                                         TextEntry::make('audit_document_path')
                                             ->label(__('Dokumen Audit'))
-                                            ->url(fn (?Asset $record) => $record?->audit_document_path ? Storage::url($record->audit_document_path) : null, true)
+                                            ->url(fn (?Asset $record) => $record?->audit_document_path ? StoredFile::url($record->audit_document_path) : null, true)
                                             ->openUrlInNewTab()
                                             ->visible(fn (?Asset $record): bool => filled($record?->audit_document_path)),
                                         TextEntry::make('nbh_document_path')
                                             ->label(__('Nota Barang Hilang'))
-                                            ->url(fn (?Asset $record) => $record?->nbh_document_path ? Storage::url($record->nbh_document_path) : null, true)
+                                            ->url(fn (?Asset $record) => $record?->nbh_document_path ? StoredFile::url($record->nbh_document_path) : null, true)
                                             ->openUrlInNewTab()
                                             ->visible(fn (?Asset $record): bool => filled($record?->nbh_document_path)),
                                         TextEntry::make('sale_document_path')
