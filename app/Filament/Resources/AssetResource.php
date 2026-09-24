@@ -7,9 +7,10 @@ use App\Enums\NbhStatus;
 use App\Filament\Resources\AssetResource\Pages;
 use App\Filament\Resources\AssetResource\RelationManagers\AssetTransfersRelationManager;
 use App\Filament\Resources\AssetResource\RelationManagers\QrScansRelationManager;
+use App\Services\AssetQrLabelHistoryService;
 use App\Services\AssetQrService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Asset;
+use App\Models\AssetQrLabelHistory;
 use App\Models\AssetAttribute;
 use App\Models\AssetLocation;
 use App\Models\Brand;
@@ -1063,39 +1064,36 @@ class AssetResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('printQrLabels')
+                        ->label('Print Label QR')
+                        ->icon('heroicon-o-printer')
+                        ->action(function (Collection $records) {
+                            $ids = $records->pluck('id')->implode(',');
+
+                            return redirect()->route('assets.qr-labels.print', ['ids' => $ids]);
+                        }),
+                    BulkAction::make('downloadQrLabelsPdf')
+                        ->label('Download Label QR (PDF)')
+                        ->icon('heroicon-o-qr-code')
+                        ->action(function (Collection $records) {
+                            $history = app(AssetQrLabelHistoryService::class)->record(
+                                auth()->user(),
+                                AssetQrLabelHistory::ACTION_DOWNLOAD_PDF,
+                                $records,
+                            );
+
+                            abort_unless($history, 500);
+
+                            return app(AssetQrLabelHistoryService::class)->download($history);
+                        }),
+                    BulkAction::make('pindahkanKeAtribut')
+                        ->label('Pindahkan ke Atribut')
+                        ->action(fn (Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
+                        ->requiresConfirmation()
+                        ->color('primary')
+                        ->icon('heroicon-o-arrow-right'),
                     DeleteBulkAction::make(),
                 ]),
-                BulkAction::make('pindahkanKeAtribut')
-                    ->label('Pindahkan ke Atribut')
-                    ->action(fn (Collection $records) => self::pindahkanKeAssetAttributeBulk($records))
-                    ->requiresConfirmation()
-                    ->color('primary')
-                    ->icon('heroicon-o-arrow-right'), // Ikon untuk bulk action
-                BulkAction::make('printQrLabels')
-                    ->label('Cetak Label QR')
-                    ->icon('heroicon-o-qr-code')
-                    ->action(function (Collection $records) {
-                        $qrService = app(AssetQrService::class);
-                        $assets = $records->loadMissing(['qr', 'assetLocation']);
-
-                        foreach ($assets as $asset) {
-                            $qrService->ensureForAsset($asset);
-                        }
-
-                        $assets = $assets->fresh(['qr', 'assetLocation']);
-
-                        $pdf = Pdf::loadView('pdf.asset-qr-labels', [
-                            'assets' => $assets,
-                            'qrService' => $qrService,
-                        ]);
-
-                        return response()->streamDownload(
-                            fn () => print($pdf->output()),
-                            'asset-qr-labels.pdf',
-                            ['Content-Type' => 'application/pdf']
-                        );
-                    })
-                    ->deselectRecordsAfterCompletion(),
             ]);
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AssetQrLabelPrintController;
 use App\Http\Controllers\PdfController;
 use App\Http\Controllers\PublicAssetQrController;
 use App\Http\Controllers\PublicAssetRequestController;
@@ -23,6 +24,13 @@ Route::get('pengadaan/{id}/download', [PdfController::class, 'downloadPengadaan'
 Route::get('task-completion/{id}/download', [PdfController::class, 'downloadTaskCompletion'])->middleware(['auth'])->name('task-completion.download');
 Route::get('task-completion/{id}/preview', [PdfController::class, 'previewTaskCompletion'])->middleware(['auth'])->name('task-completion.preview');
 Route::post('admin/camera-upload', [\App\Http\Controllers\CameraUploadController::class, 'upload'])->middleware(['auth'])->name('admin.camera-upload');
+
+Route::get('assets/{asset}/qr-label/print', [AssetQrLabelPrintController::class, 'show'])
+    ->middleware(['auth'])
+    ->name('assets.qr-label.print');
+Route::get('assets/qr-labels/print', [AssetQrLabelPrintController::class, 'bulk'])
+    ->middleware(['auth'])
+    ->name('assets.qr-labels.print');
 
 Route::get('asset-requests', [PublicAssetRequestController::class, 'index'])->name('public.asset-requests.index');
 Route::get('asset-requests/status/{token}', [PublicAssetRequestController::class, 'show'])->name('public.asset-requests.show');

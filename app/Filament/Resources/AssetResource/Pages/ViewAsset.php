@@ -10,8 +10,9 @@ use App\Models\AssetAttribute;
 use App\Models\AssetTransferDetail;
 use App\Models\User;
 use App\Models\VehicleChecksheet;
+use App\Models\AssetQrLabelHistory;
+use App\Services\AssetQrLabelHistoryService;
 use App\Services\AssetQrService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Forms;
@@ -319,26 +320,27 @@ class ViewAsset extends ViewRecord
                 ->icon('heroicon-m-ellipsis-vertical')
                 ->color('gray')
                 ->button(),
+            Actions\Action::make('printQrLabel')
+                ->label('Print Label QR')
+                ->icon('heroicon-o-printer')
+                ->url(fn (): string => route('assets.qr-label.print', $this->record))
+                ->openUrlInNewTab(),
             Actions\Action::make('downloadQrLabel')
-                ->label('Download Label QR')
+                ->label('Download Label QR (PDF)')
                 ->icon('heroicon-o-qr-code')
                 ->action(function () {
                     /** @var Asset $asset */
                     $asset = $this->record;
-                    $qrService = app(AssetQrService::class);
-                    $qrService->ensureForAsset($asset);
-                    $asset->loadMissing(['qr', 'assetLocation']);
 
-                    $pdf = Pdf::loadView('pdf.asset-qr-labels', [
-                        'assets' => collect([$asset]),
-                        'qrService' => $qrService,
-                    ]);
-
-                    return response()->streamDownload(
-                        fn () => print($pdf->output()),
-                        'asset-qr-'.$asset->id.'.pdf',
-                        ['Content-Type' => 'application/pdf']
+                    $history = app(AssetQrLabelHistoryService::class)->record(
+                        auth()->user(),
+                        AssetQrLabelHistory::ACTION_DOWNLOAD_PDF,
+                        [$asset],
                     );
+
+                    abort_unless($history, 500);
+
+                    return app(AssetQrLabelHistoryService::class)->download($history);
                 }),
             Actions\Action::make('regenerateQr')
                 ->label('Regenerate QR')
