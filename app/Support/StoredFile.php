@@ -23,6 +23,20 @@ final class StoredFile
             : $disk->url($path);
     }
 
+    /** A same-origin URL so photos load on whichever host is serving the app. */
+    public static function browserUrl(string $path): string
+    {
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        if (config('filesystems.disks.public.driver') === 's3') {
+            return self::url($path);
+        }
+
+        return url('/storage/'.ltrim($path, '/'));
+    }
+
     /** A stable authenticated link for documents exported to spreadsheets. */
     public static function downloadUrl(string $path): string
     {

@@ -18,6 +18,7 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -103,53 +104,67 @@ class ObChecksheetResource extends Resource
                     ])
                     ->hiddenOn('create'),
 
+                Section::make('Ruangan yang Akan Dibersihkan')
+                    ->description('Tambahkan semua ruangan dan foto sebelum sekaligus. Foto sesudah diambil nanti, satu ruangan satu kali.')
+                    ->visibleOn('create')
+                    ->schema([
+                        Repeater::make('rooms')
+                            ->label('Daftar ruangan')
+                            ->schema([
+                                TextInput::make('room')
+                                    ->label('Nama Ruangan')
+                                    ->placeholder('Ketik nama ruangan (contoh: Toilet Lt. 1, Pantry, Lobby, Ruang Rapat)')
+                                    ->datalist(fn (): array => self::roomSuggestions())
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+                                CameraCapture::make('before_photo')
+                                    ->label('Foto Sebelum Pembersihan')
+                                    ->folder('ob-checksheets/before')
+                                    ->required()
+                                    ->columnSpanFull(),
+                                Textarea::make('notes')
+                                    ->label('Catatan (Opsional)')
+                                    ->placeholder('Tulis catatan kondisi ruangan jika ada hal khusus...')
+                                    ->rows(2)
+                                    ->columnSpanFull(),
+                            ])
+                            ->minItems(1)
+                            ->defaultItems(1)
+                            ->addActionLabel('Tambah ruangan')
+                            ->reorderable(false)
+                            ->itemLabel(function (mixed $state): string {
+                                $room = is_array($state) ? ($state['room'] ?? null) : null;
+
+                                return filled($room) ? (string) $room : 'Ruangan';
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
                 Section::make('Ruangan yang Dibersihkan')
+                    ->hiddenOn('create')
                     ->schema([
                         TextInput::make('room')
                             ->label('Nama Ruangan')
                             ->placeholder('Ketik nama ruangan (contoh: Toilet Lt. 1, Pantry, Lobby, Ruang Rapat)')
-                            ->datalist(function () {
-                                $user = auth()->user();
-                                if (! $user) {
-                                    return [];
-                                }
-
-                                $query = ObChecksheet::query()
-                                    ->whereNotNull('room')
-                                    ->where('room', '!=', '');
-
-                                if (! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
-                                    return $query->where('user_id', $user->id)
-                                        ->distinct()
-                                        ->pluck('room')
-                                        ->toArray();
-                                }
-
-                                return $query->distinct()->pluck('room')->toArray();
-                            })
+                            ->datalist(fn (): array => self::roomSuggestions())
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),
                     ]),
 
                 Section::make('Dokumentasi Foto Kebersihan')
+                    ->hiddenOn('create')
                     ->columns(['default' => 1, 'md' => 2])
                     ->schema([
-                        CameraCapture::make('before_photo')
-                            ->label('Foto Sebelum Pembersihan')
-                            ->folder('ob-checksheets/before')
-                            ->required()
-                            ->visibleOn('create'),
                         self::photoPreview('before_photo', 'Foto Sebelum Pembersihan', 'ob-checksheets/before')
-                            ->required()
-                            ->hiddenOn('create'),
-                        self::photoPreview('after_photo', 'Foto Sesudah Pembersihan', 'ob-checksheets/after')
-                            ->hiddenOn('create'),
+                            ->required(),
+                        self::photoPreview('after_photo', 'Foto Sesudah Pembersihan', 'ob-checksheets/after'),
                     ]),
 
                 Section::make('Catatan Tambahan (Opsional)')
+                    ->hiddenOn('create')
                     ->collapsible()
-                    ->collapsed(fn ($operation) => $operation === 'create')
                     ->schema([
                         Textarea::make('notes')
                             ->label('Catatan')
@@ -192,11 +207,11 @@ class ObChecksheetResource extends Resource
                     ->schema([
                         ImageEntry::make('before_photo')
                             ->label('Foto Sebelum Pembersihan')
-                            ->disk('public')
+                            ->getStateUsing(fn (ObChecksheet $record): ?string => filled($record->before_photo) ? StoredFile::browserUrl($record->before_photo) : null)
                             ->height(250),
                         ImageEntry::make('after_photo')
                             ->label('Foto Sesudah Pembersihan')
-                            ->disk('public')
+                            ->getStateUsing(fn (ObChecksheet $record): ?string => filled($record->after_photo) ? StoredFile::browserUrl($record->after_photo) : null)
                             ->height(250)
                             ->placeholder('-'),
                     ])
@@ -240,14 +255,14 @@ class ObChecksheetResource extends Resource
 
                 ImageColumn::make('before_photo')
                     ->label('Sebelum')
-                    ->disk('public')
+                    ->getStateUsing(fn (ObChecksheet $record): ?string => filled($record->before_photo) ? StoredFile::browserUrl($record->before_photo) : null)
                     ->checkFileExistence(false)
                     ->square()
                     ->size(40),
 
                 ImageColumn::make('after_photo')
                     ->label('Sesudah')
-                    ->disk('public')
+                    ->getStateUsing(fn (ObChecksheet $record): ?string => filled($record->after_photo) ? StoredFile::browserUrl($record->after_photo) : null)
                     ->checkFileExistence(false)
                     ->square()
                     ->size(40)
@@ -412,6 +427,30 @@ class ObChecksheetResource extends Resource
         ];
     }
 
+    /**
+     * @return array<int, string>
+     */
+    private static function roomSuggestions(): array
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return [];
+        }
+
+        $query = ObChecksheet::query()
+            ->whereNotNull('room')
+            ->where('room', '!=', '');
+
+        if (! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+            return $query->where('user_id', $user->id)
+                ->distinct()
+                ->pluck('room')
+                ->all();
+        }
+
+        return $query->distinct()->pluck('room')->all();
+    }
+
     private static function photoPreview(string $name, string $label, string $directory): FileUpload
     {
         return FileUpload::make($name)
@@ -422,6 +461,15 @@ class ObChecksheetResource extends Resource
             ->previewable()
             ->imagePreviewHeight('250')
             ->visibility(fn (): string => StoredFile::uploadVisibility())
-            ->maxSize(10240);
+            ->maxSize(10240)
+            ->afterStateHydrated(function (FileUpload $component, string $operation): void {
+                if ($operation !== 'create' || ! is_array($component->getRawState())) {
+                    return;
+                }
+
+                // FileUpload stores its state as an array. On create that array
+                // shares a path with CameraCapture, which expects a string.
+                $component->rawState(null);
+            });
     }
 }

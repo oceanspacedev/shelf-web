@@ -18,8 +18,10 @@ use App\Policies\ExceptionPolicy;
 use App\Policies\ObChecksheetPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\TaskPolicy;
+use App\Support\MekayaAssets;
 use App\Support\ObservabilityAccess;
 use App\Support\StoredFile;
+use Apriansyahrs\MekayaTheme\Mekaya;
 use BezhanSalleh\FilamentExceptions\Models\Exception;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use BezhanSalleh\LanguageSwitch\LanguageSwitch;
@@ -61,6 +63,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->app->singleton(Mekaya::class, fn (): MekayaAssets => new MekayaAssets);
+
         Livewire::component('phone-login', PhoneLogin::class);
         ObservabilityAccess::register();
         $this->registerAuthorization();

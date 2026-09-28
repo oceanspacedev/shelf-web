@@ -2,6 +2,12 @@
     $fieldWrapperView = $getFieldWrapperView();
     $statePath = $getStatePath();
     $storedPath = $getState();
+
+    if (is_array($storedPath)) {
+        $storedPath = collect($storedPath)->first(fn (mixed $value): bool => is_string($value) && $value !== '');
+    }
+
+    $storedPath = is_string($storedPath) ? $storedPath : null;
     $storedUrl = filled($storedPath)
         ? (filter_var($storedPath, FILTER_VALIDATE_URL) ? $storedPath : \App\Support\StoredFile::url($storedPath))
         : '';
@@ -27,14 +33,29 @@
             facingMode: 'environment',
             uploadedPath: null,
             uploadedUrl: null,
+            localPreview: @js(config('filesystems.disks.public.driver') !== 's3'),
+
+            storageUrl(value) {
+                if (!value || typeof value !== 'string') return '';
+                if (value.startsWith('/storage/')) return value;
+                if (value.startsWith('http://') || value.startsWith('https://')) {
+                    if (!this.localPreview) return value;
+                    try {
+                        const parsed = new URL(value);
+                        if (parsed.pathname.startsWith('/storage/')) {
+                            return parsed.pathname + parsed.search;
+                        }
+                    } catch (e) {}
+                    return value;
+                }
+                return '/storage/' + value.replace(/^\/+/, '');
+            },
 
             get imageUrl() {
-                if (!this.state) return '';
-                if (this.state.startsWith('http://') || this.state.startsWith('https://')) {
-                    return this.state;
-                }
-                if (this.state === this.uploadedPath) return this.uploadedUrl;
-                return this.state === this.$el.dataset.storedPath ? this.$el.dataset.storedUrl : '';
+                if (!this.state || typeof this.state !== 'string') return '';
+                if (this.localPreview) return this.storageUrl(this.state);
+                if (this.state === this.uploadedPath && this.uploadedUrl) return this.uploadedUrl;
+                return this.$el.dataset.storedUrl || '';
             },
 
             async openCamera() {
@@ -444,16 +465,12 @@
                             <button
                                 type="button"
                                 @click="takeSnapshot()"
-                                style="background-color: #dc2626; width: 68px; height: 68px; min-width: 68px; border-radius: 9999px; border: 4px solid #ffffff; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.5); display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer; transition: transform 0.1s; margin: 0 auto !important;"
+                                style="background-color: transparent; width: 72px; height: 72px; min-width: 72px; border-radius: 9999px; border: 4px solid #ffffff; box-shadow: none; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer; transition: transform 0.1s; margin: 0 auto !important; padding: 0;"
                                 onmouseover="this.style.transform='scale(1.06)'"
                                 onmouseout="this.style.transform='scale(1)'"
                                 title="Ambil Foto"
                             >
-                                <div style="width: 44px; height: 44px; border-radius: 9999px; background-color: rgba(255, 255, 255, 0.3); display: flex !important; align-items: center !important; justify-content: center !important;">
-                                    <svg style="width: 22px; height: 22px; color: #ffffff;" fill="currentColor" viewBox="0 0 24 24">
-                                        <circle cx="12" cy="12" r="6"></circle>
-                                    </svg>
-                                </div>
+                                <div style="width: 56px; height: 56px; border-radius: 9999px; background-color: #ffffff;"></div>
                             </button>
                         </div>
 

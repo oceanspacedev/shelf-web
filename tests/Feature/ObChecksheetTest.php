@@ -2,18 +2,93 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Exports\ObChecksheetExporter;
 use App\Filament\Resources\ObChecksheetResource;
+use App\Filament\Resources\ObChecksheetResource\Pages\CreateObChecksheet;
+use App\Filament\Resources\ObChecksheetResource\Pages\ListObChecksheets;
 use App\Models\ObChecksheet;
 use App\Models\User;
+use Filament\Actions\Exports\Models\Export;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Gate;
-use Spatie\Permission\Models\Permission;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ObChecksheetTest extends TestCase
 {
     use DatabaseTransactions;
+
+    public function test_create_page_keeps_the_before_photo_state_as_a_string(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+        Gate::before(fn (): bool => true);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(CreateObChecksheet::class)
+            ->assertOk()
+            ->assertSet('data.before_photo', null);
+    }
+
+    public function test_create_page_saves_many_rooms_with_before_photos_only(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+        Gate::before(fn (): bool => true);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(CreateObChecksheet::class)
+            ->fillForm([
+                'rooms' => [
+                    [
+                        'room' => 'Lobby',
+                        'before_photo' => 'ob-checksheets/before/lobby.jpg',
+                        'notes' => 'Lantai basah',
+                    ],
+                    [
+                        'room' => 'Pantry',
+                        'before_photo' => 'ob-checksheets/before/pantry.jpg',
+                        'notes' => null,
+                    ],
+                ],
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $records = ObChecksheet::query()->whereIn('room', ['Lobby', 'Pantry'])->orderBy('id')->get();
+
+        $this->assertCount(2, $records);
+        $this->assertSame(['Lobby', 'Pantry'], $records->pluck('room')->all());
+        $this->assertSame(
+            ['ob-checksheets/before/lobby.jpg', 'ob-checksheets/before/pantry.jpg'],
+            $records->pluck('before_photo')->all(),
+        );
+        $this->assertTrue($records->every(fn (ObChecksheet $record): bool => $record->status === 'in_progress' && blank($record->after_photo)));
+        $this->assertSame($user->id, $records->first()->user_id);
+        $this->assertNotSame($records[0]->reference_number, $records[1]->reference_number);
+    }
+
+    public function test_list_photo_uses_the_current_site_address(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+        Gate::before(fn (): bool => true);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        ObChecksheet::create([
+            'user_id' => $user->id,
+            'room' => 'Lobby Foto',
+            'before_photo' => 'ob-checksheets/before/lobby.jpg',
+        ]);
+
+        Livewire::test(ListObChecksheets::class)
+            ->assertSee(url('/storage/ob-checksheets/before/lobby.jpg'), false);
+    }
 
     public function test_ob_checksheet_can_be_created_with_auto_reference_number(): void
     {
@@ -62,8 +137,8 @@ class ObChecksheetTest extends TestCase
         $user = User::factory()->create();
 
         $uniqueTag = uniqid('room_');
-        $room1 = $uniqueTag . '_A';
-        $room2 = $uniqueTag . '_B';
+        $room1 = $uniqueTag.'_A';
+        $room2 = $uniqueTag.'_B';
 
         ObChecksheet::create([
             'user_id' => $user->id,
@@ -262,7 +337,7 @@ class ObChecksheetTest extends TestCase
 
     public function test_ob_checksheet_exporter_has_expected_columns(): void
     {
-        $columns = \App\Filament\Exports\ObChecksheetExporter::getColumns();
+        $columns = ObChecksheetExporter::getColumns();
 
         $columnNames = array_map(fn ($col) => $col->getName(), $columns);
 
@@ -278,8 +353,8 @@ class ObChecksheetTest extends TestCase
         $this->assertContains('notes', $columnNames);
         $this->assertContains('created_at', $columnNames);
 
-        $exporter = new \App\Filament\Exports\ObChecksheetExporter(
-            new \Filament\Actions\Exports\Models\Export,
+        $exporter = new ObChecksheetExporter(
+            new Export,
             [],
             []
         );
@@ -300,10 +375,10 @@ class ObChecksheetTest extends TestCase
         ]);
         $checksheet->markAsCompleted('ob-checksheets/after/test_after.jpg', 'Kaca jendela sudah bersih');
 
-        $exporter = new \App\Filament\Exports\ObChecksheetExporter(
-            new \Filament\Actions\Exports\Models\Export([
+        $exporter = new ObChecksheetExporter(
+            new Export([
                 'file_disk' => 'local',
-                'exporter' => \App\Filament\Exports\ObChecksheetExporter::class,
+                'exporter' => ObChecksheetExporter::class,
                 'total_rows' => 1,
                 'user_id' => $user->id,
             ]),
@@ -339,7 +414,7 @@ class ObChecksheetTest extends TestCase
 
         // When acting as OB 1
         $this->actingAs($ob1);
-        $scopedQuery = \App\Filament\Exports\ObChecksheetExporter::modifyQuery(ObChecksheet::query());
+        $scopedQuery = ObChecksheetExporter::modifyQuery(ObChecksheet::query());
         $results = $scopedQuery->pluck('id')->toArray();
 
         $this->assertContains($checksheet1->id, $results);
@@ -350,7 +425,7 @@ class ObChecksheetTest extends TestCase
         $admin->assignRole(Role::where('name', 'super_admin')->first());
         $this->actingAs($admin);
 
-        $adminQuery = \App\Filament\Exports\ObChecksheetExporter::modifyQuery(ObChecksheet::query());
+        $adminQuery = ObChecksheetExporter::modifyQuery(ObChecksheet::query());
         $adminResults = $adminQuery->pluck('id')->toArray();
 
         $this->assertContains($checksheet1->id, $adminResults);
