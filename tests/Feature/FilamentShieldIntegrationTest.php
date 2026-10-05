@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetResource;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
+use App\Filament\Resources\AssetTransferResource;
 use App\Filament\Resources\DivisionResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VehicleChecksheetResource;
@@ -68,6 +69,9 @@ class FilamentShieldIntegrationTest extends TestCase
         ]);
         $this->assertResourcePermissions(AssetRequestResource::class, [
             'export' => 'export_asset::request',
+        ]);
+        $this->assertResourcePermissions(AssetTransferResource::class, [
+            'export' => 'export_asset::transfer',
         ]);
         $this->assertResourcePermissions(UserResource::class, [
             'import' => 'import_user',

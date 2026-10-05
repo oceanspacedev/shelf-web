@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Filament\Resources\AssetReconciliationResource;
 use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetResource;
+use App\Filament\Resources\AssetTransferResource;
 use App\Filament\Resources\DivisionResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VehicleChecksheetResource;
@@ -84,6 +85,9 @@ return [
                 'restoreAny',
                 'forceDelete',
                 'forceDeleteAny',
+            ],
+            AssetTransferResource::class => [
+                'export',
             ],
             DivisionResource::class => [
                 'restore',
