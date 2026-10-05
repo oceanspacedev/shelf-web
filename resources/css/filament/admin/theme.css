@@ -1,7 +1,7 @@
 @import '../../../../vendor/kungfufafa/mekaya-theme/resources/css/theme.css';
 
 @source '../../../views/auth/**/*.blade.php';
-@source '../../../views/filament/auth/**/*.blade.php';
+@source '../../../views/filament/**/*.blade.php';
 
 @source '../../../../vendor/awcodes/overlook/resources/views/**/*.blade.php';
 

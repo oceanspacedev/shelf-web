@@ -36,14 +36,10 @@ final class ObservabilityAccess
             NavigationItem::make('Horizon')
                 ->url(url('/'.trim((string) config('horizon.path', 'horizon'), '/')), shouldOpenInNewTab: true)
                 ->icon('heroicon-o-queue-list')
-                ->group('Observability')
-                ->sort(100)
                 ->visible(fn (): bool => self::allowed(auth()->user())),
             NavigationItem::make('Log Viewer')
                 ->url(url('/'.trim((string) config('log-viewer.route_path', 'log-viewer'), '/')), shouldOpenInNewTab: true)
                 ->icon('heroicon-o-document-magnifying-glass')
-                ->group('Observability')
-                ->sort(101)
                 ->visible(fn (): bool => self::allowed(auth()->user())),
         ];
     }

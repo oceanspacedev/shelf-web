@@ -5,7 +5,6 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Plugins\FilamentExceptionsPlugin;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
-use App\Support\ObservabilityAccess;
 use Apriansyahrs\MekayaTheme\Livewire\MekayaSidebar;
 use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
@@ -58,7 +57,6 @@ class AdminPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->navigationItems(ObservabilityAccess::filamentNavigationItems())
             ->widgets([
                 Widgets\AccountWidget::class,
                 OverlookWidget::class,

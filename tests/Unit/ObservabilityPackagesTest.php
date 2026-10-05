@@ -25,7 +25,12 @@ class ObservabilityPackagesTest extends TestCase
         $this->assertFileExists($root.'/config/horizon.php');
         $this->assertFileExists($root.'/config/log-viewer.php');
         $this->assertStringContainsString('HorizonServiceProvider::class', $providers);
-        $this->assertStringContainsString('ObservabilityAccess::filamentNavigationItems()', (string) file_get_contents($root.'/app/Providers/Filament/AdminPanelProvider.php'));
+        $this->assertStringContainsString('filament.mekaya-sidebar-footer', (string) file_get_contents($root.'/resources/views/vendor/mekaya/livewire/mekaya-sidebar.blade.php'));
+        $this->assertStringContainsString('filament.observability-sidebar-footer', (string) file_get_contents($root.'/resources/views/filament/mekaya-sidebar-footer.blade.php'));
+        $this->assertStringContainsString('ObservabilityAccess::filamentNavigationItems()', (string) file_get_contents($root.'/resources/views/filament/observability-sidebar-footer.blade.php'));
+        $this->assertStringContainsString('mky-sidebar-group', (string) file_get_contents($root.'/resources/views/filament/observability-sidebar-footer.blade.php'));
+        $this->assertStringNotContainsString('mky-si-nav', (string) file_get_contents($root.'/resources/views/filament/observability-sidebar-footer.blade.php'));
+        $this->assertStringNotContainsString('navigationItems(ObservabilityAccess::filamentNavigationItems())', (string) file_get_contents($root.'/app/Providers/Filament/AdminPanelProvider.php'));
         $this->assertStringContainsString('horizon:snapshot', (string) file_get_contents($root.'/routes/console.php'));
         $horizon = (string) file_get_contents($root.'/config/horizon.php');
         $this->assertStringContainsString("'queue' => ['notifications', 'default', 'exports']", $horizon);
