@@ -86,6 +86,30 @@ class AssetResource extends Resource
         return $customAttribute ? $customAttribute->type : null;
     }
 
+    /**
+     * Calon pemegang aset: user di badan usaha yang bisa diakses viewer, plus
+     * pemegang saat ini supaya nilainya tetap tampil.
+     *
+     * @return array<int, string>
+     */
+    protected static function recipientOptions(?Asset $record): array
+    {
+        $viewer = auth()->user();
+
+        if ($viewer instanceof User && $viewer->hasUnrestrictedBusinessEntityAccess()) {
+            return Cache::remember('user_options', 300, fn () => User::orderBy('name')->pluck('name', 'id'))->all();
+        }
+
+        return User::query()
+            ->where(fn (Builder $query): Builder => $viewer instanceof User
+                ? $viewer->limitToAccessibleBusinessEntities($query, 'users.business_entity_id')
+                : $query->whereRaw('1 = 0'))
+            ->when($record?->recipient_id, fn (Builder $query, $recipientId): Builder => $query->orWhere('users.id', $recipientId))
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
     protected static function shouldShowSaleAuditFields(callable $get): bool
     {
         return $get('condition_status') === AssetCondition::Sold->value
@@ -807,7 +831,7 @@ class AssetResource extends Resource
                                     ->visible(fn (callable $get): bool => self::shouldShowSaleAuditFields($get)),
                             ])
                             ->columns(3)
-                            ->visible(fn () => auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false),
+                            ->visible(fn (): bool => auth()->user()?->can('manageCondition', Asset::class) ?? false),
 
                         Section::make('Penerima Aset')
                             ->schema([
@@ -825,13 +849,13 @@ class AssetResource extends Resource
                                     ->helperText('Kosongkan jika tetap mengikuti data transfer terakhir.'),
                                 Select::make('recipient_id')
                                     ->translateLabel()
-                                    ->options(fn () => Cache::remember('user_options', 300, fn () => User::orderBy('name')->pluck('name', 'id')))
+                                    ->options(fn (?Asset $record): array => self::recipientOptions($record))
                                     ->searchable()
                                     ->disabled(fn (callable $get): bool => $get('condition_status') === AssetCondition::Available->value)
                                     ->helperText('Pilih pemegang aset saat ini. Aset Tersedia berada di stok dan tidak punya pemegang.'),
                             ])
                             ->columns(2)
-                            ->visible(fn () => auth()->user()?->hasRole('super_admin')),
+                            ->visible(fn (): bool => auth()->user()?->can('updateRecipient', Asset::class) ?? false),
                     ])
                     ->columnSpan(2),
 
@@ -1037,7 +1061,7 @@ class AssetResource extends Resource
                     ->label('Selesaikan Perbaikan')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Asset $record): bool => (auth()->user()?->hasAnyRole(['super_admin', 'general_affair']) ?? false)
+                    ->visible(fn (Asset $record): bool => (auth()->user()?->can('manageCondition', Asset::class) ?? false)
                         && $record->condition_status === AssetCondition::Damaged
                         && $record->nbh_status === NbhStatus::Pending)
                     ->form(self::repairCompletionFormSchema())

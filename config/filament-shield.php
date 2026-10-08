@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Filament\Resources\AssetReconciliationResource;
 use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetResource;
+use App\Filament\Resources\AssetServiceResource;
 use App\Filament\Resources\AssetTransferResource;
 use App\Filament\Resources\DivisionResource;
+use App\Filament\Resources\ObChecksheetResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VehicleChecksheetResource;
 use App\Support\ObservabilityAccess;
@@ -67,6 +69,18 @@ return [
             'import',
             'impersonate',
             'manageStock',
+            'manageCondition',
+            'repairValidation',
+            'regenerateQr',
+            'updateRecipient',
+            'merge',
+            'updateCore',
+            'deleteDetail',
+            'viewAll',
+            'updateAll',
+            'deleteAll',
+            'manageAccess',
+            'manageBusinessEntityAccess',
         ],
     ],
 
@@ -83,6 +97,12 @@ return [
             AssetResource::class => [
                 'export',
                 'import',
+                // Tandai dijual/rusak/hilang, selesaikan perbaikan, audit penjualan.
+                'manageCondition',
+                'repairValidation',
+                'regenerateQr',
+                'updateRecipient',
+                'merge',
             ],
             AssetRequestResource::class => [
                 'export',
@@ -95,6 +115,24 @@ return [
                 'export',
                 // BA Serah Terima/Pengembalian atas nama staf GA mana pun.
                 'manageStock',
+                // Ubah jenis BA, pihak, dan aset setelah BA dibuat.
+                'updateCore',
+                // Lepas riwayat transfer dari halaman aset.
+                'deleteDetail',
+            ],
+            // viewAll/updateAll/deleteAll: data milik user lain; tanpa izin ini
+            // user hanya mengelola datanya sendiri.
+            AssetServiceResource::class => [
+                'export',
+                'viewAll',
+                'updateAll',
+                'deleteAll',
+            ],
+            ObChecksheetResource::class => [
+                'export',
+                'viewAll',
+                'updateAll',
+                'deleteAll',
             ],
             DivisionResource::class => [
                 'restore',
@@ -105,6 +143,9 @@ return [
             UserResource::class => [
                 'import',
                 'impersonate',
+                // Username, email, password, role, dan login WhatsApp.
+                'manageAccess',
+                'manageBusinessEntityAccess',
             ],
             VehicleChecksheetResource::class => [
                 'export',

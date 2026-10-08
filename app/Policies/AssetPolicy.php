@@ -123,6 +123,37 @@ class AssetPolicy
     }
 
     /**
+     * Tandai dijual/rusak/hilang, selesaikan perbaikan, dan isi audit penjualan.
+     */
+    public function manageCondition(User $user): bool
+    {
+        return $user->can('manage_condition_asset');
+    }
+
+    public function repairValidation(User $user): bool
+    {
+        return $user->can('repair_validation_asset');
+    }
+
+    public function regenerateQr(User $user): bool
+    {
+        return $user->can('regenerate_qr_asset');
+    }
+
+    /**
+     * Ubah penerima dan badan usaha penerima langsung dari form aset.
+     */
+    public function updateRecipient(User $user): bool
+    {
+        return $user->can('update_recipient_asset');
+    }
+
+    public function merge(User $user): bool
+    {
+        return $user->can('merge_asset');
+    }
+
+    /**
      * Record di luar badan usaha yang bisa diakses user ditolak (lihat
      * Asset::isAccessibleBy). Model yang belum tersimpan, yaitu cek
      * izin saja, tidak dibatasi.

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AssetResource\RelationManagers;
 
 use App\Enums\AssetTransferDocumentType;
+use App\Models\AssetTransfer;
 use App\Support\StoredFile;
 use Asmit\ResizedColumn\HasResizableColumn;
 use Filament\Forms\Components\TextInput;
@@ -76,7 +77,7 @@ class AssetTransfersRelationManager extends RelationManager
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
-                    ->visible(fn (): bool => auth()->user()?->hasRole('super_admin') ?? false)
+                    ->visible(fn (): bool => auth()->user()?->can('deleteDetail', AssetTransfer::class) ?? false)
                     ->requiresConfirmation()
                     ->modalHeading('Hapus Riwayat Transfer')
                     ->modalDescription('Apakah Anda yakin ingin menghapus riwayat transfer ini dari aset? Hanya link ke aset ini yang dihapus, data transfer utama tidak terpengaruh.')

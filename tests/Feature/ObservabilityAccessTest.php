@@ -52,7 +52,7 @@ class ObservabilityAccessTest extends TestCase
     {
         $this->assertTrue(config('filament-shield.shield_resource.tabs.custom_permissions'));
         $this->assertSame(
-            ['View:Horizon', 'View:LogViewer', 'Download:LogViewer', 'Delete:LogViewer'],
+            ['View:Horizon', 'View:LogViewer', 'Download:LogViewer', 'Delete:LogViewer', 'View:Pulse'],
             array_keys(FilamentShield::getCustomPermissions()),
         );
     }
@@ -60,8 +60,8 @@ class ObservabilityAccessTest extends TestCase
     public function test_observability_permission_labels_follow_the_app_locale(): void
     {
         $expected = [
-            'id' => ['Lihat Horizon', 'Lihat Log Viewer', 'Unduh File Log', 'Hapus File Log'],
-            'en' => ['View Horizon', 'View Log Viewer', 'Download Log Files', 'Delete Log Files'],
+            'id' => ['Lihat Horizon', 'Lihat Log Viewer', 'Unduh File Log', 'Hapus File Log', 'Lihat Pulse'],
+            'en' => ['View Horizon', 'View Log Viewer', 'Download Log Files', 'Delete Log Files', 'View Pulse'],
         ];
 
         foreach ($expected as $locale => $labels) {
@@ -75,14 +75,35 @@ class ObservabilityAccessTest extends TestCase
         }
     }
 
-    public function test_super_admin_can_access_every_observability_tool(): void
+    public function test_super_admin_role_without_the_permissions_is_denied(): void
     {
         $user = $this->userWithRole(config('filament-shield.super_admin.name'));
 
-        $this->assertTrue(Gate::forUser($user)->allows('viewHorizon'));
-        $this->assertTrue(Gate::forUser($user)->allows('viewLogViewer'));
-        $this->assertTrue(Gate::forUser($user)->allows('downloadLogFile'));
-        $this->assertTrue(Gate::forUser($user)->allows('deleteLogFolder'));
+        $this->assertFalse(ObservabilityAccess::allowed($user));
+        $this->assertFalse(Gate::forUser($user)->allows('viewHorizon'));
+        $this->assertFalse(Gate::forUser($user)->allows('viewLogViewer'));
+        $this->assertFalse(Gate::forUser($user)->allows('viewPulse'));
+    }
+
+    public function test_super_admin_role_with_the_permissions_can_access_every_tool(): void
+    {
+        $user = $this->userWithRole(
+            config('filament-shield.super_admin.name'),
+            array_keys(ObservabilityAccess::shieldPermissions()),
+        );
+
+        foreach (['viewHorizon', 'viewLogViewer', 'downloadLogFile', 'deleteLogFolder', 'viewPulse'] as $ability) {
+            $this->assertTrue(Gate::forUser($user)->allows($ability), $ability);
+        }
+    }
+
+    public function test_pulse_is_granted_by_its_own_permission(): void
+    {
+        $pulseOnly = $this->userWithRole('__observability_pulse__', [ObservabilityAccess::VIEW_PULSE]);
+
+        $this->assertTrue(Gate::forUser($pulseOnly)->allows('viewPulse'));
+        $this->assertFalse(Gate::forUser($pulseOnly)->allows('viewHorizon'));
+        $this->assertFalse(Gate::forUser($pulseOnly)->allows('viewLogViewer'));
     }
 
     public function test_role_without_observability_permissions_is_denied(): void

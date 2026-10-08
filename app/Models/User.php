@@ -164,11 +164,11 @@ class User extends Authenticatable implements FilamentUser
 
     /**
      * Boleh membuat BA stok (Serah Terima, Pengembalian) atas nama staf GA mana
-     * pun: super admin dan pemegang izin Shield "Kelola BA Stok".
+     * pun: pemegang izin Shield "Kelola BA Stok".
      */
     public function canManageStockTransfers(): bool
     {
-        return $this->isSuperAdmin() || $this->can('manageStock', AssetTransfer::class);
+        return $this->can('manageStock', AssetTransfer::class);
     }
 
     /**

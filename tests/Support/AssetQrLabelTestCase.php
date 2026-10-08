@@ -51,12 +51,14 @@ abstract class AssetQrLabelTestCase extends TestCase
             '2026_09_24_000002_batch_asset_qr_label_histories',
             '2026_09_24_000003_add_file_to_asset_qr_label_histories',
             '2026_09_24_000004_add_storage_disks_to_asset_files',
+            '2026_10_08_000007_add_access_all_business_entities_to_users_table',
         ] as $migration) {
             (require database_path('migrations/'.$migration.'.php'))->up();
         }
 
-        $permission = Permission::create(['name' => 'view_asset', 'guard_name' => 'web']);
-        Role::create(['name' => 'super_admin', 'guard_name' => 'web'])->givePermissionTo($permission);
+        $permissions = collect(['view_asset', 'view_any_asset::qr::label::history', 'view_asset::qr::label::history'])
+            ->map(fn (string $name): Permission => Permission::create(['name' => $name, 'guard_name' => 'web']));
+        Role::create(['name' => 'super_admin', 'guard_name' => 'web'])->givePermissionTo($permissions);
     }
 
     /** @return Collection<int, Asset> */

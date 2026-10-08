@@ -144,7 +144,7 @@ class AssetServiceExporter extends Exporter
 
         $query = $query->with(['asset', 'servicedByUser', 'vendor', 'creator']);
 
-        if ($user && ! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+        if ($user && ! $user->can('viewAll', AssetService::class)) {
             $query->where(function ($q) use ($user) {
                 $q->where('created_by', $user->id)
                     ->orWhere('serviced_by_user_id', $user->id);

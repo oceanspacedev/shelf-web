@@ -376,7 +376,7 @@ class AssetServiceResource extends Resource
                             return false;
                         }
 
-                        return $user->hasRole(['super_admin', 'admin', 'general_affair'])
+                        return $user->can('updateAll', AssetService::class)
                             || $record->created_by === $user->id
                             || $record->serviced_by_user_id === $user->id;
                     })
@@ -523,7 +523,9 @@ class AssetServiceResource extends Resource
                     ExportBulkAction::make()
                         ->exporter(AssetServiceExporter::class)
                         ->label('Export Dipilih'),
-                    DeleteBulkAction::make(),
+                    // Cek tiap record ke policy delete: data milik user lain butuh izin "Hapus Data Semua User".
+                    DeleteBulkAction::make()
+                        ->authorizeIndividualRecords('delete'),
                 ]),
             ]);
     }
@@ -588,7 +590,7 @@ class AssetServiceResource extends Resource
         }
 
         // Pengawas / Admin dapat melihat seluruh servis aset
-        if ($user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+        if ($user->can('viewAll', AssetService::class)) {
             return $query;
         }
 

@@ -9,7 +9,6 @@ use App\Models\AssetService;
 use App\Models\AssetTransfer;
 use App\Models\ObChecksheet;
 use App\Models\Task;
-use App\Models\User;
 use App\Policies\ActivityPolicy;
 use App\Policies\AssetRequestPolicy;
 use App\Policies\AssetServicePolicy;
@@ -114,8 +113,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Exception::class, ExceptionPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Task::class, TaskPolicy::class);
-
-        Gate::define('viewPulse', fn (User $user): bool => $user->hasRole('super_admin'));
     }
 
     /**

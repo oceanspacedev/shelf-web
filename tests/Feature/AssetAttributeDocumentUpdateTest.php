@@ -107,7 +107,7 @@ class AssetAttributeDocumentUpdateTest extends TestCase
 
     public function test_admin_can_access_view_asset_page_and_execute_update_helper(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->create(['access_all_business_entities' => true]);
         $admin->assignRole('super_admin');
 
         $entity = BusinessEntity::firstOrCreate(['name' => 'PT Armada Maju']);

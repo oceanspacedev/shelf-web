@@ -124,6 +124,22 @@ class AssetTransferPolicy
     }
 
     /**
+     * Ubah jenis BA, pihak, dan aset pada BA yang sudah dibuat.
+     */
+    public function updateCore(User $user): bool
+    {
+        return $user->can('update_core_asset::transfer');
+    }
+
+    /**
+     * Lepas satu riwayat transfer dari aset (BA utamanya tetap ada).
+     */
+    public function deleteDetail(User $user): bool
+    {
+        return $user->can('delete_detail_asset::transfer');
+    }
+
+    /**
      * Record di luar badan usaha yang bisa diakses user ditolak (lihat
      * AssetTransfer::isAccessibleBy). Model yang belum tersimpan, yaitu cek
      * izin saja, tidak dibatasi.

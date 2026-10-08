@@ -320,7 +320,7 @@ class ObChecksheetResource extends Resource
                             ->whereNotNull('room')
                             ->where('room', '!=', '');
 
-                        if (! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+                        if (! $user->can('viewAll', ObChecksheet::class)) {
                             $query->where('user_id', $user->id);
                         }
 
@@ -332,7 +332,7 @@ class ObChecksheetResource extends Resource
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload()
-                    ->visible(fn () => auth()->user()?->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])),
+                    ->visible(fn (): bool => auth()->user()?->can('viewAll', ObChecksheet::class) ?? false),
             ])
             ->actions([
                 Action::make('complete')
@@ -344,7 +344,7 @@ class ObChecksheetResource extends Resource
                     ->modalWidth('lg')
                     ->visible(function (ObChecksheet $record) {
                         $user = auth()->user();
-                        $canAccess = $user?->hasRole(['super_admin', 'admin', 'general_affair']) || $record->user_id === $user?->id;
+                        $canAccess = $user?->can('updateAll', ObChecksheet::class) || $record->user_id === $user?->id;
 
                         return $canAccess && ($record->status === 'in_progress' || blank($record->after_photo));
                     })
@@ -387,7 +387,9 @@ class ObChecksheetResource extends Resource
                         ->exporter(ObChecksheetExporter::class)
                         ->label('Export Dipilih')
                         ->visible(fn () => auth()->user()?->can('export', ObChecksheet::class) ?? false),
-                    DeleteBulkAction::make(),
+                    // Cek tiap record ke policy delete: data milik user lain butuh izin "Hapus Data Semua User".
+                    DeleteBulkAction::make()
+                        ->authorizeIndividualRecords('delete'),
                 ]),
             ]);
     }
@@ -402,7 +404,7 @@ class ObChecksheetResource extends Resource
         }
 
         // Pengawas / Admin dapat melihat seluruh checksheet dari semua OB
-        if ($user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+        if ($user->can('viewAll', ObChecksheet::class)) {
             return $query;
         }
 
@@ -441,7 +443,7 @@ class ObChecksheetResource extends Resource
             ->whereNotNull('room')
             ->where('room', '!=', '');
 
-        if (! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+        if (! $user->can('viewAll', ObChecksheet::class)) {
             return $query->where('user_id', $user->id)
                 ->distinct()
                 ->pluck('room')

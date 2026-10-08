@@ -67,14 +67,13 @@ class AssetTransferResource extends Resource
     public static function form(Schema $form): Schema
     {
         $viewer = Auth::user();
-        $isSuperAdmin = $viewer instanceof User && $viewer->isSuperAdmin();
+        $mayUpdateCore = $viewer instanceof User && $viewer->can('updateCore', AssetTransfer::class);
         $viewerIsGeneralAffair = $viewer instanceof User && $viewer->isGeneralAffair();
         $viewerId = $viewerIsGeneralAffair ? $viewer->getKey() : null;
-        $lockedOnEdit = fn (string $operation): bool => $operation === 'edit' && ! $isSuperAdmin;
-        // BA yang menyentuh stok (Serah Terima, Pengembalian) hanya untuk staf GA,
-        // super admin, dan pemegang izin "Kelola BA Stok". Pihak GA pada BA staf GA
-        // adalah akunnya sendiri; hanya super admin dan pemegang izin itu yang
-        // boleh memilih staf GA lain. Dipaksa lagi di server oleh
+        $lockedOnEdit = fn (string $operation): bool => $operation === 'edit' && ! $mayUpdateCore;
+        // BA yang menyentuh stok (Serah Terima, Pengembalian) hanya untuk staf GA
+        // dan pemegang izin "Kelola BA Stok". Pihak GA pada BA staf GA adalah
+        // akunnya sendiri; hanya pemegang izin itu yang boleh memilih staf GA lain. Dipaksa lagi di server oleh
         // CreateAssetTransfer::mutateFormDataBeforeCreate dan AssetTransfer.
         $mayHandleStock = $viewer instanceof User && $viewer->canCreateStockTransfers();
         $generalAffairSideLocked = $viewerIsGeneralAffair && ! $viewer->canManageStockTransfers();
@@ -137,7 +136,7 @@ class AssetTransferResource extends Resource
                                     ->getOptionLabelUsing(fn ($value): ?string => static::userLabel($value))
                                     ->helperText(fn (Get $get): ?string => match (true) {
                                         ! static::documentType($get)?->dispatchesFromStock() => null,
-                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya super admin atau pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
+                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
                                         default => 'Hanya staf dengan role general_affair yang bisa mengeluarkan aset dari stok.',
                                     })
                                     ->afterStateUpdated(function ($state, Set $set, Get $get): void {
@@ -161,7 +160,7 @@ class AssetTransferResource extends Resource
                                     ->getOptionLabelUsing(fn ($value): ?string => static::userLabel($value))
                                     ->helperText(fn (Get $get): ?string => match (true) {
                                         ! static::documentType($get)?->returnsToStock() => null,
-                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya super admin atau pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
+                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
                                         default => 'Hanya staf dengan role general_affair yang bisa menerima aset kembali ke stok.',
                                     })
                                     ->createOptionForm([
@@ -434,7 +433,7 @@ class AssetTransferResource extends Resource
     }
 
     /**
-     * Staf GA, super admin, dan pemegang izin "Kelola BA Stok" boleh membuat BA
+     * Staf GA dan pemegang izin "Kelola BA Stok" boleh membuat BA
      * yang menyentuh stok (Serah Terima, Pengembalian); yang lain hanya
      * Pengalihan antar pemegang.
      */

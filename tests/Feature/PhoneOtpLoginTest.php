@@ -126,7 +126,7 @@ class PhoneOtpLoginTest extends TestCase
     {
         $user = $this->registeredUser();
         $this->actingAs($user);
-        Gate::before(fn (): bool => true);
+        $this->grantAbilitiesExcept(['manageBusinessEntityAccess']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $user->getRouteKey()])
@@ -145,7 +145,7 @@ class PhoneOtpLoginTest extends TestCase
         $other = User::create(['name' => 'Other']);
         $this->placeInSameBusinessEntity($admin, $other);
         $this->actingAs($admin);
-        Gate::before(fn (): bool => true);
+        $this->grantAbilitiesExcept(['manageBusinessEntityAccess']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
@@ -163,7 +163,7 @@ class PhoneOtpLoginTest extends TestCase
         $other = User::create(['name' => 'Other']);
         $this->placeInSameBusinessEntity($admin, $other);
         $this->actingAs($admin);
-        Gate::before(fn (): bool => true);
+        $this->grantAbilitiesExcept(['manageBusinessEntityAccess']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $other->getRouteKey()])
@@ -176,9 +176,8 @@ class PhoneOtpLoginTest extends TestCase
     public function test_non_admin_user_editor_cannot_read_or_change_the_login_credential(): void
     {
         $user = $this->registeredUser();
-        DB::table('roles')->where('id', 1)->update(['name' => 'operator']);
         $this->actingAs($user);
-        Gate::before(fn (): bool => true);
+        $this->grantAbilitiesExcept(['manageAccess', 'manageBusinessEntityAccess']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(EditUser::class, ['record' => $user->getRouteKey()])
@@ -353,6 +352,17 @@ class PhoneOtpLoginTest extends TestCase
                 fn (string $candidate): bool => is_a($candidate, $class, true),
             )->count());
         }
+    }
+
+    /**
+     * Semua ability diizinkan kecuali yang disebut. Seperti role admin di
+     * production: punya "Kelola Akses" tetapi tidak "Kelola Akses Badan Usaha".
+     *
+     * @param  list<string>  $denied
+     */
+    private function grantAbilitiesExcept(array $denied): void
+    {
+        Gate::before(fn ($user, string $ability): bool => ! in_array($ability, $denied, true));
     }
 
     /**

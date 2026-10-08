@@ -8,6 +8,7 @@ use App\Services\AssetQrLabelHistoryService;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -15,6 +16,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class AssetQrLabelHistoryResource extends Resource
 {
@@ -38,23 +40,10 @@ class AssetQrLabelHistoryResource extends Resource
         return 'History Label QR';
     }
 
-    public static function canViewAny(): bool
-    {
-        $user = auth()->user();
-
-        if (! $user) {
-            return false;
-        }
-
-        return $user->can('view_any_asset')
-            || $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit']);
-    }
-
-    public static function canView($record): bool
-    {
-        return static::canViewAny();
-    }
-
+    /**
+     * History adalah log audit: tidak bisa dibuat, diubah, atau dihapus dari
+     * panel, apa pun permission-nya. Melihat diatur AssetQrLabelHistoryPolicy.
+     */
     public static function canCreate(): bool
     {
         return false;
@@ -176,8 +165,21 @@ class AssetQrLabelHistoryResource extends Resource
                     ->label('Download')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->visible(fn (AssetQrLabelHistory $record): bool => $record->hasStoredFile())
-                    ->action(fn (AssetQrLabelHistory $record) => app(AssetQrLabelHistoryService::class)->download($record)),
+                    // Cek file baru saat diklik supaya render tabel tidak memanggil storage per baris.
+                    ->visible(fn (AssetQrLabelHistory $record): bool => filled($record->file_path))
+                    ->action(function (AssetQrLabelHistory $record) {
+                        try {
+                            return app(AssetQrLabelHistoryService::class)->download($record);
+                        } catch (NotFoundHttpException) {
+                            Notification::make()
+                                ->title('File tidak ditemukan')
+                                ->body('File PDF label QR ini tidak tersedia di storage.')
+                                ->danger()
+                                ->send();
+
+                            return null;
+                        }
+                    }),
                 ViewAction::make(),
             ])
             ->bulkActions([]);

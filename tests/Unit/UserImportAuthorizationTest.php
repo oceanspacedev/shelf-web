@@ -13,14 +13,14 @@ use Tests\TestCase;
 
 class UserImportAuthorizationTest extends TestCase
 {
-    public function test_import_is_allowed_for_user_creators_and_admins(): void
+    public function test_import_requires_the_import_user_permission(): void
     {
         $policy = new UserPolicy;
 
-        $this->assertTrue($policy->import($this->userThatCan(['create_user'])));
         $this->assertTrue($policy->import($this->userThatCan(['import_user'])));
-        $this->assertTrue($policy->import($this->userWithRole('super_admin')));
-        $this->assertTrue($policy->import($this->userWithRole('admin')));
+        $this->assertFalse($policy->import($this->userThatCan(['create_user'])));
+        $this->assertFalse($policy->import($this->userWithRole('super_admin')));
+        $this->assertFalse($policy->import($this->userWithRole('admin')));
         $this->assertFalse($policy->import($this->userThatCan([])));
     }
 

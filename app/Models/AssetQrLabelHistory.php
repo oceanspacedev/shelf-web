@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
+use League\Flysystem\FilesystemException;
 
 class AssetQrLabelHistory extends Model
 {
@@ -56,7 +58,17 @@ class AssetQrLabelHistory extends Model
 
     public function hasStoredFile(): bool
     {
-        return filled($this->file_path)
-            && Storage::disk($this->file_disk ?: 'local')->exists($this->file_path);
+        if (blank($this->file_path)) {
+            return false;
+        }
+
+        // Disk yang tidak terjangkau atau tidak terkonfigurasi (mis. S3 kosong di lokal) dianggap file tidak ada.
+        try {
+            return Storage::disk($this->file_disk ?: 'local')->exists($this->file_path);
+        } catch (FilesystemException|InvalidArgumentException $exception) {
+            report($exception);
+
+            return false;
+        }
     }
 }

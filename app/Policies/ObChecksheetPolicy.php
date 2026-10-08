@@ -23,19 +23,8 @@ class ObChecksheetPolicy
      */
     public function view(User $user, ObChecksheet $obChecksheet): bool
     {
-        if (! $user->can('view_ob::checksheet')) {
-            return false;
-        }
-
-        if ($user instanceof \Mockery\MockInterface || blank($obChecksheet->user_id)) {
-            return true;
-        }
-
-        if ($user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
-            return true;
-        }
-
-        return $obChecksheet->user_id === $user->id;
+        return $user->can('view_ob::checksheet')
+            && ($this->isOwnedBy($user, $obChecksheet) || $this->viewAll($user));
     }
 
     /**
@@ -51,19 +40,8 @@ class ObChecksheetPolicy
      */
     public function update(User $user, ObChecksheet $obChecksheet): bool
     {
-        if (! $user->can('update_ob::checksheet')) {
-            return false;
-        }
-
-        if ($user instanceof \Mockery\MockInterface || blank($obChecksheet->user_id)) {
-            return true;
-        }
-
-        if ($user->hasRole(['super_admin', 'admin', 'general_affair'])) {
-            return true;
-        }
-
-        return $obChecksheet->user_id === $user->id;
+        return $user->can('update_ob::checksheet')
+            && ($this->isOwnedBy($user, $obChecksheet) || $this->updateAll($user));
     }
 
     /**
@@ -71,19 +49,8 @@ class ObChecksheetPolicy
      */
     public function delete(User $user, ObChecksheet $obChecksheet): bool
     {
-        if (! $user->can('delete_ob::checksheet')) {
-            return false;
-        }
-
-        if ($user instanceof \Mockery\MockInterface || blank($obChecksheet->user_id)) {
-            return true;
-        }
-
-        if ($user->hasRole(['super_admin', 'admin'])) {
-            return true;
-        }
-
-        return $obChecksheet->user_id === $user->id;
+        return $user->can('delete_ob::checksheet')
+            && ($this->isOwnedBy($user, $obChecksheet) || $this->deleteAll($user));
     }
 
     /**
@@ -156,5 +123,31 @@ class ObChecksheetPolicy
     public function import(User $user): bool
     {
         return $user->can('import_ob::checksheet');
+    }
+
+    /**
+     * Checksheet petugas OB lain; tanpa izin ini user hanya melihat miliknya.
+     */
+    public function viewAll(User $user): bool
+    {
+        return $user->can('view_all_ob::checksheet');
+    }
+
+    public function updateAll(User $user): bool
+    {
+        return $user->can('update_all_ob::checksheet');
+    }
+
+    public function deleteAll(User $user): bool
+    {
+        return $user->can('delete_all_ob::checksheet');
+    }
+
+    /**
+     * Checksheet tanpa petugas (atau model yang belum tersimpan) cukup dicek izinnya.
+     */
+    private function isOwnedBy(User $user, ObChecksheet $obChecksheet): bool
+    {
+        return blank($obChecksheet->user_id) || $obChecksheet->user_id === $user->id;
     }
 }

@@ -37,7 +37,7 @@ class UserBusinessEntityAccessTest extends TestCase
         config(['permission.cache.store' => 'array']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        foreach (self::MANAGE_PERMISSIONS as $permission) {
+        foreach ([...self::MANAGE_PERMISSIONS, 'manage_access_user', 'manage_business_entity_access_user', 'impersonate_user'] as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
 
@@ -192,8 +192,8 @@ class UserBusinessEntityAccessTest extends TestCase
 
     public function test_scoped_admin_cannot_grant_business_entity_access(): void
     {
-        // The real `admin` role unlocks the "Akses & Keamanan" section; the
-        // access field inside it must still be reserved for super admins.
+        // The real `admin` role holds "Kelola Akses" (section visible) but not
+        // "Kelola Akses Badan Usaha", so the access field stays hidden.
         $admin = $this->scopedUser($this->alpha);
         $admin->assignRole(Role::findOrCreate('admin', 'web'));
         $admin = $admin->fresh();
@@ -364,6 +364,132 @@ class UserBusinessEntityAccessTest extends TestCase
      *
      * @param  list<BusinessEntity>  $granted
      */
+    public function test_role_choices_only_include_roles_within_the_editors_permissions(): void
+    {
+        $editor = $this->accessManager($this->alpha);
+        $target = User::factory()->create(['business_entity_id' => $this->alpha->id]);
+        $lesser = Role::findOrCreate('__bea_lesser__', 'web');
+        $lesser->syncPermissions(['view_user']);
+        $greater = Role::findOrCreate('__bea_greater__', 'web');
+        $greater->syncPermissions(['view_user', 'impersonate_user']);
+
+        $this->actingAs($editor);
+
+        $assignable = UserResource::assignableRoleIds();
+        $this->assertContains($lesser->id, $assignable);
+        $this->assertNotContains($greater->id, $assignable);
+        $this->assertNotContains(Role::findOrCreate(config('filament-shield.super_admin.name', 'super_admin'), 'web')->id, $assignable);
+
+        Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
+            ->fillForm(['roles' => $greater->id])
+            ->call('save');
+        $this->assertFalse($target->fresh()->hasRole($greater));
+
+        Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
+            ->fillForm(['roles' => $lesser->id])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertTrue($target->fresh()->hasRole($lesser));
+    }
+
+    public function test_role_outside_the_editors_permissions_is_locked_and_kept(): void
+    {
+        $editor = $this->accessManager($this->alpha);
+        $greater = Role::findOrCreate('__bea_greater__', 'web');
+        $greater->syncPermissions(['view_user', 'impersonate_user']);
+        $target = User::factory()->create(['business_entity_id' => $this->alpha->id]);
+        $target->assignRole($greater);
+
+        $this->actingAs($editor);
+
+        Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
+            ->assertFormFieldDisabled('roles')
+            ->fillForm(['name' => '__bea_locked_role__'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame([$greater->name], $target->fresh()->getRoleNames()->all());
+    }
+
+    public function test_saving_a_user_without_manage_access_keeps_their_roles(): void
+    {
+        $editor = $this->scopedUser($this->alpha);
+        $target = User::factory()->create(['business_entity_id' => $this->alpha->id]);
+        $target->assignRole(Role::findOrCreate('__bea_target_role__', 'web'));
+
+        $this->actingAs($editor);
+
+        Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
+            ->assertFormFieldHidden('roles')
+            ->fillForm(['name' => '__bea_renamed__'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('__bea_renamed__', $target->fresh()->name);
+        $this->assertTrue($target->fresh()->hasRole('__bea_target_role__'));
+    }
+
+    public function test_restricted_entity_access_manager_cannot_widen_access(): void
+    {
+        $manager = $this->scopedUser($this->alpha);
+        $manager->givePermissionTo('manage_business_entity_access_user');
+        $manager = $manager->fresh();
+
+        $this->actingAs($manager);
+
+        Livewire::test(EditUser::class, ['record' => $manager->getRouteKey()])
+            ->assertFormFieldHidden('access_all_business_entities')
+            ->assertFormFieldHidden('accessibleBusinessEntities')
+            ->fillForm([
+                'name' => $manager->name,
+                'access_all_business_entities' => true,
+                'accessibleBusinessEntities' => [$this->gamma->id],
+            ])
+            ->call('save');
+
+        $this->assertFalse($manager->fresh()->access_all_business_entities);
+        $this->assertSame([$this->alpha->id], $manager->fresh()->accessibleBusinessEntityIds());
+    }
+
+    public function test_entity_access_permission_works_without_manage_access(): void
+    {
+        $manager = $this->scopedUser($this->alpha);
+        $manager->givePermissionTo('manage_business_entity_access_user');
+        $manager->forceFill(['access_all_business_entities' => true])->save();
+        $target = User::factory()->create(['business_entity_id' => $this->alpha->id]);
+
+        $this->actingAs($manager->fresh());
+
+        Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
+            ->assertFormFieldHidden('roles')
+            ->assertFormFieldVisible('access_all_business_entities');
+    }
+
+    public function test_super_admin_without_the_flag_is_scoped_like_everyone_else(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $superAdmin->forceFill(['access_all_business_entities' => false, 'business_entity_id' => $this->alpha->id])->save();
+        $inAlpha = User::factory()->create(['business_entity_id' => $this->alpha->id]);
+        $inGamma = User::factory()->create(['business_entity_id' => $this->gamma->id]);
+
+        $this->actingAs($superAdmin->fresh());
+
+        Livewire::test(ListUsers::class)
+            ->assertCanSeeTableRecords([$inAlpha])
+            ->assertCanNotSeeTableRecords([$inGamma]);
+    }
+
+    /**
+     * Seperti role admin: boleh "Kelola Akses" di dalam badan usahanya.
+     */
+    private function accessManager(BusinessEntity $own): User
+    {
+        $user = $this->scopedUser($own);
+        $user->givePermissionTo('manage_access_user');
+
+        return $user->fresh();
+    }
+
     private function scopedUser(?BusinessEntity $own, array $granted = []): User
     {
         $role = Role::findOrCreate('__bea_manager__', 'web');
@@ -376,9 +502,13 @@ class UserBusinessEntityAccessTest extends TestCase
         return $user->fresh();
     }
 
+    /**
+     * Seperti di production: akses badan usaha super admin datang dari flag,
+     * izinnya dari permission role super_admin.
+     */
     private function superAdmin(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['access_all_business_entities' => true]);
         $user->assignRole(Role::findOrCreate(config('filament-shield.super_admin.name', 'super_admin'), 'web'));
 
         return $user->fresh();

@@ -20,6 +20,8 @@ final class ObservabilityAccess
 
     public const DELETE_LOGS = 'Delete:LogViewer';
 
+    public const VIEW_PULSE = 'View:Pulse';
+
     /**
      * @return array<string, string>
      */
@@ -30,6 +32,7 @@ final class ObservabilityAccess
             self::VIEW_LOG_VIEWER => 'View Log Viewer',
             self::DOWNLOAD_LOGS => 'Download Log Viewer Files',
             self::DELETE_LOGS => 'Delete Log Viewer Files',
+            self::VIEW_PULSE => 'View Pulse',
         ];
     }
 
@@ -49,6 +52,11 @@ final class ObservabilityAccess
     public static function canViewLogViewer(?Authenticatable $user): bool
     {
         return self::granted($user, self::VIEW_LOG_VIEWER);
+    }
+
+    public static function canViewPulse(?Authenticatable $user): bool
+    {
+        return self::granted($user, self::VIEW_PULSE);
     }
 
     public static function canDownloadLogs(?Authenticatable $user): bool
@@ -71,6 +79,7 @@ final class ObservabilityAccess
         Gate::define('downloadLogFolder', fn ($actor = null): bool => self::canDownloadLogs($user($actor)));
         Gate::define('deleteLogFile', fn ($actor = null): bool => self::canDeleteLogs($user($actor)));
         Gate::define('deleteLogFolder', fn ($actor = null): bool => self::canDeleteLogs($user($actor)));
+        Gate::define('viewPulse', fn ($actor = null): bool => self::canViewPulse($user($actor)));
     }
 
     /**
@@ -90,16 +99,8 @@ final class ObservabilityAccess
         ];
     }
 
-    /**
-     * Super admin keeps access even before the Shield permissions are generated.
-     */
     private static function granted(?Authenticatable $user, string $permission): bool
     {
-        if (! $user instanceof User) {
-            return false;
-        }
-
-        return $user->hasRole(config('filament-shield.super_admin.name', 'super_admin'))
-            || $user->checkPermissionTo($permission);
+        return $user instanceof User && $user->checkPermissionTo($permission);
     }
 }

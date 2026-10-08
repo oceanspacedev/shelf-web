@@ -235,7 +235,7 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         $transfer->applyLifecycleToAssets(actor: $secondGeneralAffair);
     }
 
-    public function test_only_general_affair_staff_or_super_admin_may_create_stock_transfers(): void
+    public function test_only_general_affair_staff_or_stock_managers_may_create_stock_transfers(): void
     {
         [$entity, $generalAffair, , $holder, $nextHolder] = $this->fixtureUsers();
 
@@ -243,7 +243,7 @@ class AssetTransferDocumentLifecycleTest extends TestCase
         $this->attach($transfer, $this->heldAsset('Laptop Dipegang', $holder, $entity));
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Hanya staf General Affairs, super admin, atau pemegang izin Kelola BA Stok yang bisa membuat Berita Acara Pengembalian Barang');
+        $this->expectExceptionMessage('Hanya staf General Affairs atau pemegang izin Kelola BA Stok yang bisa membuat Berita Acara Pengembalian Barang');
 
         $transfer->applyLifecycleToAssets(actor: $nextHolder);
     }
@@ -251,7 +251,9 @@ class AssetTransferDocumentLifecycleTest extends TestCase
     public function test_actor_rule_allows_own_transfers_pengalihan_by_anyone_and_super_admin_on_behalf(): void
     {
         [$entity, $generalAffair, $secondGeneralAffair, $holder, $nextHolder] = $this->fixtureUsers();
-        Role::create(['name' => config('filament-shield.super_admin.name', 'super_admin'), 'guard_name' => 'web']);
+        // Seperti di production, super admin memegang izin "Kelola BA Stok"; rolenya sendiri tidak memberi akses.
+        Role::create(['name' => config('filament-shield.super_admin.name', 'super_admin'), 'guard_name' => 'web'])
+            ->givePermissionTo(Permission::create(['name' => 'manage_stock_asset::transfer', 'guard_name' => 'web']));
         $superAdmin = User::create(['name' => 'Super Admin']);
         $superAdmin->assignRole(config('filament-shield.super_admin.name', 'super_admin'));
 

@@ -90,7 +90,7 @@ class ObChecksheetExporter extends Exporter
 
         $query = $query->with(['user']);
 
-        if ($user && ! $user->hasRole(['super_admin', 'admin', 'general_affair', 'audit'])) {
+        if ($user && ! $user->can('viewAll', ObChecksheet::class)) {
             $query->where('user_id', $user->id);
         }
 

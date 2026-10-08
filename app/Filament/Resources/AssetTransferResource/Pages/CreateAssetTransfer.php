@@ -117,8 +117,8 @@ class CreateAssetTransfer extends CreateRecord
     /**
      * Pihak GA pada BA adalah akun yang sedang login. Field-nya terkunci di
      * form, tetapi nilainya ditetapkan di sini supaya tidak bergantung pada
-     * apa yang dikirim browser. Super admin dan pemegang izin "Kelola BA Stok"
-     * boleh memilih staf GA lain.
+     * apa yang dikirim browser. Pemegang izin "Kelola BA Stok" boleh memilih
+     * staf GA lain.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>

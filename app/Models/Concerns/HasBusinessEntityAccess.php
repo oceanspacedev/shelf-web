@@ -8,12 +8,11 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * Business-entity scoping for panel users. Three rules:
+ * Business-entity scoping for panel users. Two rules, no role exceptions:
  *
- *  - super admins are never restricted;
  *  - users flagged access_all_business_entities reach every entity, including
- *    entities created later (existing panel users start flagged so their old
- *    access is kept);
+ *    entities created later (existing panel users, super admins included,
+ *    start flagged so their old access is kept);
  *  - everyone else reaches the entity they belong to
  *    (users.business_entity_id) plus the entities ticked for them on the
  *    user form (business_entity_user).
@@ -36,8 +35,7 @@ trait HasBusinessEntityAccess
 
     public function hasUnrestrictedBusinessEntityAccess(): bool
     {
-        return (bool) $this->access_all_business_entities
-            || $this->hasRole(config('filament-shield.super_admin.name', 'super_admin'));
+        return (bool) $this->access_all_business_entities;
     }
 
     /**

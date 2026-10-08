@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\AssetQrLabelHistoryResource\Pages\ListAssetQrLabelHistories;
 use App\Models\Asset;
 use App\Models\AssetQrLabelHistory;
 use App\Models\User;
@@ -10,14 +11,16 @@ use Illuminate\Database\QueryException;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\UnableToWriteFile;
+use Livewire\Livewire;
 use Mockery;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\Support\AssetQrLabelTestCase;
 
 class AssetQrLabelHistoryTest extends AssetQrLabelTestCase
 {
     public function test_print_label_records_history_with_user_and_timestamp(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['access_all_business_entities' => true]);
         $user->assignRole('super_admin');
 
         $asset = Asset::create(['name' => 'Single Print Asset']);
@@ -43,7 +46,7 @@ class AssetQrLabelHistoryTest extends AssetQrLabelTestCase
 
     public function test_bulk_print_records_one_history_for_all_assets(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['access_all_business_entities' => true]);
         $user->assignRole('super_admin');
 
         $assets = $this->createAssets(3);
@@ -150,5 +153,51 @@ class AssetQrLabelHistoryTest extends AssetQrLabelTestCase
             $this->assertDatabaseCount('asset_qr_label_histories', 0);
             $this->assertSame([], Storage::disk('local')->allFiles());
         }
+    }
+
+    public function test_unreachable_storage_disk_is_treated_as_a_missing_file(): void
+    {
+        $history = $this->historyOnUnconfiguredS3();
+
+        $this->assertFalse($history->hasStoredFile());
+
+        $this->expectException(NotFoundHttpException::class);
+        app(AssetQrLabelHistoryService::class)->download($history);
+    }
+
+    public function test_history_list_renders_when_storage_disk_is_unreachable(): void
+    {
+        $user = User::factory()->create(['access_all_business_entities' => true]);
+        $user->assignRole('super_admin');
+        $history = $this->historyOnUnconfiguredS3();
+
+        $this->actingAs($user);
+
+        Livewire::test(ListAssetQrLabelHistories::class)
+            ->assertOk()
+            ->assertCanSeeTableRecords([$history])
+            ->callTableAction('downloadFile', $history)
+            ->assertNotified('File tidak ditemukan');
+    }
+
+    /** Meniru data production (file di S3) yang dibuka di lokal tanpa bucket S3. */
+    private function historyOnUnconfiguredS3(): AssetQrLabelHistory
+    {
+        config([
+            'filesystems.disks.s3.key' => 'test-key',
+            'filesystems.disks.s3.secret' => 'test-secret',
+            'filesystems.disks.s3.bucket' => '',
+        ]);
+        Storage::forgetDisk('s3');
+
+        return AssetQrLabelHistory::create([
+            'action' => AssetQrLabelHistory::ACTION_PRINT,
+            'asset_ids' => [1],
+            'asset_count' => 1,
+            'asset_summary' => 'Production Asset',
+            'file_path' => 'asset-qr-labels/2026/09/asset-qr-1.pdf',
+            'file_disk' => 's3',
+            'file_name' => 'asset-qr-1.pdf',
+        ]);
     }
 }

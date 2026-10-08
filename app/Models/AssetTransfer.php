@@ -222,8 +222,8 @@ class AssetTransfer extends Model
     /**
      * Pihak GA pada BA adalah akun yang sedang membuatnya: staf GA tidak bisa
      * membuat BA atas nama staf GA lain, dan yang bukan staf GA tidak bisa
-     * membuat BA yang menyentuh stok. Super admin dan pemegang izin "Kelola BA
-     * Stok" dikecualikan. Tanpa aktor (proses latar) aturan ini tidak dicek.
+     * membuat BA yang menyentuh stok. Pemegang izin "Kelola BA Stok"
+     * dikecualikan. Tanpa aktor (proses latar) aturan ini tidak dicek.
      */
     protected function ensureGeneralAffairPartyIsActor(AssetTransferDocumentType $documentType, ?User $actor): void
     {
@@ -248,7 +248,7 @@ class AssetTransfer extends Model
 
         if (! $actor->isGeneralAffair()) {
             throw new AssetTransferException(sprintf(
-                'Hanya staf General Affairs, super admin, atau pemegang izin Kelola BA Stok yang bisa membuat %s.',
+                'Hanya staf General Affairs atau pemegang izin Kelola BA Stok yang bisa membuat %s.',
                 $label,
             ));
         }

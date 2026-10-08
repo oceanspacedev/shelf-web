@@ -110,9 +110,7 @@ class UserPolicy
      */
     public function import(User $user): bool
     {
-        return $user->can('import_user')
-            || $user->can('create_user')
-            || $user->hasRole(['super_admin', 'admin']);
+        return $user->can('import_user');
     }
 
     /**
@@ -121,6 +119,22 @@ class UserPolicy
     public function impersonate(User $user): bool
     {
         return $user->can('impersonate_user');
+    }
+
+    /**
+     * Username, email, password, role, dan nomor login WhatsApp user.
+     */
+    public function manageAccess(User $user): bool
+    {
+        return $user->can('manage_access_user');
+    }
+
+    /**
+     * Badan usaha yang boleh diakses user lain.
+     */
+    public function manageBusinessEntityAccess(User $user): bool
+    {
+        return $user->can('manage_business_entity_access_user');
     }
 
     /**

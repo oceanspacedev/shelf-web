@@ -10,7 +10,7 @@ class AssetQrLabelPrintTest extends AssetQrLabelTestCase
 {
     public function test_authenticated_user_can_open_print_page_with_qr_image(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['access_all_business_entities' => true]);
         $user->assignRole('super_admin');
 
         $asset = Asset::create(['name' => 'Printer Test Asset']);
@@ -27,7 +27,7 @@ class AssetQrLabelPrintTest extends AssetQrLabelTestCase
 
     public function test_authenticated_user_can_bulk_print_multiple_assets(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['access_all_business_entities' => true]);
         $user->assignRole('super_admin');
 
         $assets = $this->createAssets(3);

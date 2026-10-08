@@ -89,7 +89,13 @@ class UserImpersonationTest extends TestCase
         $this->actingAs($this->userWithRole('__impersonate_allowed__', ['impersonate_user']));
         $this->assertFalse($target->fresh()->canBeImpersonated());
 
-        $this->actingAs($this->userWithRole(config('filament-shield.super_admin.name')));
+        // Super admin menjangkau semua badan usaha lewat flag, bukan lewat rolenya.
+        $superAdmin = $this->userWithRole(config('filament-shield.super_admin.name'));
+        $this->actingAs($superAdmin);
+        $this->assertFalse($target->fresh()->canBeImpersonated());
+
+        $superAdmin->update(['access_all_business_entities' => true]);
+        $this->actingAs($superAdmin->fresh());
         $this->assertTrue($target->fresh()->canBeImpersonated());
     }
 

@@ -81,6 +81,8 @@ class DatabaseSeeder extends Seeder
                 'email' => env('SEED_SUPER_ADMIN_EMAIL', 'admin@dev.com'),
                 'email_verified_at' => Carbon::now(),
                 'password' => Hash::make($password ?: 'password'),
+                // Tidak ada pengecualian role: jangkauan semua badan usaha lewat flag.
+                'access_all_business_entities' => true,
             ],
         );
     }
