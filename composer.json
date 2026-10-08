@@ -33,6 +33,7 @@
         "league/flysystem-aws-s3-v3": "^3.25.1",
         "opcodesio/log-viewer": "^3.21",
         "pxlrbt/filament-excel": "^3.0",
+        "stechstudio/filament-impersonate": "^5.6",
         "tomatophp/filament-pwa": "^4.0",
         "tomatophp/filament-settings-hub": "^4.0"
     },

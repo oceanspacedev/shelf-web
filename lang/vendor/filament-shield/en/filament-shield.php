@@ -78,5 +78,13 @@ return [
         'replicate' => 'Replicate',
         'export' => 'Export',
         'import' => 'Import',
+        'impersonate' => 'Impersonate',
+        'manage_stock' => 'Manage Stock BA',
+
+        // Custom permissions
+        'view_horizon' => 'View Horizon',
+        'view_log_viewer' => 'View Log Viewer',
+        'download_log_viewer' => 'Download Log Files',
+        'delete_log_viewer' => 'Delete Log Files',
     ],
 ];

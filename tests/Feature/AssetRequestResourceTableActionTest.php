@@ -7,13 +7,18 @@ use App\Enums\RequestStatus;
 use App\Filament\Resources\AssetRequestResource;
 use App\Models\AssetRequest;
 use App\Models\AssetRequestItem;
+use App\Models\User;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Mockery;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AssetRequestResourceTableActionTest extends TestCase
 {
+    use DatabaseTransactions;
+
     public function test_approved_pengadaan_request_has_create_asset_row_action(): void
     {
         $table = AssetRequestResource::table(Table::make(Mockery::mock(HasTable::class)));
@@ -54,6 +59,11 @@ class AssetRequestResourceTableActionTest extends TestCase
 
     public function test_approved_penarikan_request_has_create_return_transfer_row_action(): void
     {
+        // Tindak lanjut penarikan membuat BA Pengembalian: hanya untuk yang boleh membuat BA stok.
+        $generalAffair = User::factory()->create();
+        $generalAffair->assignRole(Role::findOrCreate(User::GENERAL_AFFAIR_ROLE, 'web'));
+        $this->actingAs($generalAffair->fresh());
+
         $table = AssetRequestResource::table(Table::make(Mockery::mock(HasTable::class)));
 
         $this->assertTrue($table->hasAction('fulfillPenarikan'));
@@ -73,6 +83,22 @@ class AssetRequestResourceTableActionTest extends TestCase
 
         $this->assertStringContainsString('/asset-transfers/create', $url);
         $this->assertStringContainsString('asset_request_id=456', $url);
+    }
+
+    public function test_create_return_transfer_row_action_is_hidden_from_users_who_cannot_make_stock_transfers(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $action = AssetRequestResource::table(Table::make(Mockery::mock(HasTable::class)))
+            ->getFlatActions()['fulfillPenarikan'];
+
+        $approvedPenarikan = new AssetRequest([
+            'type' => AssetRequestType::Penarikan,
+            'status' => RequestStatus::Approved,
+            'fulfilled_at' => null,
+        ]);
+
+        $this->assertFalse($action->record($approvedPenarikan)->isVisible());
     }
 
     public function test_approved_perbaikan_request_has_repair_follow_up_row_action(): void

@@ -27,7 +27,7 @@ class AssetTransferDetailExporter extends Exporter
                 ->label('Badan Usaha'),
 
             ExportColumn::make('status')
-                ->label('Status')
+                ->label('Jenis BA')
                 ->state(fn (AssetTransferDetail $record): string => $record->assetTransfer?->status ?? '-'),
 
             ExportColumn::make('assetTransfer.fromUser.name')

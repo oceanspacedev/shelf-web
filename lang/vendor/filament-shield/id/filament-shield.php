@@ -78,5 +78,13 @@ return [
         'restore_any' => 'Kembalikan Semua',
         'export' => 'Ekspor',
         'import' => 'Impor',
+        'impersonate' => 'Login Sebagai',
+        'manage_stock' => 'Kelola BA Stok',
+
+        // Custom permissions
+        'view_horizon' => 'Lihat Horizon',
+        'view_log_viewer' => 'Lihat Log Viewer',
+        'download_log_viewer' => 'Unduh File Log',
+        'delete_log_viewer' => 'Hapus File Log',
     ],
 ];

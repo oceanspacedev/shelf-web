@@ -9,12 +9,16 @@ use App\Models\Asset;
 use App\Models\User;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Mockery;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AssetResourceTableActionTest extends TestCase
 {
+    // Test ini menulis user ke database lokal; rollback agar tidak meninggalkan akun "GA" palsu.
+    use DatabaseTransactions;
+
     public function test_damaged_pending_nbh_asset_has_complete_repair_action(): void
     {
         $table = AssetResource::table(Table::make(Mockery::mock(HasTable::class)));

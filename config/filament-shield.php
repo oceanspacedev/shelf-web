@@ -9,6 +9,7 @@ use App\Filament\Resources\AssetTransferResource;
 use App\Filament\Resources\DivisionResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VehicleChecksheetResource;
+use App\Support\ObservabilityAccess;
 use BezhanSalleh\FilamentShield\Resources\Roles\RoleResource;
 use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
@@ -23,7 +24,7 @@ return [
             'pages' => true,
             'widgets' => true,
             'resources' => true,
-            'custom_permissions' => false,
+            'custom_permissions' => true,
         ],
     ],
 
@@ -64,11 +65,15 @@ return [
             'restoreAny',
             'export',
             'import',
+            'impersonate',
+            'manageStock',
         ],
     ],
 
+    // Custom permission labels (Horizon, Log Viewer) are translated from
+    // lang/vendor/filament-shield/{locale}/filament-shield.php.
     'localization' => [
-        'enabled' => false,
+        'enabled' => true,
         'key' => 'filament-shield::filament-shield.resource_permission_prefixes_labels',
     ],
 
@@ -88,6 +93,8 @@ return [
             ],
             AssetTransferResource::class => [
                 'export',
+                // BA Serah Terima/Pengembalian atas nama staf GA mana pun.
+                'manageStock',
             ],
             DivisionResource::class => [
                 'restore',
@@ -97,6 +104,7 @@ return [
             ],
             UserResource::class => [
                 'import',
+                'impersonate',
             ],
             VehicleChecksheetResource::class => [
                 'export',
@@ -134,7 +142,8 @@ return [
         ],
     ],
 
-    'custom_permissions' => [],
+    // Horizon & Log Viewer access, managed from the Shield role form (Custom tab).
+    'custom_permissions' => ObservabilityAccess::shieldPermissions(),
 
     'discovery' => [
         'discover_all_resources' => false,

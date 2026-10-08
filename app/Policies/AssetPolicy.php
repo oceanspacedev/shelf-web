@@ -23,7 +23,7 @@ class AssetPolicy
      */
     public function view(User $user, Asset $asset): bool
     {
-        return $user->can('view_asset');
+        return $user->can('view_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -39,7 +39,7 @@ class AssetPolicy
      */
     public function update(User $user, Asset $asset): bool
     {
-        return $user->can('update_asset');
+        return $user->can('update_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -47,7 +47,7 @@ class AssetPolicy
      */
     public function delete(User $user, Asset $asset): bool
     {
-        return $user->can('delete_asset');
+        return $user->can('delete_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -63,7 +63,7 @@ class AssetPolicy
      */
     public function forceDelete(User $user, Asset $asset): bool
     {
-        return $user->can('force_delete_asset');
+        return $user->can('force_delete_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -79,7 +79,7 @@ class AssetPolicy
      */
     public function restore(User $user, Asset $asset): bool
     {
-        return $user->can('restore_asset');
+        return $user->can('restore_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -95,7 +95,7 @@ class AssetPolicy
      */
     public function replicate(User $user, Asset $asset): bool
     {
-        return $user->can('replicate_asset');
+        return $user->can('replicate_asset') && $this->withinBusinessEntityScope($user, $asset);
     }
 
     /**
@@ -120,5 +120,15 @@ class AssetPolicy
     public function import(User $user): bool
     {
         return $user->can('import_asset');
+    }
+
+    /**
+     * Record di luar badan usaha yang bisa diakses user ditolak (lihat
+     * Asset::isAccessibleBy). Model yang belum tersimpan, yaitu cek
+     * izin saja, tidak dibatasi.
+     */
+    private function withinBusinessEntityScope(User $user, Asset $asset): bool
+    {
+        return ! $asset->exists || $asset->isAccessibleBy($user);
     }
 }

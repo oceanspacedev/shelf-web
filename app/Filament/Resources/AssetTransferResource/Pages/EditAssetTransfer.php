@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\AssetTransferResource\Pages;
 
+use App\Exceptions\AssetTransferException;
 use App\Filament\Resources\AssetTransferResource;
 use App\Models\AssetTransfer;
+use App\Models\User;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -14,25 +16,69 @@ class EditAssetTransfer extends EditRecord
 {
     protected static string $resource = AssetTransferResource::class;
 
+    /**
+     * Perubahan BA dan mutasi asetnya disimpan bersama: bila aturan siklus
+     * hidup menolak, perubahan BA ikut dibatalkan.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
+
+    /**
+     * Struktur BA (jenis, pihak, badan usaha, aset) sebelum disimpan.
+     *
+     * @var array<int, mixed>|null
+     */
+    protected ?array $structureBeforeSave = null;
+
+    protected function beforeValidate(): void
+    {
+        // Diambil sebelum getState(), yang sudah menyimpan relasi detail.
+        $this->structureBeforeSave = $this->structureOf($this->getRecord());
+    }
+
     protected function afterSave(): void
     {
-        // applyLifecycleToAssets bersifat idempoten: aset yang sudah merefleksikan
-        // transfer (mis. saat hanya mengunggah dokumen / mengoreksi nomor surat)
-        // dilewati oleh guard assetAlreadyReflectsTransfer. Bila admin mengubah
-        // field struktural (from_user/to_user/business_entity) pada BA yang sudah
-        // ter-aplikasi, validasi ensureAssetsCanMove akan menolak -> beri pesan
-        // ramah dan rollback (bukan exception mentah).
+        $record = $this->getRecord();
+
+        // Mengunggah scan BA, mengoreksi nomor surat, atau tanggal tidak boleh
+        // memindahkan aset lagi: aset bisa saja sudah berpindah lewat BA yang
+        // lebih baru.
+        if ($this->structureOf($record) === $this->structureBeforeSave) {
+            return;
+        }
+
+        $actor = auth()->user();
+
         try {
-            $this->record->applyLifecycleToAssets();
-        } catch (\RuntimeException $e) {
+            $record->unsetRelation('details')
+                ->applyLifecycleToAssets(actor: $actor instanceof User ? $actor : null);
+        } catch (AssetTransferException $exception) {
             Notification::make()
                 ->title('Tidak dapat menyimpan perubahan')
-                ->body($e->getMessage())
+                ->body($exception->getMessage())
                 ->danger()
+                ->persistent()
                 ->send();
 
-            throw new Halt;
+            throw (new Halt)->rollBackDatabaseTransaction();
         }
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    protected function structureOf(AssetTransfer $transfer): array
+    {
+        return [
+            $transfer->documentType()?->value,
+            (int) $transfer->business_entity_id,
+            (int) $transfer->from_user_id,
+            (int) $transfer->to_user_id,
+            $transfer->details()
+                ->orderBy('asset_id')
+                ->pluck('asset_id')
+                ->map(fn ($assetId): int => (int) $assetId)
+                ->all(),
+        ];
     }
 
     protected function getHeaderActions(): array

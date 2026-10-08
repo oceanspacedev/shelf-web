@@ -11,13 +11,16 @@ use App\Support\PhoneNumber;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -25,6 +28,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use STS\FilamentImpersonate\Actions\Impersonate;
 
 class UserResource extends Resource
 {
@@ -46,9 +50,13 @@ class UserResource extends Resource
                             ->required()
                             ->maxLength(255),
                         Select::make('business_entity_id')
-                            ->options(BusinessEntity::all()->pluck('name', 'id'))
-                            ->label('Business Entity')
-                            ->searchable(),
+                            ->options(fn (): array => static::businessEntityOptions())
+                            ->label(__('Business Entity'))
+                            ->searchable()
+                            // Scoped admins must place every new user inside an entity they can
+                            // reach, otherwise the record would vanish from their own list.
+                            ->required(fn (string $operation): bool => $operation === 'create' && ! static::viewerHasUnrestrictedAccess())
+                            ->in(fn (): array => array_keys(static::businessEntityOptions())),
                         Select::make('job_title_id')
                             ->options(JobTitle::all()->pluck('title', 'id'))
                             ->label('Job Title')
@@ -103,6 +111,26 @@ class UserResource extends Resource
                             ->preload()
                             ->searchable()
                             ->visible($isSuperAdmin),
+                        // Only super admins grant business-entity access; admins also see
+                        // this section, so it must not hinge on their own (possibly
+                        // unrestricted) access.
+                        Toggle::make('access_all_business_entities')
+                            ->label('Akses semua badan usaha')
+                            ->helperText('Termasuk badan usaha yang dibuat nanti. Matikan untuk membatasi ke badan usaha asal dan yang dicentang di bawah.')
+                            ->live()
+                            ->visible(fn (): bool => static::viewer()->isSuperAdmin()),
+                        CheckboxList::make('accessibleBusinessEntities')
+                            ->label('Akses Badan Usaha')
+                            ->relationship('accessibleBusinessEntities', 'name')
+                            ->helperText('Badan usaha asal pengguna selalu termasuk. Centang badan usaha lain yang boleh dilihat dan dikelola pengguna ini.')
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columns([
+                                'default' => 1,
+                                'sm' => 2,
+                                'lg' => 3,
+                            ])
+                            ->visible(fn (Get $get): bool => static::viewer()->isSuperAdmin() && ! $get('access_all_business_entities')),
                     ])->visible($isSuperAdmin),
             ]);
     }
@@ -112,6 +140,7 @@ class UserResource extends Resource
         $isSuperAdmin = Auth::user()->hasRole('super_admin');
 
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['roles', 'businessEntity', 'accessibleBusinessEntities']))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
@@ -120,9 +149,16 @@ class UserResource extends Resource
                 TextColumn::make('businessEntity.name')
                     ->translateLabel('Business Entity')
                     ->badge()
-                    ->color(fn ($record) => $record->businessEntity->color)
-                    ->getStateUsing(fn ($record) => $record->businessEntity->name ?? null)
+                    ->color(fn ($record) => $record->businessEntity?->color)
+                    ->getStateUsing(fn ($record) => $record->businessEntity?->name)
                     ->toggleable(),
+                TextColumn::make('business_entity_access')
+                    ->label(__('Business Entity Access'))
+                    ->badge()
+                    ->color('gray')
+                    ->getStateUsing(fn (User $record): array => static::businessEntityAccessLabels($record))
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('jobTitle.title')->translateLabel()->sortable()->searchable()->toggleable(),
                 TextColumn::make('employee_id')
                     ->label('Employee ID')
@@ -139,8 +175,12 @@ class UserResource extends Resource
             ])
             ->filters([
                 SelectFilter::make('businessEntity')
-                    ->relationship('businessEntity', 'name')
-                    ->label('Business Entity')
+                    ->relationship(
+                        'businessEntity',
+                        'name',
+                        fn (Builder $query): Builder => static::viewer()->limitToAccessibleBusinessEntities($query, 'business_entities.id'),
+                    )
+                    ->label(__('Business Entity'))
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('jobTitle')
@@ -161,6 +201,8 @@ class UserResource extends Resource
             ->persistSortInSession()
             ->columnToggleFormColumns(2)
             ->actions([
+                Impersonate::make()
+                    ->redirectTo(fn (): string => filament()->getUrl()),
                 EditAction::make(),
             ])
             ->bulkActions([
@@ -187,17 +229,77 @@ class UserResource extends Resource
         ];
     }
 
+    /**
+     * Super admins see everyone. Everyone else never sees a super admin;
+     * users with access to all business entities see the rest, the others
+     * only users inside the business entities they may access (plus their
+     * own account).
+     */
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
+        $viewer = static::viewer();
 
-        if (Auth::user()->hasRole('super_admin')) {
+        if ($viewer->isSuperAdmin()) {
             return $query;
         }
 
-        return $query->whereDoesntHave('roles', function (Builder $query) {
-            $query->where('name', 'super_admin');
+        $query->whereDoesntHave('roles', function (Builder $query): void {
+            $query->where('name', config('filament-shield.super_admin.name', 'super_admin'));
         });
+
+        if ($viewer->hasUnrestrictedBusinessEntityAccess()) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $query) use ($viewer): void {
+            $viewer
+                ->limitToAccessibleBusinessEntities($query, 'users.business_entity_id')
+                ->orWhere($viewer->getQualifiedKeyName(), $viewer->getKey());
+        });
+    }
+
+    protected static function viewer(): User
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User) {
+            abort(403);
+        }
+
+        return $user;
+    }
+
+    protected static function viewerHasUnrestrictedAccess(): bool
+    {
+        return static::viewer()->hasUnrestrictedBusinessEntityAccess();
+    }
+
+    /**
+     * Badges describing every business entity a user can reach.
+     *
+     * @return list<string>
+     */
+    protected static function businessEntityAccessLabels(User $user): array
+    {
+        if ($user->hasUnrestrictedBusinessEntityAccess()) {
+            return ['Semua badan usaha'];
+        }
+
+        return $user->effectiveBusinessEntities()->pluck('name')->all();
+    }
+
+    /**
+     * Business entities the current viewer may assign to a user.
+     *
+     * @return array<int, string>
+     */
+    protected static function businessEntityOptions(): array
+    {
+        return static::viewer()
+            ->limitToAccessibleBusinessEntities(BusinessEntity::query()->orderBy('name'), 'business_entities.id')
+            ->pluck('name', 'id')
+            ->all();
     }
 
     public static function getModelLabel(): string
@@ -242,11 +344,20 @@ class UserResource extends Resource
                         Grid::make(2)
                             ->schema([
                                 TextEntry::make('businessEntity.name')
-                                    ->label('Business Entity')
+                                    ->label(__('Business Entity'))
+                                    ->placeholder('-')
                                     ->columnSpan(1),
                                 TextEntry::make('jobTitle.title')
                                     ->label('Job Title')
+                                    ->placeholder('-')
                                     ->columnSpan(1),
+                                TextEntry::make('business_entity_access')
+                                    ->label(__('Business Entity Access'))
+                                    ->badge()
+                                    ->color('gray')
+                                    ->state(fn (User $record): array => static::businessEntityAccessLabels($record))
+                                    ->placeholder('-')
+                                    ->columnSpan(2),
                             ]),
                     ]),
 

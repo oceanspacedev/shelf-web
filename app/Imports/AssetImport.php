@@ -81,7 +81,7 @@ class AssetImport extends DefaultValueBinder implements ToCollection, WithChunkR
                     ? NbhStatus::None->value
                     : $this->mapNbhStatus($row['status_nbh'] ?? null);
                 $nbhResponsibleId = $isSold ? null : $this->findUserByName($row['penanggung_jawab_nbh'] ?? null);
-                $recipientId = $isSold ? null : $this->findUserByName($row['penerima_aset'] ?? null);
+                $recipientId = $this->recipientIdFor($conditionStatus, $row['penerima_aset'] ?? null);
                 $recipientBusinessEntityId = $isSold ? null : $this->findOrCreateBusinessEntity($row['badan_usaha_penerima'] ?? null);
                 $nbhReportedAt = $isSold ? null : $this->parseDate($row['tanggal_insiden'] ?? null);
                 $saleAuditPayload = $this->buildSaleAuditPayload($row, $conditionStatus, (int) $index);
@@ -161,6 +161,20 @@ class AssetImport extends DefaultValueBinder implements ToCollection, WithChunkR
         }
 
         return (int) $cleaned;
+    }
+
+    /**
+     * Stok (Tersedia) tidak punya pemegang, dan aset terjual sudah keluar dari
+     * inventaris; kolom "penerima aset" hanya berlaku untuk aset yang dipakai
+     * atau sedang dalam insiden.
+     */
+    private function recipientIdFor(string $conditionStatus, mixed $holderName): ?int
+    {
+        if (in_array($conditionStatus, [AssetCondition::Available->value, AssetCondition::Sold->value], true)) {
+            return null;
+        }
+
+        return $this->findUserByName($holderName);
     }
 
     private function findOrCreateBusinessEntity($name): ?int

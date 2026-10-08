@@ -2,8 +2,13 @@
 
 namespace App\Enums;
 
-use App\Models\User;
-
+/**
+ * Jenis berita acara transfer aset. Dipilih secara eksplisit saat BA dibuat
+ * (kolom asset_transfers.document_type), bukan ditebak dari peran pihak.
+ *
+ * Stok adalah aset tanpa pemegang (recipient_id null). Hanya staf dengan role
+ * general_affair yang boleh mengeluarkan aset dari stok atau menerimanya kembali.
+ */
 enum AssetTransferDocumentType: string
 {
     case SerahTerima = 'serah_terima';
@@ -37,40 +42,39 @@ enum AssetTransferDocumentType: string
         };
     }
 
-    public function returnsToGeneralAffair(): bool
+    public function description(): string
+    {
+        return match ($this) {
+            self::SerahTerima => 'Staf GA menyerahkan aset dari stok ke pemegang baru. Aset menjadi Digunakan.',
+            self::PengalihanBarang => 'Pemegang aset mengalihkan aset yang dipegangnya ke orang lain. Aset tetap Digunakan.',
+            self::PengembalianBarang => 'Pemegang aset mengembalikan aset ke staf GA. Aset kembali ke stok dan menjadi Tersedia.',
+        };
+    }
+
+    /**
+     * Aset keluar dari stok (tanpa pemegang) pada dokumen ini.
+     */
+    public function dispatchesFromStock(): bool
+    {
+        return $this === self::SerahTerima;
+    }
+
+    /**
+     * Aset kembali ke stok (tanpa pemegang) pada dokumen ini.
+     */
+    public function returnsToStock(): bool
     {
         return $this === self::PengembalianBarang;
     }
 
-    public static function fromUsers(?User $fromUser, ?User $toUser): ?self
+    public function requiresGeneralAffairFrom(): bool
     {
-        if (! $fromUser || ! $toUser || $fromUser->is($toUser)) {
-            return null;
-        }
+        return $this === self::SerahTerima;
+    }
 
-        $fromIsGeneralAffair = $fromUser->hasRole('general_affair');
-        $toIsGeneralAffair = $toUser->hasRole('general_affair');
-
-        // Identify the main General Affairs department account (ID 2 with username 'adminga' in production, or named 'GA' in tests)
-        $fromIsMainGA = ($fromUser->id === 2 && $fromUser->username === 'adminga') || $fromUser->name === 'GA';
-        $toIsMainGA = ($toUser->id === 2 && $toUser->username === 'adminga') || $toUser->name === 'GA';
-
-        if ($fromIsGeneralAffair && $toIsGeneralAffair) {
-            if ($toIsMainGA) {
-                return self::PengembalianBarang; // Returning to the main GA department
-            }
-            if ($fromIsMainGA) {
-                return self::SerahTerima; // Dispatched from the main GA department to a GA staff
-            }
-            return self::PengalihanBarang; // Transfer between GA staff members
-        }
-
-        return match (true) {
-            $fromIsGeneralAffair && ! $toIsGeneralAffair => self::SerahTerima,
-            ! $fromIsGeneralAffair && ! $toIsGeneralAffair => self::PengalihanBarang,
-            ! $fromIsGeneralAffair && $toIsGeneralAffair => self::PengembalianBarang,
-            default => null,
-        };
+    public function requiresGeneralAffairTo(): bool
+    {
+        return $this === self::PengembalianBarang;
     }
 
     /**

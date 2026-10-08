@@ -91,6 +91,12 @@ class PhoneOtpLoginTest extends TestCase
             $table->id();
             $table->string('name');
         });
+        Schema::create('business_entity_user', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('business_entity_id');
+            $table->unsignedBigInteger('user_id');
+            $table->timestamps();
+        });
         Schema::create('job_titles', function (Blueprint $table): void {
             $table->id();
             $table->string('title');
@@ -137,6 +143,7 @@ class PhoneOtpLoginTest extends TestCase
     {
         $admin = $this->registeredUser();
         $other = User::create(['name' => 'Other']);
+        $this->placeInSameBusinessEntity($admin, $other);
         $this->actingAs($admin);
         Gate::before(fn (): bool => true);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -154,6 +161,7 @@ class PhoneOtpLoginTest extends TestCase
     {
         $admin = $this->registeredUser();
         $other = User::create(['name' => 'Other']);
+        $this->placeInSameBusinessEntity($admin, $other);
         $this->actingAs($admin);
         Gate::before(fn (): bool => true);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -344,6 +352,18 @@ class PhoneOtpLoginTest extends TestCase
             $this->assertSame(1, collect($middleware)->filter(
                 fn (string $candidate): bool => is_a($candidate, $class, true),
             )->count());
+        }
+    }
+
+    /**
+     * Non-super-admin editors only reach users inside their own business entity.
+     */
+    private function placeInSameBusinessEntity(User ...$users): void
+    {
+        $entityId = DB::table('business_entities')->insertGetId(['name' => 'CV Complete']);
+
+        foreach ($users as $user) {
+            $user->forceFill(['business_entity_id' => $entityId])->save();
         }
     }
 

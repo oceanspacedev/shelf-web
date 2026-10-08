@@ -12,7 +12,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     {
         parent::boot();
 
-        Horizon::auth(fn ($request): bool => ObservabilityAccess::allowed($request->user()));
+        Horizon::auth(fn ($request): bool => ObservabilityAccess::canViewHorizon($request->user()));
     }
 
     protected function gate(): void

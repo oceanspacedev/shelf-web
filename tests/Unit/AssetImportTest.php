@@ -30,4 +30,17 @@ class AssetImportTest extends TestCase
         $this->assertSame(0, $payload['sold_price']);
         $this->assertNull($payload['sale_document_path']);
     }
+
+    public function test_stock_and_sold_rows_never_get_a_holder(): void
+    {
+        $import = (new ReflectionClass(AssetImport::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod($import, 'recipientIdFor');
+        $method->setAccessible(true);
+
+        // Baris "Tersedia" dengan penerima "GA" dulu menempel ke akun GA; kini stok tanpa pemegang.
+        $this->assertNull($method->invoke($import, AssetCondition::Available->value, 'GA'));
+        $this->assertNull($method->invoke($import, AssetCondition::Sold->value, 'Siapa Saja'));
+        // Tanpa nama pemegang tidak ada yang dicari di database.
+        $this->assertNull($method->invoke($import, AssetCondition::Transferred->value, null));
+    }
 }

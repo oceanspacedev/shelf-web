@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AssetResource\Widgets;
 
 use App\Enums\AssetCondition;
 use App\Models\Asset;
+use App\Models\User;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Facades\Filament;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
@@ -31,15 +32,19 @@ class CustomAssetWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $availableUnits = Asset::where('condition_status', AssetCondition::Available->value)->count();
-        $transferredUnits = Asset::where('condition_status', AssetCondition::Transferred->value)->count();
-        $soldUnits = Asset::where('condition_status', AssetCondition::Sold->value)->count();
-        $lostUnits = Asset::where('condition_status', AssetCondition::Lost->value)->count();
-        $damagedUnits = Asset::where('condition_status', AssetCondition::Damaged->value)->count();
-        $totalAssets = Asset::count();
-        $activeAssetValue = Asset::whereIn('condition_status', AssetCondition::transferableValues())
+        // Angka mengikuti akses badan usaha pengguna, sama seperti tabel aset.
+        $viewer = Filament::auth()?->user();
+        $assets = fn () => Asset::query()->when($viewer instanceof User, fn ($query) => $query->accessibleBy($viewer));
+
+        $availableUnits = $assets()->where('condition_status', AssetCondition::Available->value)->count();
+        $transferredUnits = $assets()->where('condition_status', AssetCondition::Transferred->value)->count();
+        $soldUnits = $assets()->where('condition_status', AssetCondition::Sold->value)->count();
+        $lostUnits = $assets()->where('condition_status', AssetCondition::Lost->value)->count();
+        $damagedUnits = $assets()->where('condition_status', AssetCondition::Damaged->value)->count();
+        $totalAssets = $assets()->count();
+        $activeAssetValue = $assets()->whereIn('condition_status', AssetCondition::transferableValues())
             ->sum(DB::raw('item_price * qty'));
-        $soldAssetValue = Asset::where('condition_status', AssetCondition::Sold->value)
+        $soldAssetValue = $assets()->where('condition_status', AssetCondition::Sold->value)
             ->sum(DB::raw('item_price * qty'));
 
         return [

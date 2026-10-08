@@ -6,7 +6,9 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Support\PhoneNumber;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -19,9 +21,28 @@ class UserImport implements ToCollection, WithChunkReading
 
     private array $jobTitleCache = [];
 
+    /**
+     * The user running the import. Rows outside their business entities are
+     * skipped; null (CLI, queue) means unrestricted.
+     */
+    private ?User $actor = null;
+
+    /**
+     * ExcelImportAction passes ($model, $attributes, $additionalData); none are needed here.
+     */
     public function __construct()
     {
+        $user = Auth::user();
+        $this->actor = $user instanceof User ? $user : null;
+
         $this->preloadCaches();
+    }
+
+    public function forActor(?User $actor): static
+    {
+        $this->actor = $actor;
+
+        return $this;
     }
 
     private function preloadCaches(): void
@@ -32,6 +53,8 @@ class UserImport implements ToCollection, WithChunkReading
 
     public function collection(Collection $rows)
     {
+        $outsideAccessCount = 0;
+
         DB::beginTransaction();
 
         try {
@@ -51,15 +74,36 @@ class UserImport implements ToCollection, WithChunkReading
                     continue;
                 }
 
+                $businessEntityId = $this->resolveBusinessEntity($entityName);
+                if ($businessEntityId === null) {
+                    Log::warning('Badan usaha di luar akses pengguna yang mengimpor, baris dilewati', [
+                        'baris' => $row,
+                        'actor_id' => $this->actor?->getKey(),
+                    ]);
+                    $outsideAccessCount++;
+
+                    continue;
+                }
+
                 $employeeId = trim((string) ($row[3] ?? ''));
                 $phoneRaw = trim((string) ($row[4] ?? ''));
                 $user = $employeeId !== ''
                     ? User::query()->where('employee_id', $employeeId)->first()
                     : null;
 
+                if ($user && ! $this->canManage($user)) {
+                    Log::warning('User dengan Employee ID ini berada di luar badan usaha yang dapat diakses, baris dilewati', [
+                        'baris' => $row,
+                        'actor_id' => $this->actor?->getKey(),
+                    ]);
+                    $outsideAccessCount++;
+
+                    continue;
+                }
+
                 $payload = [
                     'name' => $name,
-                    'business_entity_id' => $this->findOrCreateBusinessEntity($entityName),
+                    'business_entity_id' => $businessEntityId,
                     'job_title_id' => $this->findOrCreateJobTitle($titleName),
                 ];
 
@@ -113,11 +157,46 @@ class UserImport implements ToCollection, WithChunkReading
 
             throw ValidationException::withMessages(['import' => 'Terjadi kesalahan saat impor pengguna. Silakan periksa log untuk detail lebih lanjut.']);
         }
+
+        // Tanpa ini pengimpor tidak tahu ada baris yang tidak masuk.
+        if ($outsideAccessCount > 0 && $this->actor !== null) {
+            Notification::make()
+                ->title("{$outsideAccessCount} baris user dilewati")
+                ->body('Badan usaha atau user pada baris tersebut berada di luar akses badan usaha Anda.')
+                ->warning()
+                ->persistent()
+                ->send();
+        }
     }
 
     public function chunkSize(): int
     {
         return 500;
+    }
+
+    /**
+     * Unrestricted actors may create new business entities on the fly; scoped
+     * actors can only import into entities they already have access to.
+     */
+    private function resolveBusinessEntity(string $name): ?int
+    {
+        if ($this->actor === null || $this->actor->hasUnrestrictedBusinessEntityAccess()) {
+            return $this->findOrCreateBusinessEntity($name);
+        }
+
+        $name = trim($name);
+        $id = $this->businessEntityCache[$name] ?? BusinessEntity::query()->where('name', $name)->value('id');
+
+        if ($id === null || ! $this->actor->canAccessBusinessEntity($id)) {
+            return null;
+        }
+
+        return $this->businessEntityCache[$name] = (int) $id;
+    }
+
+    private function canManage(User $user): bool
+    {
+        return $this->actor === null || $this->actor->canAccessBusinessEntity($user->business_entity_id);
     }
 
     private function findOrCreateBusinessEntity($name): int

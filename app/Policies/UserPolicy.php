@@ -20,9 +20,9 @@ class UserPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user): bool
+    public function view(User $user, ?User $model = null): bool
     {
-        return $user->can('view_user');
+        return $user->can('view_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
@@ -36,17 +36,17 @@ class UserPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user): bool
+    public function update(User $user, ?User $model = null): bool
     {
-        return $user->can('update_user');
+        return $user->can('update_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user): bool
+    public function delete(User $user, ?User $model = null): bool
     {
-        return $user->can('delete_user');
+        return $user->can('delete_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
@@ -60,9 +60,9 @@ class UserPolicy
     /**
      * Determine whether the user can permanently delete.
      */
-    public function forceDelete(User $user): bool
+    public function forceDelete(User $user, ?User $model = null): bool
     {
-        return $user->can('force_delete_user');
+        return $user->can('force_delete_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
@@ -76,9 +76,9 @@ class UserPolicy
     /**
      * Determine whether the user can restore.
      */
-    public function restore(User $user): bool
+    public function restore(User $user, ?User $model = null): bool
     {
-        return $user->can('restore_user');
+        return $user->can('restore_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
@@ -92,9 +92,9 @@ class UserPolicy
     /**
      * Determine whether the user can bulk restore.
      */
-    public function replicate(User $user): bool
+    public function replicate(User $user, ?User $model = null): bool
     {
-        return $user->can('replicate_user');
+        return $user->can('replicate_user') && $this->withinBusinessEntityScope($user, $model);
     }
 
     /**
@@ -113,5 +113,27 @@ class UserPolicy
         return $user->can('import_user')
             || $user->can('create_user')
             || $user->hasRole(['super_admin', 'admin']);
+    }
+
+    /**
+     * Determine whether the user can impersonate other users.
+     */
+    public function impersonate(User $user): bool
+    {
+        return $user->can('impersonate_user');
+    }
+
+    /**
+     * A record is in scope when it is the user themself or belongs to one of
+     * the business entities the user may access. Permission-only checks
+     * (no record, or an unsaved one) fall through to the permission alone.
+     */
+    private function withinBusinessEntityScope(User $user, ?User $model): bool
+    {
+        if ($model === null || ! $model->exists || $user->is($model)) {
+            return true;
+        }
+
+        return $user->canAccessBusinessEntity($model->business_entity_id);
     }
 }

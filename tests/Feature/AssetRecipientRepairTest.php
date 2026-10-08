@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AssetCondition;
+use App\Enums\AssetTransferDocumentType;
 use App\Enums\NbhStatus;
 use App\Models\Asset;
 use App\Models\AssetTransfer;
@@ -51,6 +52,7 @@ class AssetRecipientRepairTest extends TestCase
 
         $oldTransfer = AssetTransfer::create([
             'business_entity_id' => $oldEntity->id,
+            'document_type' => AssetTransferDocumentType::PengalihanBarang,
             'letter_number' => 'BAST-OLD',
             'from_user_id' => $fromUser->id,
             'to_user_id' => $wrongRecipient->id,
@@ -58,6 +60,7 @@ class AssetRecipientRepairTest extends TestCase
         ]);
         $latestTransfer = AssetTransfer::create([
             'business_entity_id' => $latestEntity->id,
+            'document_type' => AssetTransferDocumentType::PengalihanBarang,
             'letter_number' => 'BAST-NEW',
             'from_user_id' => $wrongRecipient->id,
             'to_user_id' => $latestRecipient->id,
@@ -89,11 +92,11 @@ class AssetRecipientRepairTest extends TestCase
         $this->assertTrue($asset->checkValidRecipient());
     }
 
-    public function test_sync_recipient_marks_asset_available_when_latest_recipient_is_general_affair(): void
+    public function test_sync_recipient_returns_asset_to_stock_when_latest_transfer_is_pengembalian(): void
     {
         $entity = BusinessEntity::create(['name' => 'CV Gudang']);
         $fromUser = User::create(['name' => 'Pengirim']);
-        $generalAffair = User::create(['name' => 'GA']);
+        $generalAffair = User::create(['name' => 'Uwis']);
         Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
         $generalAffair->assignRole('general_affair');
 
@@ -108,7 +111,8 @@ class AssetRecipientRepairTest extends TestCase
 
         $transfer = AssetTransfer::create([
             'business_entity_id' => $entity->id,
-            'letter_number' => 'BAST-GA',
+            'document_type' => AssetTransferDocumentType::PengembalianBarang,
+            'letter_number' => 'BAPEB-GA',
             'from_user_id' => $fromUser->id,
             'to_user_id' => $generalAffair->id,
             'transfer_date' => now(),
@@ -119,39 +123,110 @@ class AssetRecipientRepairTest extends TestCase
             'asset_id' => $asset->id,
         ]);
 
+        $this->assertFalse($asset->fresh()->checkValidRecipient());
         $this->assertTrue($asset->fresh()->syncRecipientFromLatestTransferDetail());
 
         $asset = $asset->fresh();
 
-        $this->assertSame($generalAffair->id, $asset->recipient_id);
+        // Pengembalian memulangkan aset ke stok: tanpa pemegang, bukan ke akun staf GA.
+        $this->assertNull($asset->recipient_id);
+        $this->assertSame($entity->id, $asset->recipient_business_entity_id);
         $this->assertSame(AssetCondition::Available, $asset->condition_status);
         $this->assertSame(1, $asset->getRawOriginal('is_available'));
         $this->assertTrue($asset->checkValidRecipient());
     }
 
-    public function test_available_asset_with_regular_holder_is_invalid(): void
+    public function test_sync_recipient_needs_a_typed_transfer(): void
     {
-        $regularHolder = User::create(['name' => 'Pemegang Regular']);
-        $generalAffair = User::create(['name' => 'GA Valid']);
+        $entity = BusinessEntity::create(['name' => 'CV Gudang']);
+        $fromUser = User::create(['name' => 'Pengirim']);
+        $toUser = User::create(['name' => 'Penerima']);
+
+        $asset = Asset::create([
+            'name' => 'Printer',
+            'condition_status' => AssetCondition::Transferred,
+            'nbh_status' => NbhStatus::None,
+            'recipient_id' => $fromUser->id,
+        ]);
+
+        $transfer = AssetTransfer::create([
+            'business_entity_id' => $entity->id,
+            'letter_number' => 'LEGACY',
+            'from_user_id' => $fromUser->id,
+            'to_user_id' => $toUser->id,
+            'transfer_date' => now(),
+        ]);
+        AssetTransferDetail::create(['asset_transfer_id' => $transfer->id, 'asset_id' => $asset->id]);
+
+        $this->assertFalse($asset->fresh()->syncRecipientFromLatestTransferDetail());
+        $this->assertSame($fromUser->id, $asset->fresh()->recipient_id);
+    }
+
+    public function test_stock_has_no_holder_and_assets_in_use_always_have_one(): void
+    {
+        $holder = User::create(['name' => 'Pemegang Regular']);
+        $generalAffair = User::create(['name' => 'Staf GA']);
         Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
         $generalAffair->assignRole('general_affair');
 
-        $invalidAsset = Asset::create([
+        // Data lama yang ditulis di luar model (Asset::saving kini mengosongkan
+        // pemegang aset Tersedia), jadi disisipkan langsung ke tabel.
+        $availableWithHolder = Asset::findOrFail(DB::table('assets')->insertGetId([
             'name' => 'Aset Available Tapi Dipakai',
+            'condition_status' => AssetCondition::Available->value,
+            'nbh_status' => NbhStatus::None->value,
+            'recipient_id' => $holder->id,
+        ]));
+        $availableWithGeneralAffairHolder = Asset::findOrFail(DB::table('assets')->insertGetId([
+            'name' => 'Aset Available di Akun GA',
+            'condition_status' => AssetCondition::Available->value,
+            'nbh_status' => NbhStatus::None->value,
+            'recipient_id' => $generalAffair->id,
+        ]));
+        $stock = Asset::create([
+            'name' => 'Aset Stok',
             'condition_status' => AssetCondition::Available,
             'nbh_status' => NbhStatus::None,
-            'recipient_id' => $regularHolder->id,
         ]);
-
-        $validAsset = Asset::create([
-            'name' => 'Aset Available di GA',
-            'condition_status' => AssetCondition::Available,
+        $inUseWithoutHolder = Asset::create([
+            'name' => 'Aset Digunakan Tanpa Pemegang',
+            'condition_status' => AssetCondition::Transferred,
+            'nbh_status' => NbhStatus::None,
+        ]);
+        $inUseByGeneralAffairStaff = Asset::create([
+            'name' => 'Laptop Pribadi Staf GA',
+            'condition_status' => AssetCondition::Transferred,
             'nbh_status' => NbhStatus::None,
             'recipient_id' => $generalAffair->id,
         ]);
 
-        $this->assertFalse($invalidAsset->checkValidRecipient());
-        $this->assertTrue($validAsset->checkValidRecipient());
+        $this->assertFalse($availableWithHolder->checkValidRecipient());
+        $this->assertFalse($availableWithGeneralAffairHolder->checkValidRecipient());
+        $this->assertTrue($stock->checkValidRecipient());
+        $this->assertFalse($inUseWithoutHolder->checkValidRecipient());
+        $this->assertTrue($inUseByGeneralAffairStaff->checkValidRecipient());
+    }
+
+    public function test_saving_an_available_asset_always_releases_its_holder(): void
+    {
+        $holder = User::create(['name' => 'Pemegang Lama']);
+
+        $asset = Asset::create([
+            'name' => 'Laptop Dipakai',
+            'condition_status' => AssetCondition::Transferred,
+            'nbh_status' => NbhStatus::None,
+            'recipient_id' => $holder->id,
+        ]);
+
+        // Form aset tidak mengirim pemegang saat kondisi Tersedia (field terkunci).
+        $asset->update(['condition_status' => AssetCondition::Available]);
+        $this->assertNull($asset->fresh()->recipient_id);
+        $this->assertTrue($asset->fresh()->checkValidRecipient());
+
+        $asset->update(['condition_status' => AssetCondition::Transferred, 'recipient_id' => $holder->id]);
+        $asset->update(['is_available' => true]);
+        $this->assertNull($asset->fresh()->recipient_id);
+        $this->assertSame(AssetCondition::Available, $asset->fresh()->condition_status);
     }
 
     protected function createSchema(): void
@@ -207,6 +282,7 @@ class AssetRecipientRepairTest extends TestCase
         Schema::create('asset_transfers', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('business_entity_id');
+            $table->string('document_type', 32)->nullable();
             $table->string('letter_number')->unique();
             $table->unsignedBigInteger('from_user_id');
             $table->unsignedBigInteger('to_user_id');

@@ -417,6 +417,7 @@ class WhatsappAssetIntegrationTest extends TestCase
         Schema::create('asset_transfers', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('business_entity_id');
+            $table->string('document_type', 32)->nullable();
             $table->string('letter_number')->unique();
             $table->unsignedBigInteger('from_user_id');
             $table->unsignedBigInteger('to_user_id');

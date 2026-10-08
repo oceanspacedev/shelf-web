@@ -90,6 +90,15 @@ Hak akses panel ditentukan permission Filament Shield pada masing-masing role, l
 
 `User::canAccessPanel()` mengizinkan masuk `/admin` hanya jika user memiliki minimal satu role. Login memakai field **Username or Email**.
 
+Akses data dibatasi per badan usaha dengan tiga aturan: `super_admin` melihat semua; user dengan flag **Akses semua badan usaha** (`users.access_all_business_entities`) menjangkau semua badan usaha, termasuk yang dibuat nanti; user lain melihat badan usaha asalnya (`users.business_entity_id`) ditambah badan usaha yang dicentang di form user (tabel `business_entity_user`). Role tidak membawa akses badan usaha, dan hanya super admin yang bisa mengubah flag maupun centangan itu. Non-super-admin tidak pernah melihat akun super admin. Migrasi `2026_10_08_000007` menandai semua user panel yang sudah ada dengan flag tersebut agar alur lama tidak berubah; super admin mempersempitnya setelah itu. Pembatasan berlaku pada:
+
+- **Users**, impersonasi, dan import user (baris di luar akses dilewati dan pengimpor diberi notifikasi).
+- **Aset**: terlihat bila badan usaha pemilik, badan usaha penerima (BA terakhir / penanda stok), atau badan usaha pemegangnya termasuk akses (`Asset::scopeAccessibleBy`). Widget statistik aset mengikuti aturan yang sama.
+- **BA (Asset Transfers)**: terlihat bila badan usaha BA termasuk akses; termasuk unduhan PDF. Saat membuat BA, badan usaha dan aset yang bisa dipilih dibatasi, dan `AssetTransfer::applyLifecycleToAssets` menolak aktor yang memindahkan aset di luar aksesnya.
+- **Pengajuan (Asset Requests)**: terlihat bila badan usaha pemohon atau aset yang diajukan termasuk akses; pengajuan sendiri dan yang menunggu persetujuan user selalu terlihat.
+
+Pilihan badan usaha di form Aset, BA, dan pembuatan user cepat memakai `BusinessEntity::optionsFor()`. Policy Aset, BA, dan Pengajuan juga menolak record di luar akses, sehingga URL langsung dan unduhan ikut terlindungi.
+
 ### Akses efektif
 
 | Aktor | Akses utama |
@@ -157,11 +166,17 @@ Operator di `/admin` (resource Asset Requests) men-fulfill sesuai jenis. Pengaju
 
 ### 4. Transfer dan berita acara
 
-Resource Asset Transfers mencatat mutasi pemegang. Jenis dokumen diturunkan dari peran `general_affair`:
+Resource Asset Transfers mencatat mutasi pemegang. Jenis dokumen dipilih eksplisit saat BA dibuat (kolom `document_type`); pemberi dan penerima selalu orang, dan stok adalah aset Tersedia tanpa pemegang:
 
-- **BA** serah terima (dari GA ke non-GA)
-- **BAPAB** pengalihan barang (antar non-GA, atau antar staf GA)
-- **BAPEB** pengembalian barang (ke GA)
+- **BA** serah terima: staf `general_affair` mengeluarkan aset dari stok ke pemegang baru (aset menjadi Digunakan)
+- **BAPAB** pengalihan barang: pemegang mengalihkan aset ke orang lain, termasuk ke staf GA secara pribadi (tetap Digunakan)
+- **BAPEB** pengembalian barang: pemegang mengembalikan aset ke staf `general_affair`; aset kembali ke stok tanpa pemegang (Tersedia)
+
+Pihak GA pada BA staf GA selalu akunnya sendiri: staf GA tidak bisa membuat BA atas nama staf GA lain. Super admin dan pemegang izin Shield **Kelola BA Stok** (`manage_stock_asset::transfer`, diberikan ke role `admin` oleh migrasi `2026_10_08_000008` karena role ini sudah membuat BA stok di alur lama) boleh membuat BA/BAPEB atas nama staf GA mana pun; user lain hanya bisa membuat BAPAB. Aturan ini dipaksa di server (`AssetTransfer::applyLifecycleToAssets` menerima aktor), bukan hanya di form. BA lama diisi jenisnya oleh migrasi `2026_10_08_000005`, dan stok lama (aset Tersedia, aset yang BA terakhirnya pengembalian, serta aset Rusak/Hilang yang dipegang staf GA) dilepas dari akun GA oleh `2026_10_08_000006`. Model `Asset` menjaga invarian stok: aset Tersedia selalu disimpan tanpa pemegang.
+
+Membuat dan mengedit BA berjalan dalam satu transaksi database: bila aturan siklus hidup menolak, BA ikut dibatalkan dan form bisa dikirim ulang. Menyimpan BA tanpa mengubah jenis, pihak, badan usaha, atau daftar aset (mis. mengunggah scan BA yang sudah ditandatangani) tidak memindahkan aset lagi.
+
+Akun GA bersama yang mewakili departemen (default username `adminga`, diatur lewat `GA_SHARED_ACCOUNT_USERNAMES` di `config/asset-transfer.php`) dikosongkan nama dan jabatannya di PDF BA, pengadaan, dan penyelesaian tugas supaya diisi tangan oleh staf GA yang menandatangani.
 
 Unduhan: `GET /asset-transfer/{id}/download`, `GET /pengadaan/{id}/download`, `GET /task-completion/{id}/download` — semua `auth` plus policy `view`.
 

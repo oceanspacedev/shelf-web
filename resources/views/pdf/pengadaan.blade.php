@@ -112,12 +112,8 @@
 
 <body>
     @php
-        $isGa = function ($user) {
-            if (!$user) return false;
-            return $user->id === 2 
-                || in_array(strtolower($user->name), ['ga', 'general affair', 'general_affair']) 
-                || strtolower($user->username ?? '') === 'adminga';
-        };
+        // Akun GA bersama (config/asset-transfer.php): nama & jabatan diisi tangan.
+        $isGa = fn ($user): bool => $user instanceof \App\Models\User && $user->isSharedAccount();
     @endphp
     <div class="header">
         <img src="{{ $headerImage }}" alt="Kop Surat">

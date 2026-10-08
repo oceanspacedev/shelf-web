@@ -6,8 +6,10 @@ use App\Enums\AssetCondition;
 use App\Enums\AssetRequestType;
 use App\Enums\AssetTransferDocumentType;
 use App\Enums\RequestStatus;
+use App\Exceptions\AssetTransferException;
 use App\Services\AssetNotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -259,6 +261,34 @@ class AssetRequest extends Model
     public function publicProgressUrl(): string
     {
         return route('public.asset-requests.show', $this->ensurePublicToken());
+    }
+
+    /**
+     * Pengajuan yang boleh dilihat $user: pemohonnya, atau aset yang diajukan,
+     * berada di badan usaha yang bisa diakses user. Pengajuan sendiri dan yang
+     * perlu disetujui user selalu terlihat supaya alur persetujuan tidak putus.
+     */
+    public function scopeAccessibleBy(Builder $query, User $user): Builder
+    {
+        if ($user->hasUnrestrictedBusinessEntityAccess()) {
+            return $query;
+        }
+
+        $ids = $user->accessibleBusinessEntityIds();
+        $accessibleAsset = fn (Builder $assets): Builder => $assets->accessibleBy($user);
+
+        return $query->where(fn (Builder $scoped): Builder => $scoped
+            ->where($query->qualifyColumn('user_id'), $user->getKey())
+            ->orWhereHas('approvals', fn (Builder $approvals): Builder => $approvals->where('user_id', $user->getKey()))
+            ->orWhereHas('user', fn (Builder $requester): Builder => $requester->whereIn('business_entity_id', $ids))
+            ->orWhereHas('asset', $accessibleAsset)
+            ->orWhereHas('items.asset', $accessibleAsset));
+    }
+
+    public function isAccessibleBy(User $user): bool
+    {
+        return $user->hasUnrestrictedBusinessEntityAccess()
+            || static::query()->withoutGlobalScopes()->whereKey($this->getKey())->accessibleBy($user)->exists();
     }
 
     public function user(): BelongsTo
@@ -754,7 +784,7 @@ class AssetRequest extends Model
         $assetIds = $this->requestedAssetIds();
 
         if ($assetIds === []) {
-            throw new \InvalidArgumentException('Pengajuan penarikan tidak memiliki aset terkait.');
+            throw new AssetTransferException('Pengajuan penarikan tidak memiliki aset terkait.');
         }
 
         $assets = Asset::query()
@@ -764,7 +794,7 @@ class AssetRequest extends Model
         $expectedFromUserId = $assets->first()?->recipient_id ?? $this->user_id;
 
         if ($expectedFromUserId && (int) $assetTransfer->from_user_id !== (int) $expectedFromUserId) {
-            throw new \InvalidArgumentException('Transfer pengembalian harus berasal dari pemegang aset pengajuan ini.');
+            throw new AssetTransferException('Transfer pengembalian harus berasal dari pemegang aset pengajuan ini.');
         }
 
         $transferAssetIds = $assetTransfer->details()
@@ -773,11 +803,11 @@ class AssetRequest extends Model
             ->all();
 
         if (array_values(array_diff($assetIds, $transferAssetIds)) !== []) {
-            throw new \InvalidArgumentException('Transfer pengembalian harus memuat semua aset dari pengajuan ini.');
+            throw new AssetTransferException('Transfer pengembalian harus memuat semua aset dari pengajuan ini.');
         }
 
         if ($assetTransfer->documentType() !== AssetTransferDocumentType::PengembalianBarang) {
-            throw new \InvalidArgumentException('Transfer penarikan harus berupa BAPEB ke General Affairs.');
+            throw new AssetTransferException('Transfer penarikan harus berupa BAPEB ke General Affairs.');
         }
 
         $this->markFulfilled($actor, $assetTransfer->id);
@@ -877,8 +907,8 @@ class AssetRequest extends Model
         if ($assets->isEmpty()) {
             throw new \RuntimeException('Pengajuan penarikan tidak memiliki aset terkait.');
         }
-        if (! $gaUser->hasRole('general_affair')) {
-            throw new AuthorizationException('Penerima pengembalian harus user General Affairs.');
+        if (! $gaUser->isGeneralAffair()) {
+            throw new AuthorizationException('Penerima pengembalian harus staf General Affairs.');
         }
 
         return DB::transaction(function () use ($assets, $gaUser, $actor, $letterNumber) {
@@ -898,6 +928,7 @@ class AssetRequest extends Model
 
             $transfer = AssetTransfer::create([
                 'business_entity_id' => $businessEntityId,
+                'document_type' => AssetTransferDocumentType::PengembalianBarang,
                 'letter_number' => $letterNumber ?? AssetTransfer::generateLetterNumber(
                     $businessEntityId ? BusinessEntity::find($businessEntityId) : null
                 ),
@@ -915,7 +946,7 @@ class AssetRequest extends Model
                 ]);
             }
 
-            $transfer->applyLifecycleToAssets($this);
+            $transfer->applyLifecycleToAssets($this, $actor);
 
             $this->markFulfilled($actor, $transfer->id);
 

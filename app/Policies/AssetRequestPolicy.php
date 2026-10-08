@@ -24,7 +24,7 @@ class AssetRequestPolicy
      */
     public function view(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('view_asset::request');
+        return $user->can('view_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -40,7 +40,7 @@ class AssetRequestPolicy
      */
     public function update(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('update_asset::request');
+        return $user->can('update_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -48,7 +48,7 @@ class AssetRequestPolicy
      */
     public function delete(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('delete_asset::request');
+        return $user->can('delete_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -64,7 +64,7 @@ class AssetRequestPolicy
      */
     public function forceDelete(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('force_delete_asset::request');
+        return $user->can('force_delete_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -80,7 +80,7 @@ class AssetRequestPolicy
      */
     public function restore(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('restore_asset::request');
+        return $user->can('restore_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -96,7 +96,7 @@ class AssetRequestPolicy
      */
     public function replicate(User $user, AssetRequest $assetRequest): bool
     {
-        return $user->can('create_asset::request');
+        return $user->can('create_asset::request') && $this->withinBusinessEntityScope($user, $assetRequest);
     }
 
     /**
@@ -143,5 +143,15 @@ class AssetRequestPolicy
     public function export(User $user): bool
     {
         return $user->can('export_asset::request');
+    }
+
+    /**
+     * Record di luar badan usaha yang bisa diakses user ditolak (lihat
+     * AssetRequest::isAccessibleBy). Model yang belum tersimpan, yaitu cek
+     * izin saja, tidak dibatasi.
+     */
+    private function withinBusinessEntityScope(User $user, AssetRequest $assetRequest): bool
+    {
+        return ! $assetRequest->exists || $assetRequest->isAccessibleBy($user);
     }
 }

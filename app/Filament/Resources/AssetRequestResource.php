@@ -134,7 +134,8 @@ class AssetRequestResource extends Resource
                                             ->maxLength(255),
                                         Forms\Components\Select::make('business_entity_id')
                                             ->label('Perusahaan')
-                                            ->options(fn() => Cache::remember('business_entity_options', 300, fn() => BusinessEntity::orderBy('name')->pluck('name', 'id')->toArray()))
+                                            ->options(fn (): array => BusinessEntity::optionsFor(auth()->user()))
+                                            ->in(fn (): array => array_keys(BusinessEntity::optionsFor(auth()->user())))
                                             ->searchable(),
                                         Forms\Components\Select::make('job_title_id')
                                             ->label('Jabatan')
@@ -791,7 +792,8 @@ class AssetRequestResource extends Resource
                     ->visible(fn(?AssetRequest $record): bool => $record !== null
                         && $record->status === RequestStatus::Approved
                         && !$record->is_fulfilled
-                        && $record->type === AssetRequestType::Penarikan)
+                        && $record->type === AssetRequestType::Penarikan
+                        && AssetTransferResource::viewerMayHandleStock())
                     ->url(fn(AssetRequest $record): string => AssetTransferResource::getUrl('create', [
                         'asset_request_id' => $record->id,
                     ])),
@@ -981,10 +983,14 @@ class AssetRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
+        $viewer = auth()->user();
+
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ])
+            // Akses badan usaha terbatas: lihat AssetRequest::scopeAccessibleBy.
+            ->when($viewer instanceof User, fn (Builder $query): Builder => $query->accessibleBy($viewer))
             // Hindari N+1 pada list: kolom/visible memakai items.asset, user, division,
             // dan approvals (currentPendingApproval / can('approve')).
             ->with([

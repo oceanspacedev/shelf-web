@@ -6,6 +6,7 @@ use App\Models\BusinessEntity;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Support\PhoneNumber;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -14,6 +15,22 @@ use Throwable;
 
 class TalentaUserImportService
 {
+    /**
+     * The user running the import. Rows outside their business entities are
+     * rejected; null (CLI, queue) means unrestricted.
+     */
+    private ?User $actor;
+
+    public function __construct(?User $actor = null)
+    {
+        if ($actor === null) {
+            $authenticated = Auth::user();
+            $actor = $authenticated instanceof User ? $authenticated : null;
+        }
+
+        $this->actor = $actor;
+    }
+
     /** @var list<string> */
     private const EMPLOYEE_ID_KEYS = ['employee_id', 'id_employee', 'emp_id', 'id_karyawan', 'nip'];
 
@@ -200,9 +217,27 @@ class TalentaUserImportService
             throw new RuntimeException('Nama wajib diisi untuk membuat user baru.');
         }
 
+        if ($this->isRestricted() && ! isset($payload['business_entity_id'])) {
+            // Without an entity the new user would be invisible to the importer.
+            $payload['business_entity_id'] = $this->actor?->business_entity_id
+                ?? throw new RuntimeException('Badan usaha wajib diisi untuk membuat user baru.');
+        }
+
         User::create($payload);
 
         return true;
+    }
+
+    private function isRestricted(): bool
+    {
+        return $this->actor !== null && ! $this->actor->hasUnrestrictedBusinessEntityAccess();
+    }
+
+    private function assertCanManage(User $user): void
+    {
+        if ($this->actor !== null && ! $this->actor->canAccessBusinessEntity($user->business_entity_id)) {
+            throw new RuntimeException('User berada di luar badan usaha yang dapat Anda akses.');
+        }
     }
 
     /**
@@ -284,7 +319,10 @@ class TalentaUserImportService
             }
 
             if ($matches->count() === 1) {
-                return $matches->first();
+                $match = $matches->first();
+                $this->assertCanManage($match);
+
+                return $match;
             }
         }
 
@@ -306,7 +344,12 @@ class TalentaUserImportService
             throw new RuntimeException('Nama cocok dengan lebih dari satu user tanpa Employee ID.');
         }
 
-        return $nameMatches->first();
+        $match = $nameMatches->first();
+        if ($match !== null) {
+            $this->assertCanManage($match);
+        }
+
+        return $match;
     }
 
     /**
@@ -432,8 +475,20 @@ class TalentaUserImportService
 
     private function findOrCreateBusinessEntity(string $name): int
     {
+        $name = trim($name);
+
+        if ($this->isRestricted()) {
+            $id = BusinessEntity::query()->where('name', $name)->value('id');
+
+            if ($id === null || ! $this->actor->canAccessBusinessEntity($id)) {
+                throw new RuntimeException("Badan usaha \"{$name}\" berada di luar akses Anda.");
+            }
+
+            return (int) $id;
+        }
+
         return BusinessEntity::firstOrCreate(
-            ['name' => trim($name)],
+            ['name' => $name],
             ['created_at' => now(), 'updated_at' => now()],
         )->id;
     }

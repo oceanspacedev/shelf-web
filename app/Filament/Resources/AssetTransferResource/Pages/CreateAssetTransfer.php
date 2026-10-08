@@ -3,15 +3,20 @@
 namespace App\Filament\Resources\AssetTransferResource\Pages;
 
 use App\Enums\AssetRequestType;
+use App\Enums\AssetTransferDocumentType;
 use App\Enums\RequestStatus;
+use App\Exceptions\AssetTransferException;
 use App\Filament\Resources\AssetRequestResource;
 use App\Filament\Resources\AssetTransferResource;
 use App\Models\AssetRequest;
 use App\Models\AssetTransfer;
 use App\Models\BusinessEntity;
 use App\Models\User;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Support\Facades\DB;
+use Filament\Support\Exceptions\Halt;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Auth;
 
 class CreateAssetTransfer extends CreateRecord
 {
@@ -22,6 +27,13 @@ class CreateAssetTransfer extends CreateRecord
     protected ?AssetRequest $sourceAssetRequest = null;
 
     protected ?int $fulfilledSourceAssetRequestId = null;
+
+    /**
+     * BA, detail aset, dan mutasi aset disimpan dalam satu transaksi: bila
+     * aturan siklus hidup menolak (pihak bukan staf GA, aset tidak di stok,
+     * dan sebagainya) tidak ada BA yatim yang tertinggal.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     public function mount(): void
     {
@@ -38,15 +50,28 @@ class CreateAssetTransfer extends CreateRecord
         $assetRequest->loadMissing('items.asset', 'asset', 'user');
         $assets = $assetRequest->requestedAssets();
         $asset = $assets->first() ?? $assetRequest->asset;
-        $businessEntityId = $asset?->business_entity_id
-            ?? $asset?->recipient_business_entity_id
-            ?? $assetRequest->user?->business_entity_id;
-        $generalAffairUserId = User::whereHas('roles', fn ($query) => $query->where('name', 'general_affair'))
-            ->orderBy('name')
-            ->value('id');
+        $actor = Auth::user();
+
+        // Badan usaha BA: pemilik aset, lalu badan usaha penerima, lalu badan usaha
+        // pemohon; pilih yang pertama bisa diakses pengguna yang login.
+        $candidateEntityIds = array_values(array_filter([
+            $asset?->business_entity_id,
+            $asset?->recipient_business_entity_id,
+            $assetRequest->user?->business_entity_id,
+        ]));
+        $businessEntityId = collect($candidateEntityIds)
+            ->first(fn ($id): bool => ! $actor instanceof User || $actor->canAccessBusinessEntity($id))
+            ?? ($candidateEntityIds[0] ?? null);
+
+        // Penerima pengembalian adalah staf GA yang sedang login; bila yang
+        // membuka halaman bukan staf GA, tawarkan staf GA pertama.
+        $generalAffairUserId = $actor instanceof User && $actor->isGeneralAffair()
+            ? $actor->getKey()
+            : User::query()->generalAffair()->orderBy('name')->value('id');
 
         return [
             'business_entity_id' => $businessEntityId,
+            'document_type' => AssetTransferDocumentType::PengembalianBarang->value,
             'letter_number' => AssetTransfer::generateLetterNumber(
                 $businessEntityId ? BusinessEntity::find($businessEntityId) : null
             ),
@@ -78,27 +103,75 @@ class CreateAssetTransfer extends CreateRecord
     {
         $this->callHook('beforeFill');
 
+        // null (bukan []) agar default field, seperti jenis BA dan staf GA yang
+        // login, tetap diterapkan saat tidak ada pengajuan sumber.
         $this->form->fill(
             ($sourceAssetRequest = $this->getSourceAssetRequest())
                 ? self::prefillDataFromAssetRequest($sourceAssetRequest)
-                : []
+                : null
         );
 
         $this->callHook('afterFill');
     }
 
+    /**
+     * Pihak GA pada BA adalah akun yang sedang login. Field-nya terkunci di
+     * form, tetapi nilainya ditetapkan di sini supaya tidak bergantung pada
+     * apa yang dikirim browser. Super admin dan pemegang izin "Kelola BA Stok"
+     * boleh memilih staf GA lain.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $actor = Auth::user();
+
+        if (! $actor instanceof User || $actor->canManageStockTransfers() || ! $actor->isGeneralAffair()) {
+            return $data;
+        }
+
+        $type = $data['document_type'] ?? null;
+        $type = $type instanceof AssetTransferDocumentType ? $type : AssetTransferDocumentType::tryFrom((string) $type);
+
+        if ($type?->requiresGeneralAffairFrom()) {
+            $data['from_user_id'] = $actor->getKey();
+        }
+
+        if ($type?->requiresGeneralAffairTo()) {
+            $data['to_user_id'] = $actor->getKey();
+        }
+
+        return $data;
+    }
+
     protected function afterCreate(): void
     {
-        DB::transaction(function () {
-            $sourceAssetRequest = $this->getSourceAssetRequest();
+        $sourceAssetRequest = $this->getSourceAssetRequest();
+        $actor = auth()->user();
 
-            if ($sourceAssetRequest && auth()->user() && $this->record instanceof AssetTransfer) {
+        try {
+            if ($sourceAssetRequest && $actor && $this->record instanceof AssetTransfer) {
                 $this->fulfilledSourceAssetRequestId = $sourceAssetRequest->id;
-                $sourceAssetRequest->markFulfilledByAssetTransfer($this->record, auth()->user());
+                $sourceAssetRequest->markFulfilledByAssetTransfer($this->record, $actor);
             }
 
-            $this->record->applyLifecycleToAssets($sourceAssetRequest);
-        });
+            $this->record->applyLifecycleToAssets($sourceAssetRequest, $actor instanceof User ? $actor : null);
+        } catch (AssetTransferException|AuthorizationException $exception) {
+            // BA ini di-rollback. Lepaskan record-nya supaya Livewire tidak
+            // memuat ulang baris yang sudah tidak ada (404) saat form dikirim lagi.
+            $this->record = null;
+            $this->fulfilledSourceAssetRequestId = null;
+
+            Notification::make()
+                ->title('BA tidak dapat dibuat')
+                ->body($exception->getMessage())
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw (new Halt)->rollBackDatabaseTransaction();
+        }
     }
 
     protected function getRedirectUrl(): string
@@ -124,7 +197,10 @@ class CreateAssetTransfer extends CreateRecord
                 : null;
         }
 
-        $assetRequest = AssetRequest::with(['asset', 'user'])->find($this->sourceAssetRequestId);
+        $viewer = Auth::user();
+        $assetRequest = AssetRequest::with(['asset', 'user'])
+            ->when($viewer instanceof User, fn ($query) => $query->accessibleBy($viewer))
+            ->find($this->sourceAssetRequestId);
 
         if (! $assetRequest || ! $this->sourceAssetRequestIsFillable($assetRequest)) {
             return null;

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AssetCondition;
 use App\Enums\AssetRequestType;
+use App\Enums\AssetTransferDocumentType;
 use App\Enums\NbhStatus;
 use App\Enums\RequestStatus;
 use App\Filament\Resources\AssetTransferResource\Pages\CreateAssetTransfer;
@@ -36,13 +37,16 @@ class AssetRequestPenarikanTest extends TestCase
         DB::purge('sqlite');
 
         $this->createSchema();
+
+        // User fixture mewakili user panel lama (akses semua badan usaha);
+        // pembatasan per badan usaha diuji di BusinessEntityScopingTest.
+        User::creating(fn (User $user) => $user->access_all_business_entities ??= true);
     }
 
     public function test_fulfill_penarikan_creates_ba_pengembalian_and_mutates_asset(): void
     {
         $entity = BusinessEntity::create(['name' => 'CV Gudang']);
         $requester = User::create(['name' => 'Pemegang Aset']);
-        $operator = User::create(['name' => 'Operator']);
         $generalAffair = User::create(['name' => 'GA']);
         Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
         $generalAffair->assignRole('general_affair');
@@ -69,7 +73,8 @@ class AssetRequestPenarikanTest extends TestCase
         $this->assertEquals(RequestStatus::Approved, $request->fresh()->status);
         $this->assertFalse($request->fresh()->is_fulfilled);
 
-        $transfer = $request->fulfillPenarikan($generalAffair, $operator, 'BAPEB-TEST-001');
+        // Staf GA yang menerima sekaligus yang menindaklanjuti.
+        $transfer = $request->fulfillPenarikan($generalAffair, $generalAffair, 'BAPEB-TEST-001');
 
         // BA pengembalian terbentuk dengan benar.
         $this->assertSame('BAPEB-TEST-001', $transfer->letter_number);
@@ -79,17 +84,53 @@ class AssetRequestPenarikanTest extends TestCase
 
         $this->assertNotNull(AssetTransferDetail::where('asset_transfer_id', $transfer->id)->where('asset_id', $asset->id)->first());
 
-        // Aset bermutasi: diterima GA -> Available, NBH None.
+        $this->assertSame(AssetTransferDocumentType::PengembalianBarang, $transfer->documentType());
+
+        // Aset bermutasi: kembali ke stok (tanpa pemegang) -> Available, NBH None.
         $asset = $asset->fresh();
-        $this->assertSame($generalAffair->id, $asset->recipient_id);
+        $this->assertNull($asset->recipient_id);
         $this->assertSame(AssetCondition::Available, $asset->condition_status);
         $this->assertSame(NbhStatus::None, $asset->nbh_status);
 
         // Pengajuan ditandai fulfilled & ter-link ke BA.
         $request = $request->fresh();
         $this->assertNotNull($request->fulfilled_at);
-        $this->assertSame($operator->id, $request->fulfilled_by_user_id);
+        $this->assertSame($generalAffair->id, $request->fulfilled_by_user_id);
         $this->assertSame($transfer->id, $request->asset_transfer_id);
+    }
+
+    public function test_fulfill_penarikan_rejects_general_affair_recipient_other_than_the_actor(): void
+    {
+        $entity = BusinessEntity::create(['name' => 'CV Gudang Aktor']);
+        $requester = User::create(['name' => 'Pemegang Aset Aktor']);
+        $generalAffair = User::create(['name' => 'GA Aktor']);
+        $otherGeneralAffair = User::create(['name' => 'GA Lain']);
+        Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
+        $generalAffair->assignRole('general_affair');
+        $otherGeneralAffair->assignRole('general_affair');
+
+        $division = Division::create(['name' => 'Gudang Aktor']);
+
+        $asset = Asset::create([
+            'name' => 'Scanner',
+            'condition_status' => AssetCondition::Transferred,
+            'nbh_status' => NbhStatus::None,
+            'is_available' => false,
+            'recipient_id' => $requester->id,
+            'business_entity_id' => $entity->id,
+        ]);
+
+        $request = AssetRequest::create([
+            'user_id' => $requester->id,
+            'division_id' => $division->id,
+            'type' => AssetRequestType::Penarikan,
+            'asset_id' => $asset->id,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('harus akun Anda sendiri (GA Aktor), bukan "GA Lain"');
+
+        $request->fulfillPenarikan($otherGeneralAffair, $generalAffair, 'BAPEB-AKTOR-001');
     }
 
     public function test_fulfill_penarikan_rejects_non_general_affair_recipient(): void
@@ -126,7 +167,6 @@ class AssetRequestPenarikanTest extends TestCase
     {
         $entity = BusinessEntity::create(['name' => 'CV Gudang 3']);
         $requester = User::create(['name' => 'Pemegang Aset 3']);
-        $operator = User::create(['name' => 'Operator 3']);
         $generalAffair = User::create(['name' => 'GA 3']);
         Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
         $generalAffair->assignRole('general_affair');
@@ -149,10 +189,10 @@ class AssetRequestPenarikanTest extends TestCase
             'asset_id' => $asset->id,
         ]);
 
-        $request->fulfillPenarikan($generalAffair, $operator, 'BAPEB-TEST-003');
+        $request->fulfillPenarikan($generalAffair, $generalAffair, 'BAPEB-TEST-003');
 
         $this->expectException(\RuntimeException::class);
-        $request->fulfillPenarikan($generalAffair, $operator, 'BAPEB-TEST-003B');
+        $request->fulfillPenarikan($generalAffair, $generalAffair, 'BAPEB-TEST-003B');
     }
 
     public function test_asset_transfer_create_page_can_prefill_from_approved_penarikan_request(): void
@@ -182,6 +222,7 @@ class AssetRequestPenarikanTest extends TestCase
         $prefill = CreateAssetTransfer::prefillDataFromAssetRequest($request);
 
         $this->assertSame($entity->id, $prefill['business_entity_id']);
+        $this->assertSame(AssetTransferDocumentType::PengembalianBarang->value, $prefill['document_type']);
         $this->assertSame($requester->id, $prefill['from_user_id']);
         $this->assertSame($generalAffair->id, $prefill['to_user_id']);
         $this->assertSame(now()->toDateString(), $prefill['transfer_date']);
@@ -220,6 +261,7 @@ class AssetRequestPenarikanTest extends TestCase
 
         $transfer = AssetTransfer::create([
             'business_entity_id' => $entity->id,
+            'document_type' => AssetTransferDocumentType::PengembalianBarang,
             'letter_number' => 'BAPEB-FULFILL-001',
             'from_user_id' => $requester->id,
             'to_user_id' => $generalAffair->id,
@@ -248,6 +290,7 @@ class AssetRequestPenarikanTest extends TestCase
             $table->string('email')->nullable();
             $table->string('password')->nullable();
             $table->timestamps();
+            $table->boolean('access_all_business_entities')->default(false);
         });
 
         Schema::create('roles', function (Blueprint $table): void {
@@ -259,6 +302,25 @@ class AssetRequestPenarikanTest extends TestCase
 
         Schema::create('model_has_roles', function (Blueprint $table): void {
             $table->unsignedBigInteger('role_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+        });
+
+        // Izin "Kelola BA Stok" dicek lewat Gate spatie saat aktor bukan pihak GA.
+        Schema::create('permissions', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+        });
+
+        Schema::create('role_has_permissions', function (Blueprint $table): void {
+            $table->unsignedBigInteger('permission_id');
+            $table->unsignedBigInteger('role_id');
+        });
+
+        Schema::create('model_has_permissions', function (Blueprint $table): void {
+            $table->unsignedBigInteger('permission_id');
             $table->string('model_type');
             $table->unsignedBigInteger('model_id');
         });
@@ -321,6 +383,7 @@ class AssetRequestPenarikanTest extends TestCase
         Schema::create('asset_transfers', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('business_entity_id')->nullable();
+            $table->string('document_type', 32)->nullable();
             $table->string('letter_number')->nullable();
             $table->unsignedBigInteger('from_user_id');
             $table->unsignedBigInteger('to_user_id');
@@ -390,7 +453,6 @@ class AssetRequestPenarikanTest extends TestCase
     {
         $entity = BusinessEntity::create(['name' => 'CV Gudang Multi']);
         $requester = User::create(['name' => 'Pemegang Banyak Aset']);
-        $operator = User::create(['name' => 'Operator Multi']);
         $generalAffair = User::create(['name' => 'GA Multi']);
         Role::create(['name' => 'general_affair', 'guard_name' => 'web']);
         $generalAffair->assignRole('general_affair');
@@ -425,7 +487,7 @@ class AssetRequestPenarikanTest extends TestCase
             'qty' => 1,
         ]);
 
-        $transfer = $request->fulfillPenarikan($generalAffair, $operator, 'BAPEB-MULTI-001');
+        $transfer = $request->fulfillPenarikan($generalAffair, $generalAffair, 'BAPEB-MULTI-001');
 
         $this->assertSame('BAPEB-MULTI-001', $transfer->letter_number);
         $this->assertSame($requester->id, $transfer->from_user_id);
@@ -435,8 +497,8 @@ class AssetRequestPenarikanTest extends TestCase
             $transfer->details()->pluck('asset_id')->all(),
         );
 
-        $this->assertSame($generalAffair->id, $laptop->fresh()->recipient_id);
-        $this->assertSame($generalAffair->id, $phone->fresh()->recipient_id);
+        $this->assertNull($laptop->fresh()->recipient_id);
+        $this->assertNull($phone->fresh()->recipient_id);
         $this->assertSame(AssetCondition::Available, $laptop->fresh()->condition_status);
         $this->assertSame(AssetCondition::Available, $phone->fresh()->condition_status);
         $this->assertTrue($request->fresh()->is_fulfilled);

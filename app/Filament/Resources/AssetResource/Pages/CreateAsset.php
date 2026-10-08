@@ -10,6 +10,7 @@ use App\Filament\Resources\AssetResource;
 use App\Models\Asset;
 use App\Models\AssetRequest;
 use App\Models\AssetRequestItem;
+use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateAsset extends CreateRecord
@@ -129,7 +130,10 @@ class CreateAsset extends CreateRecord
                 : null;
         }
 
-        $assetRequest = AssetRequest::find($this->sourceAssetRequestId);
+        $viewer = auth()->user();
+        $assetRequest = AssetRequest::query()
+            ->when($viewer instanceof User, fn ($query) => $query->accessibleBy($viewer))
+            ->find($this->sourceAssetRequestId);
 
         if (! $assetRequest || ! $this->sourceAssetRequestIsFillable($assetRequest)) {
             return null;

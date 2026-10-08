@@ -9,22 +9,68 @@ use Illuminate\Support\Facades\Gate;
 
 final class ObservabilityAccess
 {
+    /**
+     * Shield custom permissions (config/filament-shield.php → custom_permissions).
+     */
+    public const VIEW_HORIZON = 'View:Horizon';
+
+    public const VIEW_LOG_VIEWER = 'View:LogViewer';
+
+    public const DOWNLOAD_LOGS = 'Download:LogViewer';
+
+    public const DELETE_LOGS = 'Delete:LogViewer';
+
+    /**
+     * @return array<string, string>
+     */
+    public static function shieldPermissions(): array
+    {
+        return [
+            self::VIEW_HORIZON => 'View Horizon',
+            self::VIEW_LOG_VIEWER => 'View Log Viewer',
+            self::DOWNLOAD_LOGS => 'Download Log Viewer Files',
+            self::DELETE_LOGS => 'Delete Log Viewer Files',
+        ];
+    }
+
+    /**
+     * Whether the user can open at least one observability tool.
+     */
     public static function allowed(?Authenticatable $user): bool
     {
-        return $user instanceof User
-            && $user->hasRole(config('filament-shield.super_admin.name', 'super_admin'));
+        return self::canViewHorizon($user) || self::canViewLogViewer($user);
+    }
+
+    public static function canViewHorizon(?Authenticatable $user): bool
+    {
+        return self::granted($user, self::VIEW_HORIZON);
+    }
+
+    public static function canViewLogViewer(?Authenticatable $user): bool
+    {
+        return self::granted($user, self::VIEW_LOG_VIEWER);
+    }
+
+    public static function canDownloadLogs(?Authenticatable $user): bool
+    {
+        return self::canViewLogViewer($user) && self::granted($user, self::DOWNLOAD_LOGS);
+    }
+
+    public static function canDeleteLogs(?Authenticatable $user): bool
+    {
+        return self::canViewLogViewer($user) && self::granted($user, self::DELETE_LOGS);
     }
 
     public static function register(): void
     {
-        $gate = fn ($user = null): bool => self::allowed($user instanceof Authenticatable ? $user : null);
+        $user = fn (mixed $user): ?Authenticatable => $user instanceof Authenticatable ? $user : null;
 
-        Gate::define('viewHorizon', $gate);
-        Gate::define('viewLogViewer', $gate);
-        Gate::define('deleteLogFile', $gate);
-        Gate::define('deleteLogFolder', $gate);
-        Gate::define('downloadLogFile', $gate);
-        Gate::define('downloadLogFolder', $gate);
+        Gate::define('viewHorizon', fn ($actor = null): bool => self::canViewHorizon($user($actor)));
+        Gate::define('viewLogViewer', fn ($actor = null): bool => self::canViewLogViewer($user($actor)));
+        Gate::define('downloadLogFile', fn ($actor = null): bool => self::canDownloadLogs($user($actor)));
+        Gate::define('downloadLogFolder', fn ($actor = null): bool => self::canDownloadLogs($user($actor)));
+        Gate::define('deleteLogFile', fn ($actor = null): bool => self::canDeleteLogs($user($actor)));
+        Gate::define('deleteLogFolder', fn ($actor = null): bool => self::canDeleteLogs($user($actor)));
     }
 
     /**
@@ -36,11 +82,24 @@ final class ObservabilityAccess
             NavigationItem::make('Horizon')
                 ->url(url('/'.trim((string) config('horizon.path', 'horizon'), '/')), shouldOpenInNewTab: true)
                 ->icon('heroicon-o-queue-list')
-                ->visible(fn (): bool => self::allowed(auth()->user())),
+                ->visible(fn (): bool => self::canViewHorizon(auth()->user())),
             NavigationItem::make('Log Viewer')
                 ->url(url('/'.trim((string) config('log-viewer.route_path', 'log-viewer'), '/')), shouldOpenInNewTab: true)
                 ->icon('heroicon-o-document-magnifying-glass')
-                ->visible(fn (): bool => self::allowed(auth()->user())),
+                ->visible(fn (): bool => self::canViewLogViewer(auth()->user())),
         ];
+    }
+
+    /**
+     * Super admin keeps access even before the Shield permissions are generated.
+     */
+    private static function granted(?Authenticatable $user, string $permission): bool
+    {
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        return $user->hasRole(config('filament-shield.super_admin.name', 'super_admin'))
+            || $user->checkPermissionTo($permission);
     }
 }

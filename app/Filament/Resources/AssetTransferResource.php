@@ -12,22 +12,26 @@ use App\Models\JobTitle;
 use App\Models\User;
 use App\Support\StoredFile;
 use Carbon\Carbon;
-use Filament\Schemas\Components\Section;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Grid as ComponentsGrid;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Schemas\Components\Section as ComponentSection;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Actions\Action;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -41,6 +45,12 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 class AssetTransferResource extends Resource
 {
     protected static ?string $model = AssetTransfer::class;
+
+    /**
+     * Opsi select pemberi/penerima/aset yang dikirim ke browser per render.
+     * Browser juga hanya menggambar 50 opsi; sisanya lewat pencarian server.
+     */
+    protected const OPTIONS_LIMIT = 50;
 
     public static function getModelLabel(): string
     {
@@ -56,8 +66,18 @@ class AssetTransferResource extends Resource
 
     public static function form(Schema $form): Schema
     {
-        $user = Auth::user();
-        $isSuperAdmin = $user->hasRole('super_admin');
+        $viewer = Auth::user();
+        $isSuperAdmin = $viewer instanceof User && $viewer->isSuperAdmin();
+        $viewerIsGeneralAffair = $viewer instanceof User && $viewer->isGeneralAffair();
+        $viewerId = $viewerIsGeneralAffair ? $viewer->getKey() : null;
+        $lockedOnEdit = fn (string $operation): bool => $operation === 'edit' && ! $isSuperAdmin;
+        // BA yang menyentuh stok (Serah Terima, Pengembalian) hanya untuk staf GA,
+        // super admin, dan pemegang izin "Kelola BA Stok". Pihak GA pada BA staf GA
+        // adalah akunnya sendiri; hanya super admin dan pemegang izin itu yang
+        // boleh memilih staf GA lain. Dipaksa lagi di server oleh
+        // CreateAssetTransfer::mutateFormDataBeforeCreate dan AssetTransfer.
+        $mayHandleStock = $viewer instanceof User && $viewer->canCreateStockTransfers();
+        $generalAffairSideLocked = $viewerIsGeneralAffair && ! $viewer->canManageStockTransfers();
 
         return $form
             ->schema([
@@ -65,105 +85,84 @@ class AssetTransferResource extends Resource
                     ->schema([
                         Section::make('Informasi Transfer')
                             ->schema([
+                                Select::make('document_type')
+                                    ->label('Jenis Berita Acara')
+                                    ->options(fn (string $operation): array => static::documentTypeOptions($operation !== 'create' || $mayHandleStock))
+                                    ->required()
+                                    ->live()
+                                    ->native(false)
+                                    ->default(match (true) {
+                                        $viewerIsGeneralAffair => AssetTransferDocumentType::SerahTerima->value,
+                                        ! $mayHandleStock => AssetTransferDocumentType::PengalihanBarang->value,
+                                        default => null,
+                                    })
+                                    ->disabled($lockedOnEdit)
+                                    ->helperText(fn (Get $get): ?string => static::documentType($get)?->description())
+                                    ->afterStateUpdated(function ($state, Set $set) use ($viewerId): void {
+                                        $type = AssetTransferDocumentType::tryFrom((string) $state);
+
+                                        // Staf GA yang login otomatis menjadi pihak GA pada BA-nya.
+                                        $set('from_user_id', $type?->dispatchesFromStock() ? $viewerId : null);
+                                        $set('to_user_id', $type?->returnsToStock() ? $viewerId : null);
+                                        $set('details', static::defaultDetails($type, $type?->dispatchesFromStock() ? $viewerId : null));
+                                    }),
                                 TextInput::make('letter_number')
                                     ->translateLabel()
-                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
+                                    ->disabled($lockedOnEdit)
                                     ->extraInputAttributes(['readonly' => true]),
                                 Select::make('business_entity_id')
                                     ->translateLabel()
-                                    ->options(fn () => Cache::remember('business_entity_options', 300, fn () => BusinessEntity::orderBy('name')->pluck('name', 'id')))
+                                    ->options(fn (?AssetTransfer $record): array => BusinessEntity::optionsFor($viewer, $record?->business_entity_id))
+                                    ->in(fn (?AssetTransfer $record): array => array_keys(BusinessEntity::optionsFor($viewer, $record?->business_entity_id)))
                                     ->searchable()
                                     ->required()
                                     ->live()
-                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
-                                    ->afterStateUpdated(fn ($state, callable $set) => $set(
+                                    ->disabled($lockedOnEdit)
+                                    ->afterStateUpdated(fn ($state, Set $set) => $set(
                                         'letter_number',
                                         AssetTransfer::generateLetterNumber(BusinessEntity::find($state), null)
                                     )),
                                 Select::make('from_user_id')
-                                    ->relationship('fromUser', 'name')
+                                    ->label(fn (Get $get): string => static::documentType($get)?->dispatchesFromStock()
+                                        ? 'Staf GA yang Menyerahkan'
+                                        : 'Dari Pemegang')
                                     ->required()
-                                    ->translateLabel()
                                     ->live()
                                     ->searchable()
-                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
-                                    ->options(function () {
-                                        return User::whereDoesntHave('roles', function ($query) {
-                                            $query->where('name', 'super_admin');
-                                        })->pluck('name', 'id');
+                                    ->disabled(fn (string $operation, Get $get): bool => $lockedOnEdit($operation)
+                                        || ($generalAffairSideLocked && (bool) static::documentType($get)?->requiresGeneralAffairFrom()))
+                                    ->default($viewerId)
+                                    ->options(fn (Get $get): array => static::partyOptions(static::documentType($get), 'from', $get('to_user_id')))
+                                    ->getSearchResultsUsing(fn (string $search, Get $get): array => static::partyOptions(static::documentType($get), 'from', $get('to_user_id'), $search))
+                                    ->getOptionLabelUsing(fn ($value): ?string => static::userLabel($value))
+                                    ->helperText(fn (Get $get): ?string => match (true) {
+                                        ! static::documentType($get)?->dispatchesFromStock() => null,
+                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya super admin atau pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
+                                        default => 'Hanya staf dengan role general_affair yang bisa mengeluarkan aset dari stok.',
                                     })
-                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                        $set('to_user_id', null);
-                                        $set('details', null);
-
-                                        // Update the asset_id options based on the new from_user_id
-                                        $fromUserId = $get('from_user_id');
-                                        $assets = Asset::query();
-                                        $details = [];
-
-                                        if ($fromUserId) {
-                                            $user = User::find($fromUserId);
-
-                                            if ($user && $user->hasRole('general_affair')) {
-                                                // GA can dispatch any asset that is currently available
-                                                $assets->where('condition_status', AssetCondition::Available->value);
-                                                $details = [['asset_id' => '', 'equipment' => '']];
-                                            } else {
-                                                $assets->where('recipient_id', $fromUserId)
-                                                    ->whereIn('condition_status', AssetCondition::transferableValues())
-                                                    ->notLockedForOpenRequest();
-
-                                                $details = $assets->get()->map(function ($asset) {
-                                                    return ['asset_id' => $asset->id, 'equipment' => ''];
-                                                })->toArray();
-                                            }
+                                    ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                                        if ($state && (int) $state === (int) $get('to_user_id')) {
+                                            $set('to_user_id', null);
                                         }
 
-                                        $set('details', $details);
+                                        $set('details', static::defaultDetails(static::documentType($get), $state));
                                     }),
                                 Select::make('to_user_id')
-                                    ->translateLabel()
-                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
-                                    ->searchable()
-                                    ->preload()
+                                    ->label(fn (Get $get): string => static::documentType($get)?->returnsToStock()
+                                        ? 'Staf GA yang Menerima'
+                                        : 'Ke Penerima')
                                     ->required()
-                                    ->getSearchResultsUsing(function (string $search, callable $get): array {
-                                        $fromUserId = $get('from_user_id');
-
-                                        return User::query()
-                                            ->where('name', 'like', "%{$search}%")
-                                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'super_admin'))
-                                            ->when($fromUserId, fn ($q) => $q->where('id', '!=', $fromUserId))
-                                            ->with('jobTitle')
-                                            ->orderBy('name')
-                                            ->limit(50)
-                                            ->get()
-                                            ->mapWithKeys(function ($user) {
-                                                $jobTitle = $user->jobTitle?->title ?? 'N/A';
-                                                return [$user->id => "{$user->name} - {$jobTitle}"];
-                                            })
-                                            ->toArray();
-                                    })
-                                    ->getOptionLabelUsing(function ($value): ?string {
-                                        $user = User::with('jobTitle')->find($value);
-                                        if (! $user) return null;
-                                        $jobTitle = $user->jobTitle?->title ?? 'N/A';
-                                        return "{$user->name} - {$jobTitle}";
-                                    })
-                                    ->options(function (callable $get) {
-                                        $fromUserId = $get('from_user_id');
-                                        $query = User::query()
-                                            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'super_admin'))
-                                            ->when($fromUserId, fn ($q) => $q->where('id', '!=', $fromUserId));
-
-                                        return $query
-                                            ->with('jobTitle')
-                                            ->orderBy('name')
-                                            ->get()
-                                            ->mapWithKeys(function ($user) {
-                                                $jobTitle = $user->jobTitle?->title ?? 'N/A';
-                                                return [$user->id => "{$user->name} - {$jobTitle}"];
-                                            });
+                                    ->live()
+                                    ->searchable()
+                                    ->disabled(fn (string $operation, Get $get): bool => $lockedOnEdit($operation)
+                                        || ($generalAffairSideLocked && (bool) static::documentType($get)?->requiresGeneralAffairTo()))
+                                    ->options(fn (Get $get): array => static::partyOptions(static::documentType($get), 'to', $get('from_user_id')))
+                                    ->getSearchResultsUsing(fn (string $search, Get $get): array => static::partyOptions(static::documentType($get), 'to', $get('from_user_id'), $search))
+                                    ->getOptionLabelUsing(fn ($value): ?string => static::userLabel($value))
+                                    ->helperText(fn (Get $get): ?string => match (true) {
+                                        ! static::documentType($get)?->returnsToStock() => null,
+                                        $generalAffairSideLocked => 'Terkunci ke akun Anda yang sedang login. Hanya super admin atau pemegang izin Kelola BA Stok yang bisa memilih staf GA lain.',
+                                        default => 'Hanya staf dengan role general_affair yang bisa menerima aset kembali ke stok.',
                                     })
                                     ->createOptionForm([
                                         TextInput::make('name')
@@ -171,7 +170,8 @@ class AssetTransferResource extends Resource
                                             ->required()
                                             ->maxLength(255),
                                         Select::make('business_entity_id')
-                                            ->options(fn () => Cache::remember('business_entity_options', 300, fn () => BusinessEntity::orderBy('name')->pluck('name', 'id')->toArray()))
+                                            ->options(fn (): array => BusinessEntity::optionsFor($viewer))
+                                            ->in(fn (): array => array_keys(BusinessEntity::optionsFor($viewer)))
                                             ->translateLabel()
                                             ->searchable(),
                                         Select::make('job_title_id')
@@ -188,13 +188,10 @@ class AssetTransferResource extends Resource
                                         Cache::forget('user_options');
 
                                         return $user->id;
-                                    })
-                                    ->searchable()
-                                    ->preload()
-                                    ->required(),
+                                    }),
                                 DatePicker::make('transfer_date')
                                     ->native(false)
-                                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
+                                    ->disabled($lockedOnEdit)
                                     ->required(),
                             ])
                             ->columnSpan(1),
@@ -206,55 +203,39 @@ class AssetTransferResource extends Resource
                                     ->prepend(mt_rand(100, 999).'-')
                             )
                             ->columnSpan(1)
-                            ->hidden(fn ($context) => $context === 'create'),
+                            ->hidden(fn (string $operation): bool => $operation === 'create'),
                     ])
                     ->columns(1)
                     ->columnSpan(1),
                 Repeater::make('details')
                     ->relationship('details')
-                    ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
+                    ->disabled($lockedOnEdit)
                     ->schema([
                         Select::make('asset_id')
                             ->live()
                             ->required()
                             ->translateLabel()
                             ->searchable()
-                            ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin)
-                            ->options(function (callable $get) {
-                                $fromUserId = $get('../../from_user_id');
-                                $selectedAssets = collect($get('../../details'))->pluck('asset_id')->filter()->all();
-                                $query = Asset::query();
-
-                                if ($fromUserId) {
-                                    $user = User::find($fromUserId);
-                                    if ($user && $user->hasRole('general_affair')) {
-                                        $query->where('condition_status', AssetCondition::Available->value);
-                                    } else {
-                                        $query->where('recipient_id', $fromUserId)
-                                            ->whereIn('condition_status', AssetCondition::transferableValues());
-                                    }
-                                }
-
-                                // Kunci aset yang sedang diajukan penarikan/perbaikan (belum ditindak lanjuti)
-                                $query->notLockedForOpenRequest();
-
-                                // Exclude already selected assets
-                                if (! empty($selectedAssets)) {
-                                    $query->whereNotIn('id', $selectedAssets);
-                                }
-
-                                return $query->pluck('name', 'id')->toArray();
-                            })
-                            ->getOptionLabelUsing(function ($value) {
-                                return Asset::find($value)?->name;
-                            }),
+                            ->disabled($lockedOnEdit)
+                            ->options(fn (Get $get): array => static::assetOptions(
+                                static::documentType($get, '../../document_type'),
+                                $get('../../from_user_id'),
+                                collect($get('../../details'))->pluck('asset_id')->filter()->all(),
+                            ))
+                            ->getSearchResultsUsing(fn (string $search, Get $get): array => static::assetOptions(
+                                static::documentType($get, '../../document_type'),
+                                $get('../../from_user_id'),
+                                collect($get('../../details'))->pluck('asset_id')->filter()->all(),
+                                $search,
+                            ))
+                            ->getOptionLabelUsing(fn ($value): ?string => Asset::find($value)?->name),
                         TextInput::make('equipment')
                             ->translateLabel()
-                            ->disabled(fn ($context) => $context === 'edit' && ! $isSuperAdmin),
+                            ->disabled($lockedOnEdit),
                     ])
                     ->translateLabel()
                     ->required()
-                    ->hidden(fn (callable $get) => ! $get('from_user_id')) // Hide the repeater when from_user_id is not selected
+                    ->hidden(fn (Get $get): bool => ! static::documentType($get) || ! $get('from_user_id'))
                     ->columns(2)
                     ->columnSpan(2),
             ])->columns(3);
@@ -264,18 +245,18 @@ class AssetTransferResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('businessEntity.name') // Mengambil nama dari relasi businessEntity
+                TextColumn::make('businessEntity.name')
                     ->translateLabel()
                     ->badge()
-                    ->color(fn ($record) => $record->businessEntity->color)
-                    ->getStateUsing(fn ($record) => $record->businessEntity->name)
+                    ->color(fn ($record) => $record->businessEntity?->color)
+                    ->getStateUsing(fn ($record) => $record->businessEntity?->name)
                     ->toggleable(),
-                TextColumn::make('status')
+                TextColumn::make('document_type')
+                    ->label('Jenis BA')
                     ->badge()
-                    ->colors(AssetTransferDocumentType::colors())
-                    ->getStateUsing(function ($record) {
-                        return $record->status;
-                    })
+                    ->formatStateUsing(fn ($state): string => $state instanceof AssetTransferDocumentType ? $state->label() : 'Status Transfer Tidak Valid')
+                    ->color(fn ($state): string => $state instanceof AssetTransferDocumentType ? $state->color() : 'gray')
+                    ->placeholder('Status Transfer Tidak Valid')
                     ->toggleable(),
                 TextColumn::make('letter_number')
                     ->translateLabel()
@@ -295,7 +276,7 @@ class AssetTransferResource extends Resource
                     ->toggleable(),
                 TextColumn::make('transfer_date')->translateLabel()->date()->toggleable(),
                 TextColumn::make('document')
-                    ->url(fn ($record) => $record && $record->document ? StoredFile::url($record->document) : null, true) // Membuat kolom URL untuk unduh
+                    ->url(fn ($record) => $record && $record->document ? StoredFile::url($record->document) : null, true)
                     ->openUrlInNewTab()
                     ->translateLabel()
                     ->getStateUsing(fn ($record) => $record && $record->document ? 'Dokumen' : '-')
@@ -305,12 +286,9 @@ class AssetTransferResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 SelectFilter::make('businessEntity')->relationship('businessEntity', 'name')->translateLabel(),
-                SelectFilter::make('status')
-                    ->label('Status')
-                    ->options(AssetTransferDocumentType::options())
-                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
-                        ? $query->forDocumentType($data['value'])
-                        : $query),
+                SelectFilter::make('document_type')
+                    ->label('Jenis BA')
+                    ->options(AssetTransferDocumentType::options()),
                 SelectFilter::make('fromUser')
                     ->relationship('fromUser', 'name')
                     ->label('Dari Pengguna')
@@ -345,21 +323,33 @@ class AssetTransferResource extends Resource
                         if ($record->document) {
                             Storage::disk('public')->delete($record->document);
                             $record->update(['document' => null]);
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title('Dokumen berhasil dikosongkan')
                                 ->success()
                                 ->send();
                         }
                     }),
-                \Filament\Actions\ViewAction::make(),
-                \Filament\Actions\EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Pengguna dengan akses badan usaha terbatas hanya melihat BA dari badan
+     * usaha yang bisa diaksesnya.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $viewer = auth()->user();
+
+        return $viewer instanceof User ? $query->accessibleBy($viewer) : $query;
     }
 
     public static function getRelations(): array
@@ -383,18 +373,18 @@ class AssetTransferResource extends Resource
     {
         return $infolist
             ->schema([
-                ComponentSection::make('📄 Informasi Transfer Aset')
+                Section::make('📄 Informasi Transfer Aset')
                     ->schema([
-                        ComponentsGrid::make(2) // Membuat grid dengan 2 kolom untuk tampilan yang lebih rapi
+                        Grid::make(2)
                             ->schema([
                                 TextEntry::make('letter_number')
                                     ->label('Nomor Surat')
                                     ->extraAttributes([
-                                        'style' => 'font-weight: bold; color: #1a202c;', // Menggunakan styling khusus
+                                        'style' => 'font-weight: bold; color: #1a202c;',
                                     ]),
                                 TextEntry::make('status')
-                                    ->label('Status Transfer')
-                                    ->badge() // Menambahkan Badge untuk memberikan warna berdasarkan status
+                                    ->label('Jenis Berita Acara')
+                                    ->badge()
                                     ->colors(AssetTransferDocumentType::colors()),
                                 TextEntry::make('fromUser.name')
                                     ->label('Dari Pengguna')
@@ -421,25 +411,181 @@ class AssetTransferResource extends Resource
                                     ->extraAttributes(['style' => 'font-weight:bold;color:#007bff;']),
                             ]),
                     ])
-                    ->columns(2) // Atur kolom agar menampilkan data dalam dua kolom
-                    ->collapsible(), // Bisa diklik untuk membuka atau menutup
-                ComponentSection::make('📦 Detail Aset yang Ditransfer')
+                    ->columns(2)
+                    ->collapsible(),
+                Section::make('📦 Detail Aset yang Ditransfer')
                     ->schema([
                         RepeatableEntry::make('details')
                             ->schema([
-                                ComponentsGrid::make(2)  // Atur dalam 2 kolom
+                                Grid::make(2)
                                     ->schema([
                                         TextEntry::make('asset.name')
                                             ->label('Nama Aset')
-                                            ->extraAttributes(['style' => 'font-weight: bold;']),  // Font lebih tebal untuk nama aset
+                                            ->extraAttributes(['style' => 'font-weight: bold;']),
                                         TextEntry::make('equipment')
                                             ->label('Keterangan Peralatan'),
                                     ]),
                             ])
-                            ->columnSpan(2),  // Luaskan kolom agar detailnya rapi
+                            ->columnSpan(2),
                     ])
-                    ->collapsible()  // Section collapsible
-                    ->columns(2), // Atur agar section ditampilkan dalam 2 kolom
+                    ->collapsible()
+                    ->columns(2),
             ]);
+    }
+
+    /**
+     * Staf GA, super admin, dan pemegang izin "Kelola BA Stok" boleh membuat BA
+     * yang menyentuh stok (Serah Terima, Pengembalian); yang lain hanya
+     * Pengalihan antar pemegang.
+     */
+    public static function viewerMayHandleStock(): bool
+    {
+        $viewer = Auth::user();
+
+        return $viewer instanceof User && $viewer->canCreateStockTransfers();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function documentTypeOptions(bool $mayHandleStock): array
+    {
+        $options = AssetTransferDocumentType::options();
+
+        if ($mayHandleStock) {
+            return $options;
+        }
+
+        $pengalihan = AssetTransferDocumentType::PengalihanBarang->value;
+
+        return [$pengalihan => $options[$pengalihan]];
+    }
+
+    protected static function documentType(Get $get, string $path = 'document_type'): ?AssetTransferDocumentType
+    {
+        $state = $get($path);
+
+        if ($state instanceof AssetTransferDocumentType) {
+            return $state;
+        }
+
+        return AssetTransferDocumentType::tryFrom((string) $state);
+    }
+
+    /**
+     * Calon pemberi atau penerima untuk jenis BA yang dipilih. Sisi yang
+     * mewakili stok dibatasi ke staf general_affair. Opsi ini dievaluasi ulang
+     * setiap render form, jadi dibatasi; user lain dicari lewat pencarian.
+     *
+     * @return array<int, string>
+     */
+    protected static function partyOptions(?AssetTransferDocumentType $type, string $side, mixed $excludeUserId = null, ?string $search = null): array
+    {
+        if (! $type) {
+            return [];
+        }
+
+        $requiresGeneralAffair = $side === 'from'
+            ? $type->requiresGeneralAffairFrom()
+            : $type->requiresGeneralAffairTo();
+
+        return User::query()
+            ->whereDoesntHave('roles', fn (Builder $roles) => $roles->where('name', 'super_admin'))
+            ->when($requiresGeneralAffair, fn (Builder $query) => $query->generalAffair())
+            ->when(filled($excludeUserId), fn (Builder $query) => $query->whereKeyNot($excludeUserId))
+            ->when(filled($search), fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
+            ->with('jobTitle')
+            ->orderBy('name')
+            ->limit(static::OPTIONS_LIMIT)
+            ->get()
+            ->mapWithKeys(fn (User $user): array => [$user->id => static::formatUserLabel($user)])
+            ->all();
+    }
+
+    protected static function userLabel(mixed $userId): ?string
+    {
+        $user = User::with('jobTitle')->find($userId);
+
+        return $user ? static::formatUserLabel($user) : null;
+    }
+
+    protected static function formatUserLabel(User $user): string
+    {
+        return $user->name.' - '.($user->jobTitle?->title ?? 'N/A');
+    }
+
+    /**
+     * Baris detail awal: BA Serah Terima mulai dari satu baris kosong (aset
+     * dipilih dari stok), BA lain memuat semua aset yang dipegang pemberi.
+     *
+     * @return list<array{asset_id: int|null, equipment: null}>
+     */
+    protected static function defaultDetails(?AssetTransferDocumentType $type, mixed $fromUserId): array
+    {
+        if (! $type) {
+            return [];
+        }
+
+        if ($type->dispatchesFromStock()) {
+            return [['asset_id' => null, 'equipment' => null]];
+        }
+
+        if (! $fromUserId) {
+            return [];
+        }
+
+        return static::assetQuery($type, $fromUserId)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Asset $asset): array => ['asset_id' => $asset->id, 'equipment' => null])
+            ->all();
+    }
+
+    /**
+     * Aset yang boleh masuk BA: stok (Tersedia, tanpa pemegang) untuk Serah
+     * Terima, aset yang dipegang pemberi untuk BA lainnya; selalu dibatasi ke
+     * aset yang bisa diakses pengguna yang login.
+     */
+    protected static function assetQuery(AssetTransferDocumentType $type, mixed $fromUserId): Builder
+    {
+        $viewer = Auth::user();
+        $query = Asset::query()
+            ->notLockedForOpenRequest()
+            ->when($viewer instanceof User, fn (Builder $query): Builder => $query->accessibleBy($viewer));
+
+        if ($type->dispatchesFromStock()) {
+            return $query
+                ->where('condition_status', AssetCondition::Available->value)
+                ->whereNull('recipient_id');
+        }
+
+        return $query
+            ->where('recipient_id', $fromUserId)
+            ->whereIn('condition_status', AssetCondition::transferableValues());
+    }
+
+    /**
+     * Opsi aset per baris detail, dievaluasi ulang setiap render form. Dibatasi
+     * supaya stok yang besar tidak dikirim utuh ke browser; aset lain dicari
+     * lewat nama atau serial number.
+     *
+     * @param  list<int|string>  $selectedAssetIds
+     * @return array<int, string>
+     */
+    protected static function assetOptions(?AssetTransferDocumentType $type, mixed $fromUserId, array $selectedAssetIds, ?string $search = null): array
+    {
+        if (! $type || (! $type->dispatchesFromStock() && ! $fromUserId)) {
+            return [];
+        }
+
+        return static::assetQuery($type, $fromUserId)
+            ->when($selectedAssetIds !== [], fn (Builder $query) => $query->whereNotIn('id', $selectedAssetIds))
+            ->when(filled($search), fn (Builder $query) => $query->where(fn (Builder $match) => $match
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('serial_number', 'like', "%{$search}%")))
+            ->orderBy('name')
+            ->limit(static::OPTIONS_LIMIT)
+            ->pluck('name', 'id')
+            ->all();
     }
 }

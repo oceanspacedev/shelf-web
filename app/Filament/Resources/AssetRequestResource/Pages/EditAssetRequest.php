@@ -186,7 +186,7 @@ class EditAssetRequest extends EditRecord
                     ->label('Lanjutkan: Buat BA')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('success')
-                    ->visible(fn () => $this->canFulfill(AssetRequestType::Penarikan))
+                    ->visible(fn () => $this->canFulfill(AssetRequestType::Penarikan) && AssetTransferResource::viewerMayHandleStock())
                     ->url(fn (): string => AssetTransferResource::getUrl('create', [
                         'asset_request_id' => $this->getRecord()->id,
                     ])),

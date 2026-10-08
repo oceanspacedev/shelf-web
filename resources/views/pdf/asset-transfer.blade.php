@@ -116,12 +116,10 @@
 <body>
     @php
         $documentType = $assetTransfer->documentType();
-        $isGa = function ($user) {
-            if (!$user) return false;
-            return $user->id === 2 
-                || in_array(strtolower($user->name), ['ga', 'general affair', 'general_affair']) 
-                || strtolower($user->username ?? '') === 'adminga';
-        };
+        // Akun GA bersama mewakili departemen, bukan orang: nama & jabatannya
+        // dikosongkan supaya diisi tangan oleh staf GA yang menandatangani.
+        $partyName = fn ($user): string => $user && ! $user->isSharedAccount() ? (string) $user->name : '';
+        $partyTitle = fn ($user): string => $user && ! $user->isSharedAccount() ? (string) optional($user->jobTitle)->title : '';
     @endphp
 
     <div class="header">
@@ -138,12 +136,12 @@
                 <tr>
                     <td style="width: 10%;">Nama</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 79%;"><strong>{{ $isGa($assetTransfer->toUser) ? '' : $assetTransfer->toUser->name }}</strong></td>
+                    <td style="width: 79%;"><strong>{{ $partyName($assetTransfer->toUser) }}</strong></td>
                 </tr>
                 <tr>
                     <td style="width: 10%;">Jabatan</td>
                     <td style="width: 1%;">:</td>
-                    <td style="width: 79%;">{{ $isGa($assetTransfer->toUser) ? '' : optional($assetTransfer->toUser->jobTitle)->title }}</td>
+                    <td style="width: 79%;">{{ $partyTitle($assetTransfer->toUser) }}</td>
                 </tr>
             </table>
 
@@ -153,12 +151,12 @@
                     <tr>
                         <td style="width: 10%;">Nama</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;"><strong>{{ $isGa($assetTransfer->fromUser) ? '' : $assetTransfer->fromUser->name }}</strong></td>
+                        <td style="width: 79%;"><strong>{{ $partyName($assetTransfer->fromUser) }}</strong></td>
                     </tr>
                     <tr>
                         <td style="width: 10%;">Jabatan</td>
                         <td style="width: 1%;">:</td>
-                        <td style="width: 79%;">{{ $isGa($assetTransfer->fromUser) ? '' : optional($assetTransfer->fromUser->jobTitle)->title }}</td>
+                        <td style="width: 79%;">{{ $partyTitle($assetTransfer->fromUser) }}</td>
                     </tr>
                 </table>
             @endif
@@ -218,12 +216,12 @@
                 <td>
                     <p>Penerima</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $isGa($assetTransfer->toUser) ? '' : $assetTransfer->toUser->name }}</strong></p>
+                    <p><strong>{{ $partyName($assetTransfer->toUser) }}</strong></p>
                 </td>
                 <td>
                     <p>Pemberi</p>
                     <div class="signature-space"></div>
-                    <p><strong>{{ $isGa($assetTransfer->fromUser) ? '' : $assetTransfer->fromUser->name }}</strong></p>
+                    <p><strong>{{ $partyName($assetTransfer->fromUser) }}</strong></p>
                 </td>
                 @if ($documentType === \App\Enums\AssetTransferDocumentType::PengembalianBarang)
                     <td>

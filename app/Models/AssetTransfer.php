@@ -5,18 +5,26 @@ namespace App\Models;
 use App\Enums\AssetCondition;
 use App\Enums\AssetTransferDocumentType;
 use App\Enums\NbhStatus;
+use App\Exceptions\AssetTransferException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use RuntimeException;
 
+/**
+ * Berita acara transfer aset. Jenis dokumen (document_type) dipilih eksplisit;
+ * pemberi dan penerima selalu orang. Stok direpresentasikan sebagai aset tanpa
+ * pemegang, sehingga BA Serah Terima mengeluarkan aset dari stok dan BA
+ * Pengembalian memulangkannya ke stok.
+ */
 class AssetTransfer extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'business_entity_id',
+        'document_type',
         'letter_number',
         'from_user_id',
         'to_user_id',
@@ -24,32 +32,26 @@ class AssetTransfer extends Model
         'transfer_date',
     ];
 
-    // Relasi ke tabel business_entities
-    public function businessEntity()
+    protected $casts = [
+        'document_type' => AssetTransferDocumentType::class,
+    ];
+
+    public function businessEntity(): BelongsTo
     {
         return $this->belongsTo(BusinessEntity::class);
     }
 
-    // Relasi ke tabel assets
-    public function asset()
-    {
-        return $this->belongsTo(Asset::class);
-    }
-
-    // Relasi ke tabel asset_transfer_details
     public function details(): HasMany
     {
         return $this->hasMany(AssetTransferDetail::class);
     }
 
-    // Relasi ke tabel users untuk from_user_id
-    public function fromUser()
+    public function fromUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'from_user_id');
     }
 
-    // Relasi ke tabel users untuk to_user_id
-    public function toUser()
+    public function toUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }
@@ -79,7 +81,7 @@ class AssetTransfer extends Model
                 }
                 $prefix = strtoupper($initials);
             }
-            $format = $prefix . '/';
+            $format = $prefix.'/';
         }
 
         if ($newNumber === null) {
@@ -91,7 +93,7 @@ class AssetTransfer extends Model
             if ($lastTransfer && str_starts_with($lastTransfer->letter_number, $format)) {
                 $lastNumber = (int) preg_replace('/\D/', '', substr($lastTransfer->letter_number, -6));
             }
-            
+
             do {
                 $lastNumber++;
                 $newNumberStr = str_pad($lastNumber, 6, '0', STR_PAD_LEFT);
@@ -105,18 +107,9 @@ class AssetTransfer extends Model
         return "{$format}{$newNumber}";
     }
 
-    public function scopeGeneralAffair($query)
-    {
-        return $query->whereHas('roles', function ($q) {
-            $q->where('name', 'general_affair');
-        });
-    }
-
     public function documentType(): ?AssetTransferDocumentType
     {
-        $this->loadMissing('fromUser.roles', 'toUser.roles');
-
-        return AssetTransferDocumentType::fromUsers($this->fromUser, $this->toUser);
+        return $this->document_type;
     }
 
     public function documentCode(): string
@@ -144,47 +137,41 @@ class AssetTransfer extends Model
             return $query;
         }
 
-        $hasGeneralAffairRole = fn (Builder $roleQuery): Builder => $roleQuery->where('name', 'general_affair');
-
-        $isMainGaUser = fn (Builder $userQuery): Builder => $userQuery->where(function (Builder $u) {
-            $u->where('id', 2)->where('username', 'adminga');
-        })->orWhere('name', 'GA');
-
-        return match ($type) {
-            AssetTransferDocumentType::SerahTerima => $query
-                ->whereHas('fromUser.roles', $hasGeneralAffairRole)
-                ->where(function (Builder $q) use ($hasGeneralAffairRole, $isMainGaUser) {
-                    $q->whereDoesntHave('toUser.roles', $hasGeneralAffairRole)
-                        ->orWhere(function (Builder $sub) use ($hasGeneralAffairRole, $isMainGaUser) {
-                            $sub->whereHas('toUser.roles', $hasGeneralAffairRole)
-                                ->whereDoesntHave('toUser', $isMainGaUser);
-                        });
-                }),
-            AssetTransferDocumentType::PengalihanBarang => $query
-                ->whereDoesntHave('fromUser.roles', $hasGeneralAffairRole)
-                ->whereDoesntHave('toUser.roles', $hasGeneralAffairRole),
-            AssetTransferDocumentType::PengembalianBarang => $query
-                ->where(function (Builder $q) use ($hasGeneralAffairRole, $isMainGaUser) {
-                    $q->where(function (Builder $sub) use ($hasGeneralAffairRole) {
-                        $sub->whereDoesntHave('fromUser.roles', $hasGeneralAffairRole)
-                            ->whereHas('toUser.roles', $hasGeneralAffairRole);
-                    })->orWhere(function (Builder $sub) use ($hasGeneralAffairRole, $isMainGaUser) {
-                        $sub->whereHas('fromUser.roles', $hasGeneralAffairRole)
-                            ->whereHas('toUser', $isMainGaUser);
-                    });
-                }),
-        };
+        return $query->where('document_type', $type->value);
     }
 
-    public function applyLifecycleToAssets(?AssetRequest $sourceAssetRequest = null): void
+    /**
+     * BA yang boleh dilihat $user: badan usaha BA termasuk akses user.
+     */
+    public function scopeAccessibleBy(Builder $query, User $user): Builder
+    {
+        return $user->limitToAccessibleBusinessEntities($query, $query->qualifyColumn('business_entity_id'));
+    }
+
+    public function isAccessibleBy(User $user): bool
+    {
+        return $user->canAccessBusinessEntity($this->business_entity_id);
+    }
+
+    /**
+     * Mutasi pemegang dan kondisi aset sesuai jenis BA. Idempoten: aset yang
+     * sudah merefleksikan BA ini dilewati.
+     *
+     * $actor adalah akun yang sedang membuat BA; bila diberikan, pihak GA pada
+     * BA harus akun itu sendiri (lihat ensureGeneralAffairPartyIsActor).
+     */
+    public function applyLifecycleToAssets(?AssetRequest $sourceAssetRequest = null, ?User $actor = null): void
     {
         $documentType = $this->documentType();
 
         if (! $documentType) {
-            throw new RuntimeException('Alur transfer aset tidak valid untuk kombinasi pemberi dan penerima ini.');
+            throw new AssetTransferException('Jenis berita acara belum ditentukan.');
         }
 
-        $this->loadMissing('details.asset.recipient');
+        $this->loadMissing('details.asset', 'fromUser', 'toUser');
+        $this->ensurePartiesMatchDocumentType($documentType);
+        $this->ensureGeneralAffairPartyIsActor($documentType, $actor);
+        $this->ensureActorCanReach($actor);
         $this->ensureAssetsCanMove($documentType, $sourceAssetRequest);
 
         foreach ($this->details as $detail) {
@@ -194,7 +181,7 @@ class AssetTransfer extends Model
                 continue;
             }
 
-            $asset->recipient_id = $this->to_user_id;
+            $asset->recipient_id = $documentType->returnsToStock() ? null : $this->to_user_id;
             $asset->recipient_business_entity_id = $this->business_entity_id;
             $asset->condition_status = $this->conditionAfterTransfer($documentType);
 
@@ -207,10 +194,101 @@ class AssetTransfer extends Model
         }
     }
 
+    protected function ensurePartiesMatchDocumentType(AssetTransferDocumentType $documentType): void
+    {
+        if (! $this->fromUser || ! $this->toUser) {
+            throw new AssetTransferException('Pemberi dan penerima BA wajib diisi.');
+        }
+
+        if ($this->fromUser->is($this->toUser)) {
+            throw new AssetTransferException('Pemberi dan penerima BA tidak boleh orang yang sama.');
+        }
+
+        if ($documentType->requiresGeneralAffairFrom() && ! $this->fromUser->isGeneralAffair()) {
+            throw new AssetTransferException(sprintf(
+                'BA Serah Terima harus dibuat oleh staf General Affairs; "%s" bukan staf GA.',
+                $this->fromUser->name,
+            ));
+        }
+
+        if ($documentType->requiresGeneralAffairTo() && ! $this->toUser->isGeneralAffair()) {
+            throw new AssetTransferException(sprintf(
+                'Penerima BA Pengembalian harus staf General Affairs; "%s" bukan staf GA.',
+                $this->toUser->name,
+            ));
+        }
+    }
+
+    /**
+     * Pihak GA pada BA adalah akun yang sedang membuatnya: staf GA tidak bisa
+     * membuat BA atas nama staf GA lain, dan yang bukan staf GA tidak bisa
+     * membuat BA yang menyentuh stok. Super admin dan pemegang izin "Kelola BA
+     * Stok" dikecualikan. Tanpa aktor (proses latar) aturan ini tidak dicek.
+     */
+    protected function ensureGeneralAffairPartyIsActor(AssetTransferDocumentType $documentType, ?User $actor): void
+    {
+        if ($actor === null) {
+            return;
+        }
+
+        $generalAffairParty = match (true) {
+            $documentType->requiresGeneralAffairFrom() => $this->fromUser,
+            $documentType->requiresGeneralAffairTo() => $this->toUser,
+            default => null,
+        };
+
+        // Pengalihan tidak punya pihak GA; staf GA boleh selalu bertindak atas
+        // nama sendiri (ensurePartiesMatchDocumentType sudah memastikan pihak GA
+        // memang staf GA).
+        if ($generalAffairParty === null || $generalAffairParty->is($actor) || $actor->canManageStockTransfers()) {
+            return;
+        }
+
+        $label = ucwords(strtolower($documentType->label()));
+
+        if (! $actor->isGeneralAffair()) {
+            throw new AssetTransferException(sprintf(
+                'Hanya staf General Affairs, super admin, atau pemegang izin Kelola BA Stok yang bisa membuat %s.',
+                $label,
+            ));
+        }
+
+        throw new AssetTransferException(sprintf(
+            'Pihak GA pada %s harus akun Anda sendiri (%s), bukan "%s".',
+            $label,
+            $actor->name,
+            $generalAffairParty->name,
+        ));
+    }
+
+    /**
+     * Aktor dengan akses badan usaha terbatas hanya bisa membuat BA di badan
+     * usaha yang bisa diaksesnya, untuk aset yang bisa diaksesnya.
+     */
+    protected function ensureActorCanReach(?User $actor): void
+    {
+        if ($actor === null || $actor->hasUnrestrictedBusinessEntityAccess()) {
+            return;
+        }
+
+        if (! $this->isAccessibleBy($actor)) {
+            throw new AssetTransferException('Badan usaha BA ini berada di luar akses badan usaha Anda.');
+        }
+
+        foreach ($this->details as $detail) {
+            if ($detail->asset && ! $detail->asset->isAccessibleBy($actor)) {
+                throw new AssetTransferException(sprintf(
+                    'Aset "%s" berada di luar badan usaha yang bisa Anda akses.',
+                    $detail->asset->name,
+                ));
+            }
+        }
+    }
+
     protected function ensureAssetsCanMove(AssetTransferDocumentType $documentType, ?AssetRequest $sourceAssetRequest = null): void
     {
         if ($this->details->isEmpty()) {
-            throw new RuntimeException('BA transfer wajib memiliki minimal satu aset.');
+            throw new AssetTransferException('BA transfer wajib memiliki minimal satu aset.');
         }
 
         $assetIds = $this->details
@@ -220,14 +298,14 @@ class AssetTransfer extends Model
             ->values();
 
         if ($assetIds->count() !== $assetIds->unique()->count()) {
-            throw new RuntimeException('Aset dalam BA transfer tidak boleh duplikat.');
+            throw new AssetTransferException('Aset dalam BA transfer tidak boleh duplikat.');
         }
 
         foreach ($this->details as $detail) {
             $asset = $detail->asset;
 
             if (! $detail->asset_id || ! $asset) {
-                throw new RuntimeException('Detail BA transfer memuat aset yang tidak ditemukan.');
+                throw new AssetTransferException('Detail BA transfer memuat aset yang tidak ditemukan.');
             }
 
             if ($this->assetAlreadyReflectsTransfer($asset, $documentType)) {
@@ -235,7 +313,7 @@ class AssetTransfer extends Model
             }
 
             if (! ($asset->condition_status instanceof AssetCondition) || ! $asset->condition_status->isTransferable()) {
-                throw new RuntimeException(sprintf(
+                throw new AssetTransferException(sprintf(
                     'Aset "%s" tidak bisa ditransfer karena statusnya %s.',
                     $asset->name,
                     $asset->condition_status_label,
@@ -243,20 +321,20 @@ class AssetTransfer extends Model
             }
 
             if ($asset->hasOpenAssetRequestLock($sourceAssetRequest?->id)) {
-                throw new RuntimeException(sprintf(
+                throw new AssetTransferException(sprintf(
                     'Aset "%s" sedang dalam pengajuan aktif dan belum bisa ditransfer.',
                     $asset->name,
                 ));
             }
 
-            if ($documentType === AssetTransferDocumentType::SerahTerima) {
-                $this->ensureAssetCanBeDispatchedFromGeneralAffair($asset);
+            if ($documentType->dispatchesFromStock()) {
+                $this->ensureAssetIsInStock($asset);
 
                 continue;
             }
 
             if ((int) $asset->recipient_id !== (int) $this->from_user_id) {
-                throw new RuntimeException(sprintf(
+                throw new AssetTransferException(sprintf(
                     'Aset "%s" bukan milik pemberi transfer.',
                     $asset->name,
                 ));
@@ -266,31 +344,39 @@ class AssetTransfer extends Model
 
     protected function assetAlreadyReflectsTransfer(Asset $asset, AssetTransferDocumentType $documentType): bool
     {
-        return (int) $asset->recipient_id === (int) $this->to_user_id
+        $expectedRecipientId = $documentType->returnsToStock() ? 0 : (int) $this->to_user_id;
+
+        return (int) ($asset->recipient_id ?? 0) === $expectedRecipientId
             && (int) ($asset->recipient_business_entity_id ?? 0) === (int) ($this->business_entity_id ?? 0)
             && $asset->condition_status === $this->conditionAfterTransfer($documentType);
     }
 
     protected function conditionAfterTransfer(AssetTransferDocumentType $documentType): AssetCondition
     {
-        return $documentType->returnsToGeneralAffair()
+        return $documentType->returnsToStock()
             ? AssetCondition::Available
             : AssetCondition::Transferred;
     }
 
-    protected function ensureAssetCanBeDispatchedFromGeneralAffair(Asset $asset): void
+    /**
+     * Stok = Tersedia dan tanpa pemegang.
+     */
+    protected function ensureAssetIsInStock(Asset $asset): void
     {
         if ($asset->condition_status !== AssetCondition::Available) {
-            throw new RuntimeException(sprintf(
-                'Aset "%s" harus berstatus Tersedia sebelum diserahterimakan dari General Affairs.',
+            throw new AssetTransferException(sprintf(
+                'Aset "%s" harus berstatus Tersedia sebelum diserahterimakan dari stok.',
                 $asset->name,
             ));
         }
 
-        if ($asset->recipient_id && ! Asset::userHasGeneralAffairRole($asset->recipient)) {
-            throw new RuntimeException(sprintf(
-                'Aset "%s" masih tercatat pada pemegang non-General Affairs.',
+        if ($asset->recipient_id) {
+            $asset->loadMissing('recipient');
+
+            throw new AssetTransferException(sprintf(
+                'Aset "%s" masih tercatat dipegang %s. Buat BA Pengembalian lebih dulu agar aset kembali ke stok.',
                 $asset->name,
+                $asset->recipient?->name ?? 'pengguna lain',
             ));
         }
     }

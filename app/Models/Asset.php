@@ -20,7 +20,21 @@ class Asset extends Model
 
     protected static function booted(): void
     {
+        // Stok (Tersedia) tidak pernah punya pemegang, lewat jalur mana pun aset
+        // disimpan: form yang field pemegangnya terkunci atau tersembunyi (tidak
+        // ikut tersimpan), setIsAvailableAttribute(true), import, dan sebagainya.
+        static::saving(function (Asset $asset): void {
+            if ($asset->condition_status === AssetCondition::Available && $asset->recipient_id !== null) {
+                $asset->recipient_id = null;
+            }
+        });
+
         static::created(function (Asset $asset): void {
+            // Test fixtures may build the asset schema without the QR tables.
+            if (! Schema::hasTable('asset_qrs')) {
+                return;
+            }
+
             app(\App\Services\AssetQrService::class)->ensureForAsset($asset);
         });
     }
@@ -148,17 +162,27 @@ class Asset extends Model
             ->first();
     }
 
+    /**
+     * Sesuaikan pemegang dan kondisi dengan BA terbaru: BA Pengembalian
+     * memulangkan aset ke stok (tanpa pemegang), BA lain menyerahkannya ke
+     * penerima BA.
+     */
     public function syncRecipientFromLatestTransferDetail(): bool
     {
         $latestTransfer = $this->latestTransferDetail()?->assetTransfer;
+        $documentType = $latestTransfer?->documentType();
 
-        if (! $latestTransfer?->toUser) {
+        if (! $latestTransfer || ! $documentType) {
             return false;
         }
 
-        $this->recipient_id = $latestTransfer->to_user_id;
+        if (! $documentType->returnsToStock() && ! $latestTransfer->toUser) {
+            return false;
+        }
+
+        $this->recipient_id = $documentType->returnsToStock() ? null : $latestTransfer->to_user_id;
         $this->recipient_business_entity_id = $latestTransfer->business_entity_id;
-        $this->condition_status = self::userHasGeneralAffairRole($latestTransfer->toUser)
+        $this->condition_status = $documentType->returnsToStock()
             ? AssetCondition::Available
             : AssetCondition::Transferred;
 
@@ -209,29 +233,13 @@ class Asset extends Model
         return $this->save();
     }
 
+    /**
+     * Setelah perbaikan selesai: aset tanpa pemegang kembali ke stok (Tersedia),
+     * aset yang dipegang seseorang kembali Digunakan.
+     */
     protected function operationalConditionAfterRepair(): AssetCondition
     {
-        if (! $this->recipient_id) {
-            return AssetCondition::Available;
-        }
-
-        $recipient = $this->relationLoaded('recipient')
-            ? $this->recipient
-            : User::find($this->recipient_id);
-
-        if (self::userHasGeneralAffairRole($recipient)) {
-            return AssetCondition::Available;
-        }
-
-        return AssetCondition::Transferred;
-    }
-
-    public static function userHasGeneralAffairRole(?User $user): bool
-    {
-        return $user !== null
-            && Schema::hasTable('roles')
-            && Schema::hasTable('model_has_roles')
-            && $user->hasRole('general_affair');
+        return $this->recipient_id ? AssetCondition::Transferred : AssetCondition::Available;
     }
 
     protected static function normalizeUploadPath(mixed $path): ?string
@@ -287,6 +295,33 @@ class Asset extends Model
      * mengunci aset dari opsi transfer selama pengajuan belum selesai ditindak
      * lanjuti, agar tidak dobel-tindak (dipindah sambil ditarik/diperbaiki).
      */
+    /**
+     * Aset yang boleh dilihat $user: badan usaha pemilik, badan usaha penerima
+     * (BA terakhir / penanda stok), atau badan usaha pemegangnya termasuk akses
+     * user, supaya aset yang dipakai lintas badan usaha tetap terlihat oleh
+     * semua pihak yang mengurusnya.
+     */
+    public function scopeAccessibleBy(Builder $query, User $user): Builder
+    {
+        if ($user->hasUnrestrictedBusinessEntityAccess()) {
+            return $query;
+        }
+
+        $ids = $user->accessibleBusinessEntityIds();
+
+        return $query->where(fn (Builder $scoped): Builder => $scoped
+            ->whereIn($query->qualifyColumn('business_entity_id'), $ids)
+            ->orWhereIn($query->qualifyColumn('recipient_business_entity_id'), $ids)
+            ->orWhereHas('recipient', fn (Builder $holder): Builder => $holder->whereIn('business_entity_id', $ids)));
+    }
+
+    public function isAccessibleBy(User $user): bool
+    {
+        return $user->canAccessBusinessEntity($this->business_entity_id)
+            || $user->canAccessBusinessEntity($this->recipient_business_entity_id)
+            || ($this->recipient_id !== null && $user->canAccessBusinessEntity($this->recipient?->business_entity_id));
+    }
+
     public function scopeNotLockedForOpenRequest(Builder $query): Builder
     {
         if (! self::assetRequestLockColumnsAvailable()) {
@@ -299,7 +334,7 @@ class Asset extends Model
                 ->whereNull('fulfilled_at');
         });
 
-        if (Schema::hasTable('asset_request_items')) {
+        if (self::assetRequestItemsTableAvailable()) {
             $query->whereDoesntHave('assetRequestItems.assetRequest', function (Builder $q): void {
                 $q->whereIn('type', [AssetRequestType::Penarikan->value, AssetRequestType::Perbaikan->value])
                     ->whereIn('status', [RequestStatus::Pending->value, RequestStatus::Approved->value])
@@ -334,7 +369,7 @@ class Asset extends Model
             ->when($exceptAssetRequestId, fn (Builder $q) => $q->whereKeyNot($exceptAssetRequestId))
             ->exists();
 
-        if ($legacyLockExists || ! Schema::hasTable('asset_request_items')) {
+        if ($legacyLockExists || ! self::assetRequestItemsTableAvailable()) {
             return $legacyLockExists;
         }
 
@@ -348,12 +383,21 @@ class Asset extends Model
             ->exists();
     }
 
+    /**
+     * Cek skema dipanggil per query aset (mis. tiap baris form BA); hasilnya
+     * tidak berubah selama request sehingga cukup sekali ke information_schema.
+     */
     protected static function assetRequestLockColumnsAvailable(): bool
     {
-        return Schema::hasTable('asset_requests')
+        return once(fn (): bool => Schema::hasTable('asset_requests')
             && Schema::hasColumn('asset_requests', 'type')
             && Schema::hasColumn('asset_requests', 'status')
-            && Schema::hasColumn('asset_requests', 'fulfilled_at');
+            && Schema::hasColumn('asset_requests', 'fulfilled_at'));
+    }
+
+    protected static function assetRequestItemsTableAvailable(): bool
+    {
+        return once(fn (): bool => Schema::hasTable('asset_request_items'));
     }
 
     private function formatDiff($value, $unit)
@@ -545,13 +589,15 @@ class Asset extends Model
         }
 
         $latestTransfer = $this->latestTransferDetail()?->assetTransfer;
+        $latestDocumentType = $latestTransfer?->documentType();
 
-        if ($latestTransfer && $this->recipient_id != $latestTransfer->to_user_id) {
-            return false;
+        if ($latestTransfer && $latestDocumentType) {
+            $expectedRecipientId = $latestDocumentType->returnsToStock() ? 0 : (int) $latestTransfer->to_user_id;
+
+            if ((int) ($this->recipient_id ?? 0) !== $expectedRecipientId) {
+                return false;
+            }
         }
-
-        $recipient = $this->recipient ?? User::find($this->recipient_id);
-        $hasGeneralAffairRole = self::userHasGeneralAffairRole($recipient);
 
         if ($this->condition_status instanceof AssetCondition && $this->condition_status->isIncident()) {
             if ($this->nbh_status === NbhStatus::None) {
@@ -566,20 +612,13 @@ class Asset extends Model
             return true;
         }
 
+        // Stok (Tersedia) tidak punya pemegang; aset Digunakan selalu punya pemegang.
         if ($this->condition_status === AssetCondition::Available) {
-            return ! $recipient || $hasGeneralAffairRole;
+            return $this->recipient_id === null;
         }
 
-        if ($this->condition_status === AssetCondition::Transferred && ! $recipient) {
-            return false;
-        }
-
-        if ($hasGeneralAffairRole && $this->condition_status !== AssetCondition::Available) {
-            return false;
-        }
-
-        if (! $hasGeneralAffairRole && $this->condition_status !== AssetCondition::Transferred) {
-            return false;
+        if ($this->condition_status === AssetCondition::Transferred) {
+            return $this->recipient_id !== null;
         }
 
         return true;
