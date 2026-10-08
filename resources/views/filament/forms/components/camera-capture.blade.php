@@ -80,6 +80,15 @@
                 }
             },
 
+            openGallery() {
+                this.capturedImage = null;
+                this.isUploading = false;
+                this.isCameraOpen = false;
+                if (this.$refs.galleryInput) {
+                    this.$refs.galleryInput.click();
+                }
+            },
+
             async startStream() {
                 if (this.mediaStream) {
                     this.stopStream();
@@ -223,7 +232,7 @@
                 }
             },
 
-            // Tangani foto dari kamera HP dengan kompresi otomatis & preview review
+            // Tangani foto dari kamera HP / galeri dengan kompresi otomatis & preview review
             async handleNativeFile(event) {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -270,8 +279,8 @@
                     this.capturedImage = compressedDataUrl;
                     this.isCameraOpen = true;
                 } catch (err) {
-                    console.error('Gagal memproses foto HP:', err);
-                    alert('Gagal memproses foto kamera: ' + err.message);
+                    console.error('Gagal memproses foto:', err);
+                    alert('Gagal memproses foto: ' + err.message);
                 } finally {
                     this.isUploading = false;
                     event.target.value = '';
@@ -287,7 +296,7 @@
                 }
             }
         }"
-        style="position: relative; width: 100%;"
+        class="fi-fo-camera-capture relative w-full"
     >
         <!-- Hidden input for form submission -->
         <input type="hidden" :name="statePath" :value="state">
@@ -298,224 +307,277 @@
             x-ref="nativeCameraInput"
             accept="image/*"
             capture="environment"
-            style="display: none;"
+            class="hidden"
             @change="handleNativeFile($event)"
         >
 
-        <!-- TAMPILAN JIKA SUDAH ADA FOTO -->
+        <!-- Gallery / File input (Unggah file dari galeri atau penyimpanan lokal) -->
+        <input
+            type="file"
+            x-ref="galleryInput"
+            accept="image/*"
+            class="hidden"
+            @change="handleNativeFile($event)"
+        >
+
+        <!-- TAMPILAN JIKA SUDAH ADA FOTO (SINKRON DENGAN FILAMENT FILEUPLOAD IMAGE PREVIEW) -->
         <div
             x-show="state"
-            style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 12px;"
+            x-cloak
+            class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xs transition-all dark:border-white/10 dark:bg-white/5"
         >
-            <div style="position: relative; width: 100%; height: 180px; overflow: hidden; border-radius: 8px; background-color: #f1f5f9;">
+            <div class="relative w-full h-56 sm:h-64 overflow-hidden bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
                 <img
                     :src="imageUrl"
                     alt="Hasil Foto Kamera"
-                    style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                    class="w-full h-full object-cover"
                 />
-                <div style="position: absolute; top: 8px; right: 8px; background: rgba(16, 185, 129, 0.95); color: #ffffff; border-radius: 9999px; padding: 4px 8px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-                    <svg style="width: 13px; height: 13px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Tersimpan
+                <div class="absolute top-3 right-3 shadow-xs">
+                    <x-filament::badge color="success" icon="heroicon-m-check-circle">
+                        Tersimpan
+                    </x-filament::badge>
                 </div>
             </div>
 
-            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-                <button
-                    type="button"
-                    @click="openCamera()"
-                    style="display: inline-flex; align-items: center; gap: 6px; background-color: #2563eb; color: #ffffff; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; transition: background-color 0.15s;"
-                    onmouseover="this.style.backgroundColor='#1d4ed8'"
-                    onmouseout="this.style.backgroundColor='#2563eb'"
-                >
-                    <svg style="width: 14px; height: 14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Foto Ulang
-                </button>
-                <button
-                    type="button"
-                    @click="clearPhoto()"
-                    style="display: inline-flex; align-items: center; background: #ffffff; color: #dc2626; font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid #fca5a5; cursor: pointer;"
-                >
-                    Hapus
-                </button>
+            <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 border-t border-gray-100 bg-gray-50/60 dark:border-white/5 dark:bg-white/[0.02]">
+                <div class="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 min-w-0">
+                    <x-filament::icon icon="heroicon-m-photo" class="size-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                    <span class="truncate">Foto bukti berhasil tersimpan</span>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <x-filament::button
+                        type="button"
+                        size="sm"
+                        color="gray"
+                        icon="heroicon-m-camera"
+                        @click="openCamera()"
+                    >
+                        Foto Ulang
+                    </x-filament::button>
+
+                    <x-filament::button
+                        type="button"
+                        size="sm"
+                        color="gray"
+                        icon="heroicon-m-photo"
+                        @click="openGallery()"
+                    >
+                        Ganti dari Galeri
+                    </x-filament::button>
+
+                    <x-filament::button
+                        type="button"
+                        size="sm"
+                        color="danger"
+                        icon="heroicon-m-trash"
+                        @click="clearPhoto()"
+                    >
+                        Hapus
+                    </x-filament::button>
+                </div>
             </div>
         </div>
 
-        <!-- TAMPILAN JIKA BELUM ADA FOTO (KOTAK KAMERA RAPI, BERSIH & PRESISI) -->
+        <!-- TAMPILAN JIKA BELUM ADA FOTO (SINKRON DENGAN FILAMENT FILEUPLOAD DROPZONE) -->
         <div
             x-show="!state"
-            @click="openCamera()"
-            style="background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 24px 16px; text-align: center !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-height: 120px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.03);"
-            onmouseover="this.style.borderColor='#3b82f6'; this.style.backgroundColor='#eff6ff';"
-            onmouseout="this.style.borderColor='#cbd5e1'; this.style.backgroundColor='#f8fafc';"
+            class="group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50/50 p-6 sm:p-8 text-center transition-all duration-150 hover:border-primary-500 hover:bg-primary-50/20 dark:border-white/15 dark:bg-white/5 dark:hover:border-primary-400 dark:hover:bg-primary-950/20"
         >
-            <div style="width: 44px; height: 44px; border-radius: 9999px; background-color: #ffffff; color: #2563eb; display: flex !important; align-items: center !important; justify-content: center !important; margin: 0 auto 10px auto !important; align-self: center !important; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                <svg style="width: 22px; height: 22px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
+            <div
+                class="mb-3 flex size-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 ring-1 ring-primary-500/15 shadow-xs transition-transform duration-150 group-hover:scale-105 dark:bg-primary-950/50 dark:text-primary-400 dark:ring-primary-400/20"
+            >
+                <x-filament::icon icon="heroicon-o-camera" class="size-6" />
             </div>
 
-            <div
-                style="display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px; background-color: #2563eb; color: #ffffff; font-size: 13px; font-weight: 600; padding: 8px 22px; border-radius: 8px; box-shadow: 0 2px 4px rgba(37,99,235,0.25); margin: 0 auto !important; align-self: center !important;"
-            >
-                <span>Buka Kamera</span>
+            <div class="flex flex-wrap items-center justify-center gap-2.5 mb-2">
+                <x-filament::button
+                    type="button"
+                    icon="heroicon-m-camera"
+                    color="primary"
+                    size="sm"
+                    @click="openCamera()"
+                >
+                    {{ $getCaptureLabel() }}
+                </x-filament::button>
+
+                <x-filament::button
+                    type="button"
+                    icon="heroicon-m-photo"
+                    color="gray"
+                    size="sm"
+                    @click="openGallery()"
+                >
+                    Pilih dari Galeri
+                </x-filament::button>
             </div>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 max-w-sm mt-1">
+                Buka kamera langsung untuk bukti ruangan, atau pilih foto dari perangkat (Maks. 10MB)
+            </p>
         </div>
 
-        <!-- MODAL LIVE VIEWFINDER KAMERA & REVIEW FOTO (RESPONSIF HP & DESKTOP) -->
+        <!-- MODAL LIVE VIEWFINDER KAMERA & REVIEW FOTO -->
         <div
             x-show="isCameraOpen"
+            x-cloak
             x-transition:enter="transition ease-out duration-200"
             x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100"
             x-transition:leave="transition ease-in duration-150"
             x-transition:leave-start="opacity-100"
             x-transition:leave-end="opacity-0"
-            style="position: fixed; inset: 0; z-index: 99999; background-color: rgba(0, 0, 0, 0.88); display: flex; align-items: center; justify-content: center; padding: 12px; backdrop-filter: blur(4px); overflow-y: auto;"
+            class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gray-950/80 backdrop-blur-sm overflow-y-auto"
             @keydown.escape.window="closeCamera()"
         >
-            <div style="position: relative; width: 100%; max-width: 480px; max-height: 94vh; overflow: hidden; border-radius: 16px; background-color: #111827; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); display: flex; flex-direction: column;">
+            <div
+                class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl text-white flex flex-col my-auto max-h-[92vh]"
+                @click.away="closeCamera()"
+            >
                 <!-- Header Modal -->
-                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; padding: 12px 16px; color: #ffffff; background-color: #111827; flex-shrink: 0;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-3.5 border-b border-gray-800 bg-gray-900/90 shrink-0">
+                    <div class="flex items-center gap-2.5">
                         <span
-                            style="display: inline-block; width: 10px; height: 10px; border-radius: 9999px; transition: all 0.2s;"
-                            :style="capturedImage ? 'background-color: #10b981; box-shadow: 0 0 8px #10b981;' : 'background-color: #ef4444; box-shadow: 0 0 8px #ef4444;'"
+                            class="size-2.5 rounded-full transition-all duration-200"
+                            :class="capturedImage ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.8)]'"
                         ></span>
                         <h3
-                            style="font-size: 14px; font-weight: 600; color: #ffffff; margin: 0;"
+                            class="text-sm font-semibold text-white tracking-tight"
                             x-text="capturedImage ? 'Review Hasil Foto' : 'Kamera Aktif (Foto Langsung)'"
                         ></h3>
                     </div>
+
                     <button
                         type="button"
                         @click="closeCamera()"
-                        style="background: transparent; border: none; color: #9ca3af; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center;"
+                        class="rounded-lg p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
                         title="Tutup"
                     >
-                        <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                        <x-filament::icon icon="heroicon-m-x-mark" class="size-5" />
                     </button>
                 </div>
 
-                <!-- Video Stream & Preview Area (Aspect ratio pas di layar HP & PC) -->
-                <div style="position: relative; width: 100%; max-height: 55vh; min-height: 260px; aspect-ratio: 4/3; overflow: hidden; background-color: #000000; display: flex; align-items: center; justify-content: center;">
-                    <!-- Live Camera Stream (tampil saat belum jepret) -->
+                <!-- Video Stream & Preview Area -->
+                <div class="relative w-full aspect-4/3 min-h-[260px] max-h-[55vh] overflow-hidden bg-black flex items-center justify-center">
+                    <!-- Live Camera Stream -->
                     <video
                         x-show="!capturedImage"
                         x-ref="videoElement"
                         autoplay
                         playsinline
                         muted
-                        style="width: 100%; height: 100%; object-fit: cover;"
+                        class="w-full h-full object-cover"
                     ></video>
 
-                    <!-- Preview Hasil Foto (tampil setelah jepret sebelum disimpan) -->
+                    <!-- Framing Brackets Overlay -->
+                    <div x-show="!capturedImage" class="pointer-events-none absolute inset-6 border border-white/20 rounded-xl">
+                        <div class="absolute -top-1 -left-1 size-4 border-t-2 border-l-2 border-white rounded-tl"></div>
+                        <div class="absolute -top-1 -right-1 size-4 border-t-2 border-r-2 border-white rounded-tr"></div>
+                        <div class="absolute -bottom-1 -left-1 size-4 border-b-2 border-l-2 border-white rounded-bl"></div>
+                        <div class="absolute -bottom-1 -right-1 size-4 border-b-2 border-r-2 border-white rounded-br"></div>
+                    </div>
+
+                    <!-- Preview Hasil Foto -->
                     <img
                         x-show="capturedImage"
                         :src="capturedImage"
                         alt="Preview Foto"
-                        style="width: 100%; height: 100%; object-fit: contain; background-color: #000000;"
+                        class="w-full h-full object-contain bg-black"
                     />
 
-                    <!-- Canvas tersembunyi untuk proses snapshot & kompresi -->
-                    <canvas x-ref="canvasElement" style="display: none;"></canvas>
+                    <!-- Canvas tersembunyi -->
+                    <canvas x-ref="canvasElement" class="hidden"></canvas>
+
+                    <!-- Tombol Balik Kamera (Depan / Belakang) di dalam viewfinder -->
+                    <button
+                        x-show="!capturedImage"
+                        type="button"
+                        @click="switchCamera()"
+                        class="absolute top-3 right-3 p-2.5 rounded-full bg-gray-900/70 hover:bg-gray-900 text-white backdrop-blur-md transition-all shadow-md"
+                        title="Balik Kamera (Depan / Belakang)"
+                    >
+                        <x-filament::icon icon="heroicon-m-arrow-path" class="size-5" />
+                    </button>
 
                     <!-- Loading Overlay saat upload -->
                     <div
                         x-show="isUploading"
-                        style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.75); color: #ffffff; z-index: 10;"
+                        class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 text-white z-20 backdrop-blur-xs"
                     >
-                        <svg style="width: 36px; height: 36px; animation: spin 1s linear infinite;" fill="none" viewBox="0 0 24 24">
-                            <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p style="margin-top: 8px; font-size: 13px; font-weight: 500;">Sedang menyimpan foto...</p>
+                        <x-filament::loading-indicator class="size-8 text-primary-500 mb-2" />
+                        <p class="text-xs font-medium text-gray-200">Sedang menyimpan foto...</p>
                     </div>
                 </div>
 
-                <!-- Footer / Controls (Touch friendly di HP & Desktop) -->
-                <div style="background-color: #030712; padding: 16px 20px; border-top: 1px solid #1f2937; flex-shrink: 0; width: 100%;">
-                    <!-- TAMPILAN KONTROL SAAT LIVE STREAM (BELUM AMBIL FOTO) -->
+                <!-- Footer / Controls -->
+                <div class="bg-gray-950 p-4 sm:p-5 border-t border-gray-800 shrink-0">
+                    <!-- Kontrol Saat Live Stream -->
                     <div
                         x-show="!capturedImage"
-                        style="display: grid !important; grid-template-columns: 1fr auto 1fr !important; align-items: center !important; width: 100% !important; gap: 12px;"
+                        class="grid grid-cols-3 items-center w-full"
                     >
-                        <!-- Kolom 1 Kiri: Tombol Balik Kamera (Depan / Belakang) -->
-                        <div style="display: flex !important; justify-content: flex-start !important; align-items: center !important;">
-                            <button
+                        <div class="flex justify-start">
+                            <x-filament::button
                                 type="button"
-                                @click="switchCamera()"
-                                style="background-color: #1f2937; border: 1px solid #374151; color: #d1d5db; width: 44px; height: 44px; min-width: 44px; border-radius: 9999px; cursor: pointer; display: flex !important; align-items: center !important; justify-content: center !important; transition: all 0.2s;"
-                                title="Balik Kamera (Depan / Belakang)"
+                                color="gray"
+                                size="sm"
+                                @click="openGallery()"
                             >
-                                <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                </svg>
-                            </button>
+                                Galeri
+                            </x-filament::button>
                         </div>
 
-                        <!-- Kolom 2 Tengah: Tombol Shutter Utama (AMBIL FOTO) -->
-                        <div style="display: flex !important; justify-content: center !important; align-items: center !important;">
+                        <!-- Shutter Button -->
+                        <div class="flex justify-center">
                             <button
                                 type="button"
                                 @click="takeSnapshot()"
-                                style="background-color: transparent; width: 72px; height: 72px; min-width: 72px; border-radius: 9999px; border: 4px solid #ffffff; box-shadow: none; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer; transition: transform 0.1s; margin: 0 auto !important; padding: 0;"
-                                onmouseover="this.style.transform='scale(1.06)'"
-                                onmouseout="this.style.transform='scale(1)'"
+                                class="size-16 rounded-full border-4 border-white/80 p-1 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform duration-100 cursor-pointer shadow-lg bg-transparent"
                                 title="Ambil Foto"
                             >
-                                <div style="width: 56px; height: 56px; border-radius: 9999px; background-color: #ffffff;"></div>
+                                <div class="size-12 rounded-full bg-white shadow-inner"></div>
                             </button>
                         </div>
 
-                        <!-- Kolom 3 Kanan: Tombol Batal -->
-                        <div style="display: flex !important; justify-content: flex-end !important; align-items: center !important;">
-                            <button
+                        <div class="flex justify-end">
+                            <x-filament::button
                                 type="button"
+                                color="gray"
+                                size="sm"
                                 @click="closeCamera()"
-                                style="background: transparent; border: 1px solid #374151; color: #9ca3af; padding: 8px 16px; min-height: 40px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex !important; align-items: center !important; justify-content: center !important;"
                             >
                                 Batal
-                            </button>
+                            </x-filament::button>
                         </div>
                     </div>
 
-                    <!-- TAMPILAN KONTROL SETELAH AMBIL FOTO (REVIEW DULU SEBELUM SIMPAN) -->
+                    <!-- Kontrol Saat Review Foto -->
                     <div
                         x-show="capturedImage"
-                        style="display: grid !important; grid-template-columns: 1fr 1fr !important; align-items: center !important; width: 100% !important; gap: 12px !important;"
+                        class="grid grid-cols-2 gap-3 items-center w-full"
                     >
-                        <!-- Tombol Foto Ulang -->
-                        <button
+                        <x-filament::button
                             type="button"
+                            color="gray"
+                            icon="heroicon-m-arrow-path"
                             @click="retakePhoto()"
-                            style="width: 100%; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 6px; background-color: #374151; color: #f3f4f6; border: none; min-height: 48px; padding: 10px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;"
-                            :disabled="isUploading"
+                            x-bind:disabled="isUploading"
+                            class="w-full"
                         >
-                            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
                             Foto Ulang
-                        </button>
+                        </x-filament::button>
 
-                        <!-- Tombol Gunakan Foto Ini (Simpan) -->
-                        <button
+                        <x-filament::button
                             type="button"
+                            color="primary"
+                            icon="heroicon-m-check"
                             @click="confirmAndUploadPhoto()"
-                            style="width: 100%; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 6px; background-color: #16a34a; color: #ffffff; border: none; min-height: 48px; padding: 10px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.4);"
-                            :disabled="isUploading"
+                            x-bind:disabled="isUploading"
+                            class="w-full"
                         >
-                            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            <span x-text="isUploading ? 'Menyimpan...' : 'Gunakan Foto Ini'"></span>
-                        </button>
+                            <span x-show="!isUploading">Gunakan Foto Ini</span>
+                            <span x-show="isUploading">Menyimpan...</span>
+                        </x-filament::button>
                     </div>
                 </div>
             </div>
