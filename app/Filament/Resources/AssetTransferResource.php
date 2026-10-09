@@ -33,6 +33,8 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -284,7 +286,48 @@ class AssetTransferResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                SelectFilter::make('businessEntity')->relationship('businessEntity', 'name')->translateLabel(),
+                SelectFilter::make('businessEntity')
+                    ->relationship('businessEntity', 'name')
+                    ->translateLabel()
+                    ->multiple()
+                    ->searchable()
+                    ->preload(),
+                Filter::make('transfer_date')
+                    ->label('Periode Transfer')
+                    ->form([
+                        DatePicker::make('from')
+                            ->label('Dari Tanggal')
+                            ->native(false),
+                        DatePicker::make('until')
+                            ->label('Sampai Tanggal')
+                            ->native(false),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['from'] ?? null,
+                                fn (Builder $query, $date): Builder => $query->whereDate('transfer_date', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'] ?? null,
+                                fn (Builder $query, $date): Builder => $query->whereDate('transfer_date', '<=', $date),
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        if ($data['from'] ?? null) {
+                            $indicators[] = Indicator::make('Dari: ' . Carbon::parse($data['from'])->format('d M Y'))
+                                ->removeField('from');
+                        }
+
+                        if ($data['until'] ?? null) {
+                            $indicators[] = Indicator::make('Sampai: ' . Carbon::parse($data['until'])->format('d M Y'))
+                                ->removeField('until');
+                        }
+
+                        return $indicators;
+                    }),
                 SelectFilter::make('document_type')
                     ->label('Jenis BA')
                     ->options(AssetTransferDocumentType::options()),
