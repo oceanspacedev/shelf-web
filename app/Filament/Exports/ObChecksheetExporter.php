@@ -23,18 +23,29 @@ class ObChecksheetExporter extends Exporter
                 ->label('No. Referensi'),
 
             ExportColumn::make('user.name')
-                ->label('Petugas OB'),
+                ->label('Petugas OB')
+                ->state(fn (ObChecksheet $record): string => $record->user?->name ?? 'Belum diambil'),
 
             ExportColumn::make('room')
                 ->label('Nama Ruangan'),
 
+            ExportColumn::make('scheduled_date')
+                ->label('Tanggal')
+                ->state(fn (ObChecksheet $record): ?string => $record->scheduled_date?->format('d/m/Y')),
+
+            ExportColumn::make('shift_label')
+                ->label('Shift'),
+
+            ExportColumn::make('source')
+                ->label('Jenis')
+                ->state(fn (ObChecksheet $record): string => ObChecksheet::sourceLabel($record->source)),
+
+            ExportColumn::make('assigner.name')
+                ->label('Ditugaskan Oleh'),
+
             ExportColumn::make('status')
                 ->label('Status')
-                ->state(fn (ObChecksheet $record): string => match ($record->status) {
-                    'in_progress' => 'Sedang Dikerjakan',
-                    'completed' => 'Selesai',
-                    default => $record->status ?? '-',
-                }),
+                ->state(fn (ObChecksheet $record): string => ObChecksheet::statusLabel($record->status)),
 
             ExportColumn::make('started_at')
                 ->label('Waktu Mulai')
@@ -46,7 +57,7 @@ class ObChecksheetExporter extends Exporter
 
             ExportColumn::make('duration_minutes')
                 ->label('Durasi (Menit)')
-                ->state(fn (ObChecksheet $record): string => $record->duration_minutes !== null ? (string) $record->duration_minutes : '-'),
+                ->state(fn (ObChecksheet $record): string => $record->showsDuration() && $record->duration_minutes !== null ? (string) $record->duration_minutes : '-'),
 
             ExportColumn::make('before_photo')
                 ->label('Foto Sebelum')
@@ -88,10 +99,10 @@ class ObChecksheetExporter extends Exporter
     {
         $user = auth()->user();
 
-        $query = $query->with(['user']);
+        $query = $query->with(['user', 'assigner']);
 
         if ($user && ! $user->can('viewAll', ObChecksheet::class)) {
-            $query->where('user_id', $user->id);
+            $query->visibleTo($user);
         }
 
         return $query;

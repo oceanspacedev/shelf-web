@@ -6,6 +6,7 @@ use App\Filament\Exports\ObChecksheetExporter;
 use App\Filament\Resources\ObChecksheetResource;
 use App\Filament\Resources\ObChecksheetResource\Pages\CreateObChecksheet;
 use App\Filament\Resources\ObChecksheetResource\Pages\ListObChecksheets;
+use App\Filament\Resources\ObChecksheetResource\Pages\ViewObChecksheet;
 use App\Models\ObChecksheet;
 use App\Models\User;
 use Filament\Actions\Exports\Models\Export;
@@ -72,7 +73,7 @@ class ObChecksheetTest extends TestCase
         $this->assertNotSame($records[0]->reference_number, $records[1]->reference_number);
     }
 
-    public function test_list_photo_uses_the_current_site_address(): void
+    public function test_detail_photo_uses_the_current_site_address_and_the_list_shows_no_photos(): void
     {
         $user = User::factory()->create();
 
@@ -80,13 +81,18 @@ class ObChecksheetTest extends TestCase
         Gate::before(fn (): bool => true);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        ObChecksheet::create([
+        $checksheet = ObChecksheet::create([
             'user_id' => $user->id,
             'room' => 'Lobby Foto',
             'before_photo' => 'ob-checksheets/before/lobby.jpg',
         ]);
 
+        // Kartu di list sengaja tanpa foto; foto dibuka dari halaman detail.
         Livewire::test(ListObChecksheets::class)
+            ->assertSee('Lobby Foto')
+            ->assertDontSee(url('/storage/ob-checksheets/before/lobby.jpg'), false);
+
+        Livewire::test(ViewObChecksheet::class, ['record' => $checksheet->getKey()])
             ->assertSee(url('/storage/ob-checksheets/before/lobby.jpg'), false);
     }
 

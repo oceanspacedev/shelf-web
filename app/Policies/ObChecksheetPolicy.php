@@ -144,6 +144,14 @@ class ObChecksheetPolicy
     }
 
     /**
+     * Atasan menugaskan pembersihan ke OB dan mengganti petugasnya.
+     */
+    public function assign(User $user): bool
+    {
+        return $user->can('assign_ob::checksheet');
+    }
+
+    /**
      * Checksheet tanpa petugas (atau model yang belum tersimpan) cukup dicek izinnya.
      */
     private function isOwnedBy(User $user, ObChecksheet $obChecksheet): bool

@@ -79,6 +79,7 @@ return [
             'viewAll',
             'updateAll',
             'deleteAll',
+            'assign',
             'manageAccess',
             'manageBusinessEntityAccess',
         ],
@@ -133,6 +134,8 @@ return [
                 'viewAll',
                 'updateAll',
                 'deleteAll',
+                // Menugaskan pembersihan ke OB dan mengganti petugasnya.
+                'assign',
             ],
             DivisionResource::class => [
                 'restore',

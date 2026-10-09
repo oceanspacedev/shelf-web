@@ -5,6 +5,8 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Plugins\FilamentExceptionsPlugin;
 use App\Filament\Resources\AssetResource\Widgets\CustomAssetWidget;
+use App\Filament\Resources\ObChecksheetResource\Pages\ListObChecksheets;
+use App\Filament\Resources\ObChecksheetResource\Pages\ViewObChecksheet;
 use Apriansyahrs\MekayaTheme\Livewire\MekayaSidebar;
 use Apriansyahrs\MekayaTheme\MekayaPlugin;
 use Asmit\ResizedColumn\ResizedColumnPlugin;
@@ -48,6 +50,12 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
                 fn () => view('auth.login-extra'),
+            )
+            // Foto OB Checksheet bisa diklik untuk diperbesar.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.ob-checksheet.image-lightbox'),
+                scopes: [ListObChecksheets::class, ViewObChecksheet::class],
             )
             ->passwordReset(null, null)
             ->profile(null)
